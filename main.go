@@ -1,0 +1,62 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/kelseyhightower/envconfig"
+	"github.com/m-barthelemy/vpn-webauth/models"
+	"github.com/m-barthelemy/vpn-webauth/routes"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
+
+func main() {
+	var config models.Config
+	config = config.New()
+
+	err := envconfig.Process("VPNWA", &config)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	config.Verify()
+
+	var db *gorm.DB
+	var dbErr error
+
+	switch strings.ToLower(config.DbType) {
+	case "sqlite":
+		db, dbErr = gorm.Open(sqlite.Open(config.DbDSN), &gorm.Config{})
+	case "postgres":
+		db, dbErr = gorm.Open(postgres.Open(config.DbDSN), &gorm.Config{})
+	case "mysql":
+		db, dbErr = gorm.Open(mysql.Open(config.DbDSN), &gorm.Config{})
+	default:
+		log.Fatalf("Unknown DbType '%s'", config.DbType)
+	}
+	if dbErr != nil {
+		log.Fatalf("Failed to connect to database: %s", dbErr)
+	}
+
+	// Migrate the schema
+	db.AutoMigrate(&models.User{})
+	db.AutoMigrate(&models.VpnSession{})
+
+	// Simple server using http.Server and run.
+	server := &http.Server{
+		Addr:    fmt.Sprintf("%s:%v", config.Host, config.Port),
+		Handler: routes.New(&config, db),
+	}
+	log.Printf("Starting HTTP Server. Listening at %q", server.Addr)
+
+	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+		log.Printf("%v", err)
+	} else {
+		log.Println("Server closed!")
+	}
+
+}

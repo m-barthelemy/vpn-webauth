@@ -1,0 +1,27 @@
+body {
+    display: flex;
+    min-height: 100vh;
+    flex-direction: column;
+    background: #fff;
+}
+
+main {
+    flex: 1 0 auto;
+}
+
+.logo {
+    max-height: 4em;
+}
+
+.otp {
+    padding-left: 2em;
+    letter-spacing: 1em;
+}
+
+.qrcode {
+    width: 40%;
+}
+
+.section-title {
+    text-align: left;
+}
