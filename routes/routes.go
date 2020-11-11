@@ -17,6 +17,8 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 
 	mux := http.NewServeMux()
 
+	mux.Handle("/assets/", http.FileServer(http.Dir("templates/")))
+
 	tplHandler := NewTemplateHandler(config)
 	// Anything not matching a route below will be considered as a HTML template
 	mux.HandleFunc("/", tplHandler.HandleTemplate)

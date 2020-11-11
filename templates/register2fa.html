@@ -1,15 +1,5 @@
 <html>
-
-<head>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" type="text/css"
-          href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.5/css/materialize.min.css">
-    <link rel="stylesheet" type="text/css" href="/css.css">
-    <script src="https://code.jquery.com/jquery-3.5.0.js"></script>
-    <script type="text/javascript"
-            src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.5/js/materialize.min.js"></script>
-</head>
-
+{{ template "header" }}
 <body>
 <div class="section"></div>
 <main>
@@ -37,7 +27,7 @@
                 <div class="row">
                     <div class='input-field col s12'>
                         <i class="material-icons prefix">keyboard</i>
-                        <input class='validate' type='number' name='otp' id='otp' max="999999" minlength="6" maxlength="6" autofocus/>
+                        <input class='validate otp' type='number' name='otp' id='otp' max="999999" minlength="6" maxlength="6" autofocus/>
                         <label for='otp'>Enter your 2FA code</label>
                         <span class="helper-text" data-error="Must be 6 digits" data-success="right"></span>
                     </div>
@@ -57,6 +47,7 @@
 
     <div class="section"></div>
 </main>
+<script type="text/javascript" src="/assets/materialize.min-0.97.5.js"></script>
 </body>
 
 </html>

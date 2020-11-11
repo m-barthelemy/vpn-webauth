@@ -16,6 +16,7 @@ main {
 .otp {
     padding-left: 2em;
     letter-spacing: 1em;
+    font-size: 2.5em;
 }
 
 .qrcode {
