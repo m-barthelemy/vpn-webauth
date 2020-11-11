@@ -63,7 +63,12 @@ func (g *GoogleController) OauthGoogleLogin(w http.ResponseWriter, r *http.Reque
 }
 
 func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Request) {
-	oauthState, _ := r.Cookie("oauthstate")
+	oauthState, err := r.Cookie("oauthstate")
+	if err != nil {
+		log.Printf("GoogleController: error fetching OAuth state cookie: %s", err)
+		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		return
+	}
 
 	if r.FormValue("state") != oauthState.Value {
 		log.Println("invalid oauth google state")
