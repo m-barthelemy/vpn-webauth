@@ -102,7 +102,8 @@ All the configuration parameters have to passed as environment variables.
   - `VPNWA_GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
   - `VPNWA_ENCRYPTIONKEY`: Key used to encrypt the users OTP secrets in the database. Must be 32 characters. **Mandatory** if `VPNWA_OTP` is set to `true`.
   - `VPNWA_SESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication, in seconds. Default: `3600` (1h).
-    This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
+    > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
+    
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
   - `VPNWA_OTP`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`. 
     > NOTE: This is not related to Google 2FA. By default Google will only require 2FA if your organization enforces it, and it will remember a device/browser for a very long time. This option adds a mandatory 2FA verifications upon each login, independently from your Google settings. Your users will have to register a new 2FA entry in their favorite authenticator app when using this web authentication for the first time.
