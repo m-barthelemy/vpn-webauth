@@ -81,18 +81,19 @@ plugins {
 
 
  ## Configuration options
-
+All the configuration parameters have to passed as environment variables.
   - `VPNWA_HOST`: the IP address to listen on. Default: `127.0.0.1`
   - `VPNWA_PORT`: the port to listen to. Default: `8080`
   - `VPNWA_DBTYPE`: the database engine where the sessions will be stored. Default: `sqlite`. Can be `sqlite`, `postgres`, `mysql`.
   - `VPNWA_DBDSN`: the database connection string. Default: `tmp/vpnwa.db`. Check https://gorm.io/docs/connecting_to_the_database.html for examples.
     > By default a Sqlite database is created. You probably want to at least change its path. Sqlite is only suitable for testing purposed or for a small number of concurrent users, and will only with with a single instance of the app. It is recommended to use MySQL or Postgres instead.
-    > Note: the app will automatically create the tables.
+
+    > NOTE: the app will automatically create the tables and thus needs to have the privileges to do so.
   - `VPNWA_REDIRECTDOMAIN`: the base URL that oAuth2/Google will redirect to after signing in. Default: http://`VPNWA_HOST`:`VPNWA_PORT`
-  - `VPNWA_GOOGLECLIENTID`: Google Client ID. Mandatory.
-  - `VPNWA_GOOGLECLIENTSECRET`: Google Client Secret. Mandatory.
-  - `VPNWA_ENCRYPTIONKEY`: Key used to encrypt the users OTP secrets in the database. Must be 32 characters. Mandatory if `VPNWA_OTP` is set to `true`.
-  - `VPNWA_SESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication, in seconds. Default: `300`.
+  - `VPNWA_GOOGLECLIENTID`: Google Client ID. **Mandatory**.
+  - `VPNWA_GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
+  - `VPNWA_ENCRYPTIONKEY`: Key used to encrypt the users OTP secrets in the database. Must be 32 characters. **Mandatory** if `VPNWA_OTP` is set to `true`.
+  - `VPNWA_SESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication, in seconds. Default: `3600` (1h).
     This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
   - `VPNWA_OTP`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`. 

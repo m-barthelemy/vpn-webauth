@@ -11,21 +11,22 @@ import (
 // Config holds all the application config values.
 // Not really a classical model since not saved into DB.
 type Config struct {
-	Debug              bool     // VPNWA_DEBUG
-	Port               int      // VPNWA_PORT
-	Host               string   // VPNWA_HOST
-	DbType             string   // VPNWA_DBTYPE
-	DbDSN              string   // VPNWA_DBDSN
-	RedirectDomain     *url.URL // VPNWA_REDIRECTDOMAIN
-	GoogleClientID     string   // VPNWA_GOOGLECLIENTID
-	GoogleClientSecret string   // VPNWA_GOOGLECLIENTSECRET
-	SessionValidity    int      // VPNWA_SESSIONVALIDITY
-	OTP                bool     // VPNWA_OTP
-	OTPIssuer          string   // VPNWA_OTPISSUER
-	LogoURL            *url.URL // VPNWA_LOGOURL
-	SigningKey         string   // VPNWA_SIGNINGKEY
-	EncryptionKey      string   // VPNWA_ENCRYPTIONKEY
-	OriginalIPHeader   string   // VPNWA_ORIGINALIPHEADER
+	Debug               bool     // VPNWA_DEBUG
+	Port                int      // VPNWA_PORT
+	Host                string   // VPNWA_HOST
+	DbType              string   // VPNWA_DBTYPE
+	DbDSN               string   // VPNWA_DBDSN
+	RedirectDomain      *url.URL // VPNWA_REDIRECTDOMAIN
+	GoogleClientID      string   // VPNWA_GOOGLECLIENTID
+	GoogleClientSecret  string   // VPNWA_GOOGLECLIENTSECRET
+	SessionValidity     int      // VPNWA_SESSIONVALIDITY
+	OTP                 bool     // VPNWA_OTP
+	OTPIssuer           string   // VPNWA_OTPISSUER
+	LogoURL             *url.URL // VPNWA_LOGOURL
+	SigningKey          string   // VPNWA_SIGNINGKEY
+	EncryptionKey       string   // VPNWA_ENCRYPTIONKEY
+	OriginalIPHeader    string   // VPNWA_ORIGINALIPHEADER
+	VpnOriginalIPHeader string   // VPNWA_VPNORIGINALIPHEADER
 }
 
 func (config *Config) New() Config {
@@ -35,7 +36,7 @@ func (config *Config) New() Config {
 		Debug:           false,
 		Port:            8080,
 		Host:            "127.0.0.1",
-		SessionValidity: 300,
+		SessionValidity: 3600,
 		OTP:             true,
 		OTPIssuer:       "VPN",
 	}
