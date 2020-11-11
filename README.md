@@ -23,6 +23,14 @@ It can also help achieve compliance with some security standards requiring MFA t
  - They now connect to the VPN
  - After the normal VPN authentication, the `ext-auth` plugin calls this webapp to check if the user has successfully completed a web authentication recently and from the same source IP address. If not, the connection is rejected.
 
+## What does it look like?
+<img width="537" alt="Screen Shot 2020-11-11 at 9 02 27 AM" src="https://user-images.githubusercontent.com/2519084/98752335-f7241580-23fc-11eb-985e-91c26c7249aa.png">
+
+<img width="648" alt="Screen Shot 2020-11-11 at 9 05 09 AM" src="https://user-images.githubusercontent.com/2519084/98752367-030fd780-23fd-11eb-8d69-1725d7d5b1d8.png">
+
+<img width="571" alt="Screen Shot 2020-11-11 at 9 06 06 AM" src="https://user-images.githubusercontent.com/2519084/98752428-2470c380-23fd-11eb-97cc-f9a06a5a5f15.png">
+
+
 
 ## Limitations
 - The web auth has to happen **before** connecting to the VPN, since the VPN will verify the existence of a web "session" when the user connects.
