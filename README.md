@@ -26,6 +26,12 @@ It can also help achieve compliance with some security standards requiring MFA t
 ## What does it look like?
 <img width="537" alt="Screen Shot 2020-11-11 at 9 02 27 AM" src="https://user-images.githubusercontent.com/2519084/98752335-f7241580-23fc-11eb-985e-91c26c7249aa.png">
 
+First web auth: 2FA registration
+
+<img width="622" alt="Screen Shot 2020-11-12 at 6 54 06 AM" src="https://user-images.githubusercontent.com/2519084/98873794-f1d5d200-24b3-11eb-9916-370f8caf4472.png">
+
+Subsequent web auths:
+
 <img width="648" alt="Screen Shot 2020-11-11 at 9 05 09 AM" src="https://user-images.githubusercontent.com/2519084/98752367-030fd780-23fd-11eb-8d69-1725d7d5b1d8.png">
 
 <img width="571" alt="Screen Shot 2020-11-11 at 9 06 06 AM" src="https://user-images.githubusercontent.com/2519084/98752428-2470c380-23fd-11eb-97cc-f9a06a5a5f15.png">
