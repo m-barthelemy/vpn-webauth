@@ -1,5 +1,5 @@
 <html>
-{{ template "header" }}
+{{ template "header" . }}
 <body>
 <div class="section"></div>
 <main>
@@ -31,14 +31,7 @@
                         <label for='otp'>Enter your 2FA code</label>
                         <span class="helper-text" data-error="Must be 6 digits" data-success="right"></span>
                     </div>
-                    <script type="text/javascript">        
-                        $("input[type='number']").keyup( function() {
-                            console.warn("change! " + $("input[type='number']").val());
-                            if ($(this).val().length == 6) {
-                                $("form").submit();
-                            }
-                        }).change();
-                    </script>
+                    <script type="text/javascript" src="/assets/script.js"></script> 
                 </div>
             </div>
         </div>

@@ -1,5 +1,5 @@
 <html>
-{{ template "header" }}
+{{ template "header" . }}
 <body>
 <div class="section"></div>
 <main>
@@ -23,24 +23,7 @@
                             <span class="helper-text" data-error="Must be 6 digits" data-success="right"></span>
                             <div id="error" class="card-panel red lighten-2" style="display: none;"><b>The code was invalid</b></div>
                         </div>
-                        <script type="text/javascript">
-                            let searchParams = new URLSearchParams(window.location.search);
-                            if (searchParams.has('error')) {
-                                $("#error").show();
-                            }
-                            $("input[type='number']").keyup( function() {
-                                
-                                console.warn("change! " + $("input[type='number']").val());
-                                var dataLength = $(this).val().length;
-                                
-                                if(dataLength > 0) {
-                                    $("#error").hide();
-                                }
-                                if (dataLength == 6) {
-                                    $("form").submit();
-                                }
-                            }).change(); ;
-                        </script>
+                        <script type="text/javascript" src="/assets/script.js"></script> 
                     </div>
                 </div>
             </div>
