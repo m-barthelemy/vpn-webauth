@@ -89,6 +89,7 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		log.Print(err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
 	}
 	if g.createSession(user.Email, g.config.OTP, w) != nil {
 		log.Printf("GoogleController: error creating user session: %s", err)
@@ -96,8 +97,18 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	sourceIP := utils.New(g.config).GetClientIP(r)
 	if g.config.OTP {
-		if user.TotpValidated {
+		// Check if user has a valid session with OTP
+		allowed, err := userManager.CheckVpnSession(user.Email, sourceIP, true)
+		if err != nil {
+			log.Printf("Error checking existing VPN sessions: ", err.Error())
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		if allowed && user.TotpValidated {
+			http.Redirect(w, r, "/success.html", http.StatusTemporaryRedirect)
+		} else if user.TotpValidated {
 			log.Printf("GoogleController: User %s already has MFA setup, asking TOTP code.", user.Email)
 			http.Redirect(w, r, "/enter2fa.html", http.StatusTemporaryRedirect)
 		} else {
@@ -105,7 +116,6 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 			http.Redirect(w, r, "/register2fa.html", http.StatusTemporaryRedirect)
 		}
 	} else { // If no additional 2FA required, user has now been created and authenticated.
-		sourceIP := utils.New(g.config).GetClientIP(r)
 		err := userManager.CreateVpnSession(*user, sourceIP)
 		if err != nil {
 			log.Printf("GoogleController: Error creating VPN session for %s : %s", user.Email, err.Error())

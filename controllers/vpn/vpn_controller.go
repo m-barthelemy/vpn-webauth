@@ -2,12 +2,11 @@ package controllers
 
 import (
 	"encoding/json"
-	"errors"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
+	userManager "github.com/m-barthelemy/vpn-webauth/services"
 	"gorm.io/gorm"
 )
 
@@ -35,19 +34,17 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var session models.VpnSession
-	minDate := time.Now().Add(time.Second * time.Duration(-v.config.SessionValidity))
-	result := v.db.Where("email = ? AND source_ip = ? AND created_at > ?", connRequest.Identity, connRequest.SourceIP, minDate).First(&session)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			log.Printf("VpnController: Session not found for user %s", connRequest.Identity)
-			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-			return
-		} else {
-			log.Printf("VpnController: %s", result.Error.Error())
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
+	userManager := userManager.New(v.db, v.config)
+	allowed, err := userManager.CheckVpnSession(connRequest.Identity, connRequest.SourceIP, false)
+	if err != nil {
+		log.Printf("VpnController: %s", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	if !allowed {
+		log.Printf("VpnController: Session not found for user %s", connRequest.Identity)
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
 	} else {
 		http.Error(w, "Ok", http.StatusOK)
 		return

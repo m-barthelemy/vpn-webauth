@@ -22,6 +22,7 @@ type Config struct {
 	SessionValidity     int      // VPNWA_SESSIONVALIDITY
 	OTP                 bool     // VPNWA_OTP
 	OTPIssuer           string   // VPNWA_OTPISSUER
+	OTPValidity         int      // VPNWA_OTPVALIDITY
 	LogoURL             *url.URL // VPNWA_LOGOURL
 	SigningKey          string   // VPNWA_SIGNINGKEY
 	EncryptionKey       string   // VPNWA_ENCRYPTIONKEY
@@ -42,6 +43,7 @@ func (config *Config) New() Config {
 	}
 	redirDomain, _ := url.Parse(fmt.Sprintf("http://%s:%v", defaultConfig.Host, defaultConfig.Port))
 	defaultConfig.RedirectDomain = redirDomain
+	defaultConfig.OTPValidity = defaultConfig.SessionValidity
 	// We create a default random key for signing session tokens
 	b := make([]byte, 32) // random ID
 	rand.Read(b)

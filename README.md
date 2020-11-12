@@ -109,12 +109,14 @@ All the configuration parameters have to passed as environment variables.
   - `VPNWA_ENCRYPTIONKEY`: Key used to encrypt the users OTP secrets in the database. Must be 32 characters. **Mandatory** if `VPNWA_OTP` is set to `true`.
   - `VPNWA_SESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication, in seconds. Default: `3600` (1h).
     > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
-    
+
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
   - `VPNWA_OTP`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`. 
     > NOTE: This is not related to Google 2FA. By default Google will only require 2FA if your organization enforces it, and it will remember a device/browser for a very long time. This option adds a mandatory 2FA verifications upon each login, independently from your Google settings. Your users will have to register a new 2FA entry in their favorite authenticator app when using this web authentication for the first time.
   - `VPNWA_OTPISSUER`: Name that appears on the users authenticator app. Default: `VPN`.
     > If you change this value once you already have 2FA users, they will need to scan a QR code again and create another entry in their authenticator app.
+  - `VPNWA_OTPVALIDITY`: How long to allow re-authenticating only with Google, without having to enter a 2FA code again. Default: `VPNWA_SESSIONVALIDITY` (require 2FA during every login). Must be greater than, or equal to, `VPNWA_SESSIONVALIDITY`.
+    > NOTE: if a user re-autenticates from a different IP address, 2FA is always required.
   - `VPNWA_LOGOURL`: Add your organization logo on top of the webapp pages. Optional.
   - `VPNWA_SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
     > These tokens have a very short duration since they are only required during the sign in process, so regenerating a new key every time the application starts shouldn't be too much of a problem even if that means that every existing session will be invalidated. 

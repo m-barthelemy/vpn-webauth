@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"log"
+	"time"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"github.com/pquerna/otp/totp"
@@ -54,6 +55,27 @@ func (m *UserManager) CheckOrCreate(email string) (*models.User, error) {
 	}
 
 	return &user, nil
+}
+
+func (m *UserManager) CheckVpnSession(identity string, ip string, otpValid bool) (bool, error) {
+	var session models.VpnSession
+	var duration int
+	if otpValid {
+		duration = m.config.OTPValidity
+	} else {
+		duration = m.config.SessionValidity
+	}
+	minDate := time.Now().Add(time.Second * time.Duration(-duration))
+	result := m.db.Where("email = ? AND source_ip = ? AND created_at > ?", identity, ip, minDate).First(&session)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return false, nil
+		} else {
+			return false, result.Error
+		}
+	}
+
+	return true, nil
 }
 
 func (m *UserManager) CreateVpnSession(user models.User, ip string) error {
