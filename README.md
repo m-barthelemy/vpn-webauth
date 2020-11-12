@@ -52,8 +52,6 @@ Subsequent web auths:
  You'll need to build the project:
 ```
 go get github.com/m-barthelemy/vpn-webauth
-cd ~/go/src/github.com/m-barthelemy/vpn-webauth
-go build
 ```
 Alternatively, you can use the provided Dockerfile.
 
