@@ -58,8 +58,8 @@ func (g *GoogleController) OauthGoogleLogin(w http.ResponseWriter, r *http.Reque
 	oauthState := generateStateCookie("oauthstate", w)
 
 	// The state value in the URL when Google redirects back to us, and in the oauthstate cookie, must match.
-	u := googleOauthConfig.AuthCodeURL(oauthState)
-	http.Redirect(w, r, u, http.StatusTemporaryRedirect)
+	url := googleOauthConfig.AuthCodeURL(oauthState) + "&prompt=select_account"
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
 func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Request) {
