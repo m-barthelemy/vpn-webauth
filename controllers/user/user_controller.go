@@ -118,7 +118,7 @@ func (u *UserController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if !totp.Validate(r.FormValue("otp"), key.Secret()) {
 		log.Printf("UserController: OTP code validation failed for %s", email)
-		http.Redirect(w, r, "/enter2fa.html?error", http.StatusTemporaryRedirect)
+		http.Redirect(w, r, "/enter2fa?error", http.StatusTemporaryRedirect)
 		return
 	} else {
 		if !user.TotpValidated {
@@ -134,6 +134,6 @@ func (u *UserController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("UserController: User %s created VPN session from %s", email, sourceIP)
-		http.Redirect(w, r, "/success.html", http.StatusTemporaryRedirect)
+		http.Redirect(w, r, "/success", http.StatusTemporaryRedirect)
 	}
 }

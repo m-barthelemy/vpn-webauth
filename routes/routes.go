@@ -1,6 +1,9 @@
+//go:generate pkger
+
 package routes
 
 import (
+	"log"
 	"net/http"
 	"os"
 
@@ -9,21 +12,31 @@ import (
 	usercontroller "github.com/m-barthelemy/vpn-webauth/controllers/user"
 	vpnController "github.com/m-barthelemy/vpn-webauth/controllers/vpn"
 	"github.com/m-barthelemy/vpn-webauth/models"
+	"github.com/markbates/pkger"
 	"gorm.io/gorm"
 )
 
 func New(config *models.Config, db *gorm.DB) http.Handler {
 	tokenSigningKey := []byte(config.SigningKey)
 
+	// Prepare embedded templates
+	dir := pkger.Include("/templates")
+	tplHandler := NewTemplateHandler(config)
+	err := tplHandler.CompileTemplates(dir)
+	if err != nil {
+		log.Printf("Error compiling templates: ", err.Error())
+	}
 	mux := http.NewServeMux()
 
-	mux.Handle("/assets/", http.FileServer(http.Dir("templates/")))
+	/*mux.Handle("/assets/", http.FileServer(http.Dir("templates/")))
 	mux.Handle("/fonts/", http.FileServer(http.Dir("templates/")))
-	mux.Handle("/font/", http.FileServer(http.Dir("templates/")))
+	mux.Handle("/font/", http.FileServer(http.Dir("templates/")))*/
 
-	tplHandler := NewTemplateHandler(config)
 	// Anything not matching a route below will be considered as a HTML template
-	mux.HandleFunc("/", tplHandler.HandleTemplate)
+	//mux.HandleFunc("/", tplHandler.HandleTemplate)
+
+	mux.HandleFunc("/assets/", tplHandler.HandleStaticAsset)
+	mux.HandleFunc("/", tplHandler.HandleEmbeddedTemplate)
 
 	googleC := googlecontroller.New(db, config)
 	mux.HandleFunc("/auth/google/login", googleC.OauthGoogleLogin)

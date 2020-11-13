@@ -21,6 +21,7 @@ RUN adduser \
 COPY . .
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o /out/vpn-webauth .
 
+
 FROM alpine AS bin
 COPY --from=builder /out/vpn-webauth /
 COPY --from=builder /etc/passwd /etc/passwd
