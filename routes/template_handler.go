@@ -88,7 +88,6 @@ func loadStaticAssets(dir string) error {
 		filePath := strings.Split(path, ":")[1]
 		assetPath := strings.TrimPrefix(filePath, "/templates")
 		assets[assetPath] = string(sl)
-		print("Added asset " + assetPath + "\n")
 		return nil
 	})
 	return err
