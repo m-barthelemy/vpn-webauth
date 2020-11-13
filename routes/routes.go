@@ -1,5 +1,3 @@
-//go:generate pkger
-
 package routes
 
 import (
@@ -27,13 +25,6 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		log.Printf("Error compiling templates: ", err.Error())
 	}
 	mux := http.NewServeMux()
-
-	/*mux.Handle("/assets/", http.FileServer(http.Dir("templates/")))
-	mux.Handle("/fonts/", http.FileServer(http.Dir("templates/")))
-	mux.Handle("/font/", http.FileServer(http.Dir("templates/")))*/
-
-	// Anything not matching a route below will be considered as a HTML template
-	//mux.HandleFunc("/", tplHandler.HandleTemplate)
 
 	mux.HandleFunc("/assets/", tplHandler.HandleStaticAsset)
 	mux.HandleFunc("/", tplHandler.HandleEmbeddedTemplate)

@@ -25,21 +25,6 @@ func NewTemplateHandler(config *models.Config) *TemplateHandler {
 	return &TemplateHandler{config: config}
 }
 
-/*func (g *TemplateHandler) HandleTemplate(response http.ResponseWriter, request *http.Request) {
-	fileName := strings.Trim(request.URL.Path, "/")
-	if fileName == "" {
-		fileName = "index.html"
-	}
-	tmplt := template.New(fileName)
-	tmplt, _ = tmplt.ParseFiles("templates/header.html", "templates/"+fileName)
-
-	if err := tmplt.Execute(response, g.config); err != nil {
-		log.Printf("Error serving template %s: %s", fileName, err.Error())
-		http.Error(response, http.StatusText(500), 500)
-	}
-
-}*/
-
 func (g *TemplateHandler) HandleEmbeddedTemplate(response http.ResponseWriter, request *http.Request) {
 	fileName := strings.Trim(request.URL.Path, "/")
 	if fileName == "" {
@@ -72,7 +57,7 @@ func (g *TemplateHandler) CompileTemplates(dir string) error {
 	// pkger.Include() in routes.go.
 	err := pkger.Walk(dir, func(path string, info os.FileInfo, _ error) error {
 		// Skip non-templates.
-		if info.IsDir() { //|| !strings.HasSuffix(path, ".html") {
+		if info.IsDir() {
 			return nil
 		}
 		// Load file from pkpger virtual file, or real file if pkged.go has not
