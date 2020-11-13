@@ -114,7 +114,7 @@ All the configuration parameters have to passed as environment variables.
   - `VPNWA_OTPISSUER`: Name that appears on the users authenticator app. Default: `VPN`.
     > If you change this value once you already have 2FA users, they will need to scan a QR code again and create another entry in their authenticator app.
   - `VPNWA_OTPVALIDITY`: How long to allow re-authenticating only with Google, without having to enter a 2FA code again. Default: `VPNWA_SESSIONVALIDITY` (require 2FA during every login). Must be greater than, or equal to, `VPNWA_SESSIONVALIDITY`.
-    > NOTE: if a user re-autenticates from a different IP address, 2FA is always required.
+    > NOTE: if a user re-authenticates from a different IP address, 2FA is always required.
   - `VPNWA_LOGOURL`: Add your organization logo on top of the webapp pages. Optional.
   - `VPNWA_SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
     > These tokens have a very short duration since they are only required during the sign in process, so regenerating a new key every time the application starts shouldn't be too much of a problem even if that means that every existing session will be invalidated. 

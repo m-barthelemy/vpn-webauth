@@ -27,6 +27,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/assets/", tplHandler.HandleStaticAsset)
+	mux.HandleFunc("/fonts/", tplHandler.HandleStaticAsset)
 	mux.HandleFunc("/", tplHandler.HandleEmbeddedTemplate)
 
 	googleC := googlecontroller.New(db, config)
