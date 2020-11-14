@@ -47,6 +47,8 @@ func (config *Config) New() Config {
 		OTPIssuer:           "VPN",
 		SSLMode:             "off",
 		SSLAutoCertsDir:     "/tmp",
+		SSLCustomCertPath:   "/ssl/cert.pem",
+		SSLCustomKeyPath:    "/ssl/kep.pem",
 		OriginalProtoHeader: "X-Forwarded-Proto",
 	}
 	redirDomain, _ := url.Parse(fmt.Sprintf("http://%s:%v", defaultConfig.Host, defaultConfig.Port))
