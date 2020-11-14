@@ -26,6 +26,11 @@ func NewTemplateHandler(config *models.Config) *TemplateHandler {
 }
 
 func (g *TemplateHandler) HandleEmbeddedTemplate(response http.ResponseWriter, request *http.Request) {
+	// Ensure browsers will always user HTTPS, unless running only locally (dev/test mode)
+	if (g.config.Host == "127.0.0.1" || g.config.Host == "localhost") &&
+		(request.Header.Get(g.config.OriginalProtoHeader) == "https" || g.config.SSLMode != "off") {
+		response.Header().Set("Strict-Transport-Security", "max-age=31536000; preload")
+	}
 	fileName := strings.Trim(request.URL.Path, "/")
 	if fileName == "" {
 		fileName = "index"

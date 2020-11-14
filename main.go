@@ -49,19 +49,6 @@ func main() {
 		log.Fatalf("Failed to run database migrations for VpnSession model: %s", err)
 	}
 
-	// Simple server using http.Server and run.
-	/*server := &http.Server{
-		Addr:    fmt.Sprintf("%s:%v", config.Host, config.Port),
-		Handler: routes.New(&config, db),
-	}
-	log.Printf("Starting HTTP Server. Listening at %q", server.Addr)
-
-	if err := server.ListenAndServe(); err != http.ErrServerClosed {
-		log.Printf("%v", err)
-	} else {
-		log.Println("Server closed!")
-	}*/
-
-	startTLSServer(&config, routes.New(&config, db))
+	startServer(&config, routes.New(&config, db))
 
 }

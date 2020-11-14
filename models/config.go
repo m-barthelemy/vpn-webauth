@@ -28,23 +28,26 @@ type Config struct {
 	SigningKey          string   // VPNWA_SIGNINGKEY
 	EncryptionKey       string   // VPNWA_ENCRYPTIONKEY
 	OriginalIPHeader    string   // VPNWA_ORIGINALIPHEADER
-	VpnOriginalIPHeader string   // VPNWA_VPNORIGINALIPHEADER
+	OriginalProtoHeader string   // VPNWA_ORIGINALPROTOHEADER
 	SSLMode             string   // VPNWA_SSLMODE
 	SSLAutoCertsDir     string   // VPNWA_SSLAUTOCERTSDIR
+	SSLCustomCertPath   string   // VPNWA_SSLCUSTOMCERTPATH
+	SSLCustomKeyPath    string   // VPNWA_SSLCUSTOMKEYPATH
 }
 
 func (config *Config) New() Config {
 	var defaultConfig = Config{
-		DbType:          "sqlite",
-		DbDSN:           "/tmp/vpnwa.db",
-		Debug:           false,
-		Port:            8080,
-		Host:            "127.0.0.1",
-		SessionValidity: 3600,
-		OTP:             true,
-		OTPIssuer:       "VPN",
-		SSLMode:         "off",
-		SSLAutoCertsDir: "/tmp",
+		DbType:              "sqlite",
+		DbDSN:               "/tmp/vpnwa.db",
+		Debug:               false,
+		Port:                8080,
+		Host:                "127.0.0.1",
+		SessionValidity:     3600,
+		OTP:                 true,
+		OTPIssuer:           "VPN",
+		SSLMode:             "off",
+		SSLAutoCertsDir:     "/tmp",
+		OriginalProtoHeader: "X-Forwarded-Proto",
 	}
 	redirDomain, _ := url.Parse(fmt.Sprintf("http://%s:%v", defaultConfig.Host, defaultConfig.Port))
 	defaultConfig.RedirectDomain = redirDomain
