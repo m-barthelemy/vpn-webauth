@@ -113,7 +113,7 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 			http.Redirect(w, r, "/enter2fa", http.StatusTemporaryRedirect)
 		} else {
 			log.Printf("GoogleController: User %s hasn't setup authenticator app, redirecting to registration.", googleUser.Email)
-			http.Redirect(w, r, "/register2fa", http.StatusTemporaryRedirect)
+			http.Redirect(w, r, "/choose2fa?options=touchid,otp,webauthn", http.StatusTemporaryRedirect)
 		}
 	} else { // If no additional 2FA required, user has now been created and authenticated.
 		err := userManager.CreateVpnSession(*user, sourceIP)

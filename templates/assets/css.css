@@ -26,3 +26,9 @@ main {
 .section-title {
     text-align: left;
 }
+
+.mfa-choose-btn {
+    text-transform:none; 
+    width: 100%; 
+    font-size: 1.3em;
+}

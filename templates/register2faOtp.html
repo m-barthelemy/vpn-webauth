@@ -1,4 +1,4 @@
-{{ define "register2fa" }}
+{{ define "register2faOtp" }}
 <html>
 {{ template "header" . }}
 <body>
@@ -12,8 +12,7 @@
                  style="display: inline-block; padding: 32px 48px 0px 48px; border: 1px solid #EEE;">
                  <img src="{{.LogoURL}}" class="logo"/>
                 <br/><br/>
-                <span>Looks like it's the first time you want to use the VPN!</span>
-                <br/><br/>
+                <br/>
                 <h4 class="section-title">1. Scan the QR code</h4>
                 <p>Using your authenticator app (Authy, Google Authenticator...). Only this time!</p>
                 <div class="row">
