@@ -8,9 +8,10 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/markbates/pkger v0.17.1
 	github.com/pquerna/otp v1.2.0
-	github.com/securego/gosec/v2 v2.5.0 // indirect
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
+	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
+	gopkg.in/yaml.v2 v2.3.0 // indirect
 	gorm.io/driver/mysql v1.0.3
 	gorm.io/driver/postgres v1.0.5
 	gorm.io/driver/sqlite v1.1.3
