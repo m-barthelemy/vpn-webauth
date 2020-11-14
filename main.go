@@ -2,9 +2,7 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"net/http"
 	"strings"
 
 	"github.com/kelseyhightower/envconfig"
@@ -44,11 +42,15 @@ func main() {
 	}
 
 	// Migrate the schema
-	db.AutoMigrate(&models.User{})
-	db.AutoMigrate(&models.VpnSession{})
+	if err := db.AutoMigrate(&models.User{}); err != nil {
+		log.Fatalf("Failed to run database migrations for User model: %s", err)
+	}
+	if err := db.AutoMigrate(&models.VpnSession{}); err != nil {
+		log.Fatalf("Failed to run database migrations for VpnSession model: %s", err)
+	}
 
 	// Simple server using http.Server and run.
-	server := &http.Server{
+	/*server := &http.Server{
 		Addr:    fmt.Sprintf("%s:%v", config.Host, config.Port),
 		Handler: routes.New(&config, db),
 	}
@@ -58,6 +60,8 @@ func main() {
 		log.Printf("%v", err)
 	} else {
 		log.Println("Server closed!")
-	}
+	}*/
+
+	startTLSServer(&config, routes.New(&config, db))
 
 }

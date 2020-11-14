@@ -55,7 +55,7 @@ func New(db *gorm.DB, config *models.Config) *GoogleController {
 }
 
 func (g *GoogleController) OauthGoogleLogin(w http.ResponseWriter, r *http.Request) {
-	oauthState := generateStateCookie("oauthstate", w)
+	oauthState := g.generateStateCookie("oauthstate", w)
 
 	// The state value in the URL when Google redirects back to us, and in the oauthstate cookie, must match.
 	url := googleOauthConfig.AuthCodeURL(oauthState) + "&prompt=select_account"
@@ -125,14 +125,20 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 	}
 }
 
-func generateStateCookie(name string, w http.ResponseWriter) string {
+func (g *GoogleController) generateStateCookie(name string, w http.ResponseWriter) string {
 	// Session needs to be valid until user has completed )Auth2 login, which may take longer if
 	// dome for the first time or on a new browser.
 	var expiration = time.Now().Add(3 * time.Minute)
 	b := make([]byte, 64) // random ID
 	rand.Read(b)
 	state := base64.URLEncoding.EncodeToString(b)
-	cookie := http.Cookie{Name: name, Value: state, Expires: expiration, HttpOnly: true}
+	cookie := http.Cookie{
+		Name:     name,
+		Value:    state,
+		Expires:  expiration,
+		HttpOnly: true,
+		Secure:   g.config.SSLMode != "off",
+	}
 	http.SetCookie(w, &cookie)
 
 	return state
@@ -154,7 +160,14 @@ func (g *GoogleController) createSession(email string, requiresMFA bool, w http.
 	if err != nil {
 		return err
 	}
-	cookie := http.Cookie{Name: "vpnwa_session", Value: tokenString, Expires: expirationTime, HttpOnly: true, Path: "/"}
+	cookie := http.Cookie{
+		Name:     "vpnwa_session",
+		Value:    tokenString,
+		Expires:  expirationTime,
+		HttpOnly: true,
+		Path:     "/",
+		Secure:   g.config.SSLMode != "off",
+	}
 	http.SetCookie(w, &cookie)
 	return nil
 }
@@ -176,6 +189,6 @@ func getUserDataFromGoogle(code string) (GoogleUser, error) {
 		return user, fmt.Errorf("GoogleController: failed to read response: %s", err.Error())
 	}
 
-	json.Unmarshal(contents, &user)
-	return user, nil
+	err = json.Unmarshal(contents, &user)
+	return user, err
 }

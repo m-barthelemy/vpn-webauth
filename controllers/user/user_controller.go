@@ -71,7 +71,12 @@ func (u *UserController) GenerateQrCode(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	png.Encode(&qrBuf, img)
+	err = png.Encode(&qrBuf, img)
+	if err != nil {
+		log.Printf("UserController: Error generating QR code image PNG: %s", err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Content-Length", strconv.Itoa(len(qrBuf.Bytes())))

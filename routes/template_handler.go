@@ -43,7 +43,6 @@ func (g *TemplateHandler) HandleStaticAsset(response http.ResponseWriter, reques
 	if content, exists := assets[fileName]; exists == true {
 		response.Write([]byte(content))
 	} else {
-		log.Printf("%s: not found", fileName)
 		http.Error(response, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 	}
 
