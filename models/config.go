@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
 )
 
 // Config holds all the application config values.
@@ -27,19 +28,28 @@ type Config struct {
 	SigningKey          string   // VPNWA_SIGNINGKEY
 	EncryptionKey       string   // VPNWA_ENCRYPTIONKEY
 	OriginalIPHeader    string   // VPNWA_ORIGINALIPHEADER
-	VpnOriginalIPHeader string   // VPNWA_VPNORIGINALIPHEADER
+	OriginalProtoHeader string   // VPNWA_ORIGINALPROTOHEADER
+	SSLMode             string   // VPNWA_SSLMODE
+	SSLAutoCertsDir     string   // VPNWA_SSLAUTOCERTSDIR
+	SSLCustomCertPath   string   // VPNWA_SSLCUSTOMCERTPATH
+	SSLCustomKeyPath    string   // VPNWA_SSLCUSTOMKEYPATH
 }
 
 func (config *Config) New() Config {
 	var defaultConfig = Config{
-		DbType:          "sqlite",
-		DbDSN:           "/tmp/vpnwa.db",
-		Debug:           false,
-		Port:            8080,
-		Host:            "127.0.0.1",
-		SessionValidity: 3600,
-		OTP:             true,
-		OTPIssuer:       "VPN",
+		DbType:              "sqlite",
+		DbDSN:               "/tmp/vpnwa.db",
+		Debug:               false,
+		Port:                8080,
+		Host:                "127.0.0.1",
+		SessionValidity:     3600,
+		OTP:                 true,
+		OTPIssuer:           "VPN",
+		SSLMode:             "off",
+		SSLAutoCertsDir:     "/tmp",
+		SSLCustomCertPath:   "/ssl/cert.pem",
+		SSLCustomKeyPath:    "/ssl/kep.pem",
+		OriginalProtoHeader: "X-Forwarded-Proto",
 	}
 	redirDomain, _ := url.Parse(fmt.Sprintf("http://%s:%v", defaultConfig.Host, defaultConfig.Port))
 	defaultConfig.RedirectDomain = redirDomain
@@ -57,16 +67,21 @@ func (config *Config) Verify() {
 	log.Printf("Session validity set to %v seconds", config.SessionValidity)
 	log.Printf("Google callback redirect set to %s", config.RedirectDomain)
 	if config.GoogleClientID == "" {
-		log.Panic("VPNWA_GOOGLECLIENTID is not set")
+		log.Fatal("VPNWA_GOOGLECLIENTID is not set")
 	}
 	if config.GoogleClientSecret == "" {
-		log.Panic("VPNWA_GOOGLECLIENTSECRET is not set")
+		log.Fatal("VPNWA_GOOGLECLIENTSECRET is not set")
 	}
 	if config.OTP {
 		if config.EncryptionKey == "" {
-			log.Panic("VPNWA_ENCRYPTIONKEY is required when VPNWA_OTP is set to true. You can use `openssl rand -hex 16` to generate it")
+			log.Fatal("VPNWA_ENCRYPTIONKEY is required when VPNWA_OTP is set to true. You can use `openssl rand -hex 16` to generate it")
 		} else if len(config.EncryptionKey) != 32 {
-			log.Panic("VPNWA_ENCRYPTIONKEY must be 32 characters")
+			log.Fatal("VPNWA_ENCRYPTIONKEY must be 32 characters")
 		}
 	}
+	config.SSLMode = strings.ToLower(config.SSLMode)
+	if config.SSLMode != "off" && config.SSLMode != "auto" && config.SSLMode != "custom" && config.SSLMode != "proxy" {
+		log.Fatal("VPNWA_SSLMODE must be one of off, auto, custom, proxy")
+	}
+
 }

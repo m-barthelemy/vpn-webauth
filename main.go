@@ -2,9 +2,7 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"net/http"
 	"strings"
 
 	"github.com/kelseyhightower/envconfig"
@@ -44,20 +42,13 @@ func main() {
 	}
 
 	// Migrate the schema
-	db.AutoMigrate(&models.User{})
-	db.AutoMigrate(&models.VpnSession{})
-
-	// Simple server using http.Server and run.
-	server := &http.Server{
-		Addr:    fmt.Sprintf("%s:%v", config.Host, config.Port),
-		Handler: routes.New(&config, db),
+	if err := db.AutoMigrate(&models.User{}); err != nil {
+		log.Fatalf("Failed to run database migrations for User model: %s", err)
 	}
-	log.Printf("Starting HTTP Server. Listening at %q", server.Addr)
-
-	if err := server.ListenAndServe(); err != http.ErrServerClosed {
-		log.Printf("%v", err)
-	} else {
-		log.Println("Server closed!")
+	if err := db.AutoMigrate(&models.VpnSession{}); err != nil {
+		log.Fatalf("Failed to run database migrations for VpnSession model: %s", err)
 	}
+
+	startServer(&config, routes.New(&config, db))
 
 }
