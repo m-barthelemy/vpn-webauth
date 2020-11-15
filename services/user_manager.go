@@ -21,6 +21,16 @@ func New(db *gorm.DB, config *models.Config) *UserManager {
 	return &UserManager{db: db, config: config}
 }
 
+func (m *UserManager) Get(email string) (*models.User, error) {
+	var user models.User
+
+	result := m.db.Where("email = ?", email).First(&user)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &user, nil
+}
+
 // Check that the user exists and has a valid OTP setup.
 // User is created if it doesn't exist.
 // Returns false if the user doesn't have a verified TOTP secret
@@ -57,6 +67,15 @@ func (m *UserManager) CheckOrCreate(email string) (*models.User, error) {
 	return &user, nil
 }
 
+/*type WebAuthNRegister struct {
+	Id           string
+	RpName       string
+	RpDomain     string
+	Identity     string
+	IdentityName string
+	Secret       string // Challenge
+}*/
+
 func (m *UserManager) CheckVpnSession(identity string, ip string, otpValid bool) (bool, error) {
 	var session models.VpnSession
 	var duration int
@@ -78,7 +97,7 @@ func (m *UserManager) CheckVpnSession(identity string, ip string, otpValid bool)
 	return true, nil
 }
 
-func (m *UserManager) CreateVpnSession(user models.User, ip string) error {
+func (m *UserManager) CreateVpnSession(user *models.User, ip string) error {
 	// First delete any existing session for the same user
 	oldSession := models.VpnSession{Email: user.Email}
 	deleteResult := m.db.Delete(&oldSession)

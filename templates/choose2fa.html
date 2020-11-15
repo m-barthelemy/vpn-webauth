@@ -1,6 +1,7 @@
 {{ define "choose2fa" }}
 <html>
 {{ template "header" . }}
+<script type="text/javascript" src="/assets/script.js"></script> 
 <body>
 <div class="section"></div>
 <main>
@@ -17,13 +18,12 @@
                 <h4 class="section-title">Choose your strong authentication method</h4>
                 <br/><br/>
                 <div class="row" id="touchid">
-                    <script type="text/javascript" src="/assets/script.js"></script> 
                     <div class='col s12'>
-                        <a class="btn-large waves-effect blue-grey left mfa-choose-btn" onclick='webAuthNRegisterStart("VPN", "matthieu.barthelemy@kaligo.com", "Matthieu Barthelemy", "3f9da638fd8a087c0d93d1d0341a699");'>
-                            <i class="large material-icons left" style="color: #ff80ab; font-size: 2.2em;">fingerprint</i>&nbsp;Use TouchID or FaceID
+                        <a class="btn-large waves-effect blue-grey left mfa-choose-btn" 
+                            onclick="webAuthNRegisterStart();">
+                            <i id="touchid-icon" class="large material-icons left" style="color: #ff80ab; font-size: 2.2em;">fingerprint</i>&nbsp;Use TouchID, FaceID or Windows Hello
                         </a>
                     </div>
-                    <br/>
                     <br/>
                     <br/>
                     <br/>
@@ -39,6 +39,7 @@
                     </div>
                     <br/><br/>
                 </div>
+
                 <div class="row" id="webauthn">
                     <div class='col s12'>
                         <a class="btn-large waves-effect blue-grey left mfa-choose-btn" href="/register2faWebauthn">
@@ -49,7 +50,7 @@
                     </div>
                 </div>
                 <br/>
-                </div>
+                <div id="error" class="card-panel red lighten-2" style="display: none;"><b>There was an error setting up the additional authentication.</b></div>
             </div>
         </div>
     </form>

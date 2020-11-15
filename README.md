@@ -44,7 +44,7 @@ Subsequent web auths:
 - If a user successfully authenticates using this app, someone else on the same local network would be able to reuse the web session, provided they have the user's Strongswan credentials. This by design, since the app matches a web auth with a Strongswan connection only using the Strongswan identity and the source IP address.
 - Only Google is currently supported for the web authentication.
 - Since the web authentication has to happen before connecting to the VPN, is probably needs to be hosted in a less protected part of your environment.
-- There is currently no way to reset a user account if they have lost their 2FA device. You need to manually delete the User record in the database.
+- There is currently no way to reset a user account if they have lost or changed their 2FA device. However, all you need to do is manually delete the User record in the database (`DELETE FROM users WHERE email='user@domain.tld'`).
 - Strongswan blocks during the call to the `ext-auth` plugin. Since checking the user web authentication against this app is fast, this shouldn't be an issue, unless you have a high number of users connecting almost simultaneously.
 - There is currently no limit on how many attempts a user can make at entering a 2FA code.
 
@@ -115,10 +115,10 @@ All the configuration parameters have to passed as environment variables.
   - `VPNWA_MFAISSUER`: Name that appears on the users authenticator app or TouchID/Physical key prompt. Default: `VPN`.
   - `VPNWA_MFAOTP`: Whether to enable OTP token authrntication after OAuth2 login. Default: `true`. 
     > NOTE: This is not related to Google 2FA. By default Google will only require 2FA if your organization enforces it, and it will remember a device/browser for a very long time. This option adds a mandatory 2FA verifications upon each login, independently from your Google settings. Your users will have to register a new 2FA entry in their favorite authenticator app when using this web authentication for the first time.
-  - `VPNWA_MFATOUCHID`: Whether to enable Apple TouchID/FaceID strong authentication after OAuth2 login, if a compatible device is detected. Default: `true`.
-    > With compatible Apple devices and operating systems, this is certainly the fastest, most convenient and most secure additional authentication. 
-    > If they choose this option, users will be prompted to identify using their fingerprint or face. This feature complies with the definiton of "Something you are" of the authentication factors.
-    > NOTE: This feature is available in MacOS >= 11.x and iOS >= 14.x. The option will be shown to the user if a compatible OS is detected through the User Agent value. This does not guarantee that the user will have the required hardware (laptop or desktop device without TouchID, or TouchID/FaceID not setup by the user).
+  - `VPNWA_MFATOUCHID`: Whether to enable Apple TouchID/FaceID and Windows Hello biometrics authentication after OAuth2 login, if a compatible device is detected. Default: `true`.
+    > With compatible devices and operating systems, this is certainly the fastest, most convenient and most secure additional authentication. 
+    > This feature complies with the definiton of "Something you are" of the common three authentication factors.
+    > NOTE: TouchID/FaceID feature is available in MacOS >= 11.x and iOS >= 14.x. The option will only be shown to the user if a compatible OS is detected.
   - `VPNWA_MFAWEBAUTHN`: Whether to enable strong authentication using security devices such as Fido keys after OAuth2 login. Default: `true`.
 
   - `VPNWA_LOGOURL`: Add your organization logo on top of the webapp pages. Optional.

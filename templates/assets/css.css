@@ -40,3 +40,7 @@ main {
 .fadein-animated {
     animation: fadeIn 1s infinite alternate;
 }
+
+.fadein {
+    animation: fadeIn 4s alternate;
+}

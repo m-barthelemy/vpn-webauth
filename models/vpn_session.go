@@ -2,6 +2,8 @@ package models
 
 import (
 	"time"
+
+	"github.com/gofrs/uuid"
 )
 
 // VpnSession represents a successful Google + OTP login
@@ -10,6 +12,8 @@ type VpnSession struct {
 	ID        string
 	Email     string `gorm:"primaryKey"`
 	SourceIP  string
+	MFAID     uuid.UUID `gorm:"type:uuid"`
 	CreatedAt time.Time
-	User      User `gorm:"primaryKey;foreignKey:Email;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:email"`
+	User      User    `gorm:"primaryKey;foreignKey:Email;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:email"`
+	UserMFA   UserMFA `gorm:"primaryKey;foreignKey:MFAID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:id"`
 }

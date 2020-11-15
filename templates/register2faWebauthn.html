@@ -1,0 +1,41 @@
+{{ define "register2faWebauthn" }}
+<html>
+{{ template "header" . }}
+<body>
+<div class="section"></div>
+<main>
+    <center>
+        <div class="section"></div>
+        <form action="/auth/validateotp" method="POST">
+        <div class="container">
+            <div class="z-depth-1 grey lighten-4 row"
+                 style="display: inline-block; padding: 32px 48px 0px 48px; border: 1px solid #EEE;">
+                <img src="{{.LogoURL}}" class="logo"/>
+                <br/><br/>
+                <br/>
+                <h4>Registering...</h4>
+                <br/>
+                <p>Insert or activate your security key</p>
+                <br/><br/>
+                <div class="row">
+                    <div class="col s12">
+                        <i class="material-icons center fadein-animated" style="color: #ff80ab;">bluetooth_searching</i>
+                        <i class="large material-icons center fadein-animated" style="color: #ff80ab; font-size: 4em;">usb</i>
+                        <i class="material-icons center fadein-animated" style="color: #ff80ab;">rss_feed</i>
+                    </div>
+                </div>
+                <br/>
+                <script type="text/javascript" src="/assets/script.js"></script>
+                <script type="text/javascript">webAuthNRegisterStart("VPN", "matthieu.barthelemy@kaligo.com", "Matthieu Barthelemy", "3f9da638fd8a087c0d93d1d0341a699");</script>
+            </div>
+        </div>
+    </form>
+    </center>
+
+    <div class="section"></div>
+</main>
+<script type="text/javascript" src="/assets/materialize.min-0.97.5.js"></script>
+</body>
+
+</html>
+{{ end }}

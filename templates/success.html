@@ -11,10 +11,13 @@
                 <div class="z-depth-1 grey lighten-4 row"
                     style="display: inline-block; padding: 32px 48px 0px 48px; border: 1px solid #EEE;">
                     <img src="{{.LogoURL}}" class="logo"/>
+                    <br/>
                     <h2>Success!</h2>
                     <br/>
-                    <p>You can now connect to the VPN.</p>
-                    <small>You can directly reconnect to the VPN without authenticating here for the next {{.SessionValidity}} seconds.</small>
+                    <i class="large material-icons center fadein" style="color: #0c8836; font-size: 5em;">verified_user</i>
+                    <br/><br/>
+                    <p>You can now connect to <b>{{.MFAIssuer}}</b>.</p>
+                    <small>You can reconnect multiple times from this device without coming back here for the next {{.SessionValidity}} seconds.</small>
                     <br/><br/><br/>
                     <div class="row">
                         <div>

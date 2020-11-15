@@ -30,13 +30,13 @@ func New(db *gorm.DB, config *models.Config) *UserController {
 func (u *UserController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	if email == "" {
-		http.Redirect(w, r, "/register2fa.html", http.StatusTemporaryRedirect)
+		http.Redirect(w, r, "/choose2fa", http.StatusTemporaryRedirect)
 		return
 	}
-	var user models.User
-	result := u.db.Where("email = ?", email).First(&user)
-	if result.Error != nil {
-		log.Printf("UserController: Error fetching user: %s", result.Error.Error())
+	userManager := userManager.New(u.db, u.config)
+	user, err := userManager.Get(email)
+	if err != nil {
+		log.Printf("UserController: Error fetching user: %s", err.Error)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -90,10 +90,10 @@ func (u *UserController) GenerateQrCode(w http.ResponseWriter, r *http.Request) 
 
 func (u *UserController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
-	var user models.User
-	result := u.db.Where("email = ?", email).First(&user)
-	if result.Error != nil {
-		log.Print(result.Error.Error())
+	userManager := userManager.New(u.db, u.config)
+	user, err := userManager.Get(email)
+	if err != nil {
+		log.Printf("UserController: Error fetching user: %s", err.Error)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -132,7 +132,6 @@ func (u *UserController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		sourceIP := utils.New(u.config).GetClientIP(r)
-		userManager := userManager.New(u.db, u.config)
 		if err := userManager.CreateVpnSession(user, sourceIP); err != nil {
 			log.Printf("UserController: Error creating VPN session for %s : %s", email, err.Error())
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
