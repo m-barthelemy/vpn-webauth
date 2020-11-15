@@ -11,4 +11,5 @@ type VpnSession struct {
 	Email     string `gorm:"primaryKey"`
 	SourceIP  string
 	CreatedAt time.Time
+	User      User `gorm:"primaryKey;foreignKey:Email;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:email"`
 }
