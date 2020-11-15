@@ -55,7 +55,7 @@ func (u *UserController) GenerateQrCode(w http.ResponseWriter, r *http.Request) 
 	}
 	otpSecretBytes := []byte(otpSecret)
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      u.config.OTPIssuer,
+		Issuer:      u.config.MFAIssuer,
 		AccountName: email,
 		Secret:      otpSecretBytes,
 	})
@@ -107,7 +107,7 @@ func (u *UserController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	}
 	otpSecretBytes := []byte(otpSecret)
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      u.config.OTPIssuer,
+		Issuer:      u.config.MFAIssuer,
 		AccountName: email,
 		Secret:      otpSecretBytes,
 	})

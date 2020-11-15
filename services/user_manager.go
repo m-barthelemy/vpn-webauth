@@ -31,7 +31,7 @@ func (m *UserManager) CheckOrCreate(email string) (*models.User, error) {
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			otp, err := totp.Generate(totp.GenerateOpts{
-				Issuer:      m.config.OTPIssuer,
+				Issuer:      m.config.MFAIssuer,
 				AccountName: email,
 			})
 			if err != nil {
@@ -61,7 +61,7 @@ func (m *UserManager) CheckVpnSession(identity string, ip string, otpValid bool)
 	var session models.VpnSession
 	var duration int
 	if otpValid {
-		duration = m.config.OTPValidity
+		duration = m.config.MFAValidity
 	} else {
 		duration = m.config.SessionValidity
 	}

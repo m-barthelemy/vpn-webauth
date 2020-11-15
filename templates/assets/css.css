@@ -32,3 +32,11 @@ main {
     width: 100%; 
     font-size: 1.3em;
 }
+
+@keyframes fadeIn { 
+    from { opacity: 0; } 
+}
+
+.fadein-animated {
+    animation: fadeIn 1s infinite alternate;
+}

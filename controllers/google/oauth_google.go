@@ -91,14 +91,14 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	if g.createSession(user.Email, g.config.OTP, w) != nil {
+	if g.createSession(user.Email, g.config.EnforceMFA, w) != nil {
 		log.Printf("GoogleController: error creating user session: %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	sourceIP := utils.New(g.config).GetClientIP(r)
-	if g.config.OTP {
+	if g.config.EnforceMFA {
 		// Check if user has a valid session with OTP
 		allowed, err := userManager.CheckVpnSession(user.Email, sourceIP, true)
 		if err != nil {
@@ -112,8 +112,18 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 			log.Printf("GoogleController: User %s already has MFA setup, asking TOTP code.", user.Email)
 			http.Redirect(w, r, "/enter2fa", http.StatusTemporaryRedirect)
 		} else {
+			options := ""
+			if g.config.MFATouchID && utils.New(g.config).HasTouchID(r) {
+				options += "touchid,"
+			}
+			if g.config.MFAOTP {
+				options += "otp,"
+			}
+			if g.config.MFAWebauthn {
+				options += "webauthn,"
+			}
 			log.Printf("GoogleController: User %s hasn't setup authenticator app, redirecting to registration.", googleUser.Email)
-			http.Redirect(w, r, "/choose2fa?options=touchid,otp,webauthn", http.StatusTemporaryRedirect)
+			http.Redirect(w, r, fmt.Sprintf("/choose2fa?options=%s", options), http.StatusTemporaryRedirect)
 		}
 	} else { // If no additional 2FA required, user has now been created and authenticated.
 		err := userManager.CreateVpnSession(*user, sourceIP)

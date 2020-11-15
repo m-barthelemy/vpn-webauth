@@ -32,3 +32,21 @@ func (u *Utils) GetClientIP(r *http.Request) string {
 		return sourceIP
 	}
 }
+
+// HasTouchID returns true if the client device is identified as an Apple device
+// recent enough to have TouchID. (ios >= 14 and macOS >= 11)
+// Info based on user-agent.
+// Checked: OS, version, and browser (only Safari and Chrome are compatible ATM)
+func (u *Utils) HasTouchID(r *http.Request) bool {
+	ua := r.Header.Get("User-Agent")
+	if strings.Contains(ua, "Chrome/") || strings.Contains(ua, "Safari/") {
+		if strings.Contains(ua, "Mac OS X 11") {
+			return true
+		} else if strings.Contains(ua, "iPhone OS 14_") {
+			return true
+		} else if strings.Contains(ua, "Mac OS X 10_15_6") { // TODO: Remove. Temporary for big sur beta
+			return true
+		}
+	}
+	return false
+}

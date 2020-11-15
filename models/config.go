@@ -21,9 +21,12 @@ type Config struct {
 	GoogleClientID      string   // VPNWA_GOOGLECLIENTID
 	GoogleClientSecret  string   // VPNWA_GOOGLECLIENTSECRET
 	SessionValidity     int      // VPNWA_SESSIONVALIDITY
-	OTP                 bool     // VPNWA_OTP
-	OTPIssuer           string   // VPNWA_OTPISSUER
-	OTPValidity         int      // VPNWA_OTPVALIDITY
+	EnforceMFA          bool     // VPNWA_ENFORCEMFA
+	MFAOTP              bool     // VPNWA_MFAOTP
+	MFAIssuer           string   // VPNWA_OTPISSUER
+	MFAValidity         int      // VPNWA_MFAVALIDITY
+	MFATouchID          bool     // VPNWA_MFATOUCHID
+	MFAWebauthn         bool     // MFAWEBAUTHN
 	LogoURL             *url.URL // VPNWA_LOGOURL
 	SigningKey          string   // VPNWA_SIGNINGKEY
 	EncryptionKey       string   // VPNWA_ENCRYPTIONKEY
@@ -43,8 +46,11 @@ func (config *Config) New() Config {
 		Port:                8080,
 		Host:                "127.0.0.1",
 		SessionValidity:     3600,
-		OTP:                 true,
-		OTPIssuer:           "VPN",
+		EnforceMFA:          true,
+		MFAIssuer:           "VPN",
+		MFAOTP:              true,
+		MFATouchID:          true,
+		MFAWebauthn:         true,
 		SSLMode:             "off",
 		SSLAutoCertsDir:     "/tmp",
 		SSLCustomCertPath:   "/ssl/cert.pem",
@@ -53,7 +59,7 @@ func (config *Config) New() Config {
 	}
 	redirDomain, _ := url.Parse(fmt.Sprintf("http://%s:%v", defaultConfig.Host, defaultConfig.Port))
 	defaultConfig.RedirectDomain = redirDomain
-	defaultConfig.OTPValidity = defaultConfig.SessionValidity
+	defaultConfig.MFAValidity = defaultConfig.SessionValidity
 	// We create a default random key for signing session tokens
 	b := make([]byte, 32) // random ID
 	rand.Read(b)
@@ -72,7 +78,7 @@ func (config *Config) Verify() {
 	if config.GoogleClientSecret == "" {
 		log.Fatal("VPNWA_GOOGLECLIENTSECRET is not set")
 	}
-	if config.OTP {
+	if config.EnforceMFA {
 		if config.EncryptionKey == "" {
 			log.Fatal("VPNWA_ENCRYPTIONKEY is required when VPNWA_OTP is set to true. You can use `openssl rand -hex 16` to generate it")
 		} else if len(config.EncryptionKey) != 32 {
