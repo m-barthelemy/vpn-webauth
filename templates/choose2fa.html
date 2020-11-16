@@ -9,15 +9,14 @@
         <div class="section"></div>
         <form action="/auth/validateotp" method="POST">
         <div class="container">
-            <div class="z-depth-1 grey lighten-4 row"
-                 style="display: inline-block; padding: 32px 48px 0px 48px; border: 1px solid #EEE;">
+            <div class="z-depth-1 grey lighten-4 row main-container ">
                 <img src="{{.LogoURL}}" class="logo"/>
                 <br/><br/>
                 <span>Looks like it's the first time you want to use the VPN!</span>
                 <br/><br/>
                 <h4 class="section-title">Choose your strong authentication method</h4>
                 <br/><br/>
-                <div class="row" id="touchid">
+                <div class="row" id="touchid-section">
                     <div class='col s12'>
                         <a class="btn-large waves-effect blue-grey left mfa-choose-btn" 
                             onclick="webAuthNRegisterStart();">
@@ -29,7 +28,7 @@
                     <br/>
                 </div>
                 
-                <div class="row" id="otp">
+                <div class="row" id="otp-section">
                     <div class='col s12'>
                         <a class="btn-large waves-effect blue-grey left mfa-choose-btn" href="/register2faOtp">
                             <div class="icon">
@@ -40,7 +39,7 @@
                     <br/><br/>
                 </div>
 
-                <div class="row" id="webauthn">
+                <div class="row" id="webauthn-section">
                     <div class='col s12'>
                         <a class="btn-large waves-effect blue-grey left mfa-choose-btn" href="/register2faWebauthn">
                             <div class="icon">
@@ -55,10 +54,7 @@
         </div>
     </form>
     </center>
-
-    <div class="section"></div>
 </main>
-<script type="text/javascript" src="/assets/materialize.min-0.97.5.js"></script>
 </body>
 
 </html>

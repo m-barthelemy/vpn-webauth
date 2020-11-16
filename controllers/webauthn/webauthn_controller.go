@@ -1,41 +1,72 @@
 package controllers
 
 import (
-	"errors"
 	"log"
 	"net/http"
 
+	"github.com/duo-labs/webauthn/webauthn"
 	"github.com/gorilla/mux"
 	"github.com/m-barthelemy/vpn-webauth/models"
+	userManager "github.com/m-barthelemy/vpn-webauth/services"
 	"gorm.io/gorm"
 )
 
 type WebAuthNController struct {
-	//db     *gorm.DB
+	db     *gorm.DB
 	config *models.Config
 }
 
 // New creates an instance of the controller and sets its DB handle
-func New(config *models.Config) *WebAuthNController {
+func New(db *gorm.DB, config *models.Config) *WebAuthNController {
 	return &WebAuthNController{config: config}
 }
 
-func (m *WebAuthNController) BeginRegisterWebauthn(email string) (*models.WebAuthNUser, error) {
-	var user models.User
-	// Ensure User exists
-	userResult := m.db.Where("email = ?", email).First(&user)
-	if userResult.Error != nil {
-		return nil, userResult.Error
+func (m *WebAuthNController) BeginRegisterWebauthn(w http.ResponseWriter, r *http.Request) {
+	var email = r.Context().Value("identity").(string)
+	if email == "" {
+		http.Redirect(w, r, "/choose2fa", http.StatusTemporaryRedirect)
+		return
 	}
-	// Ensure Webauthn does not already exist
-	var authN models.UserMFA
-	mfaResult := m.db.Where("email = ?", email).First(&authN)
-	// we _need_ to get a gorm.ErrRecordNotFound error
-	if mfaResult.Error == nil || !errors.Is(mfaResult.Error, gorm.ErrRecordNotFound) {
-		return nil, errors.New("User already has MFA set")
+	var user *models.User
+	// Ensure User exists
+	userManager := userManager.New(m.db, m.config)
+	user, err := userManager.Get(email)
+	if err != nil {
+		log.Printf("WebAuthNController: Error fetching user: %s", err.Error)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	// Ensure similar Webauthn does not already exist
+	webAuthnType := "webauthn"
+	webAuthnTypeParam, ok := r.URL.Query()["type"]
+	if !ok {
+		log.Printf("Error getting Url Param 'type'")
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	if len(webAuthnTypeParam[0]) == 1 && webAuthnTypeParam[0] == "touchid" {
+		webAuthnType = "touchid"
+	}
+	if user.MFAs != nil {
+		for i, item := range user.MFAs {
+			if item.Type == webAuthnType {
+				log.Printf("User %s already has an authentication provider of type %s", user.Email, webAuthnType)
+				http.Error(w, http.StatusText(http.StatusConflict), http.StatusConflict)
+				return
+			}
+		}
 	}
 
-	return &authN, nil
+	webAuthn, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: "Foobar Corp.",     // Display Name for your site
+		RPID:          "localhost",        // Generally the domain name for your site
+		RPOrigin:      "http://localhost", // The origin URL for WebAuthn requests
+		// RPIcon: "https://duo.com/logo.png", // Optional icon URL for your site
+	})
+
+	if err != nil {
+		log.Fatal("failed to create WebAuthn from config:", err)
+	}
 }
 
 func (m *WebAuthNController) FinishRegisterWebauthn(email string) (*models.UserMFA, error) {

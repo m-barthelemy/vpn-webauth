@@ -24,7 +24,7 @@ func New(db *gorm.DB, config *models.Config) *UserManager {
 func (m *UserManager) Get(email string) (*models.User, error) {
 	var user models.User
 
-	result := m.db.Where("email = ?", email).First(&user)
+	result := m.db.Preload("MFAs").Where("email = ?", email).First(&user)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -66,15 +66,6 @@ func (m *UserManager) CheckOrCreate(email string) (*models.User, error) {
 
 	return &user, nil
 }
-
-/*type WebAuthNRegister struct {
-	Id           string
-	RpName       string
-	RpDomain     string
-	Identity     string
-	IdentityName string
-	Secret       string // Challenge
-}*/
 
 func (m *UserManager) CheckVpnSession(identity string, ip string, otpValid bool) (bool, error) {
 	var session models.VpnSession
