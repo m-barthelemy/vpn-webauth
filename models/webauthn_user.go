@@ -6,26 +6,26 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/webauthn"
+	"github.com/gofrs/uuid"
 )
 
-// User represents the user model
+// WebAuthNUser represents the user model for the webauthn package
 type WebAuthNUser struct {
-	id          uint64
+	id          uuid.UUID
 	name        string
 	displayName string
 	credentials []webauthn.Credential
 }
 
-// NewUser creates and returns a new User
-func NewUser(name string, displayName string) *WebAuthNUser {
-
-	user := &WebAuthNUser{}
-	user.id = randomUint64()
+// NewWebAuthNUser creates and returns a new WebAuthNUser
+func NewWebAuthNUser(id uuid.UUID, name string, displayName string) *WebAuthNUser {
+	user := WebAuthNUser{}
+	user.id = id
 	user.name = name
 	user.displayName = displayName
 	// user.credentials = []webauthn.Credential{}
 
-	return user
+	return &user
 }
 
 func randomUint64() uint64 {
@@ -36,9 +36,7 @@ func randomUint64() uint64 {
 
 // WebAuthnID returns the user's ID
 func (u WebAuthNUser) WebAuthnID() []byte {
-	buf := make([]byte, binary.MaxVarintLen64)
-	binary.PutUvarint(buf, uint64(u.id))
-	return buf
+	return u.id.Bytes()
 }
 
 // WebAuthnName returns the user's username

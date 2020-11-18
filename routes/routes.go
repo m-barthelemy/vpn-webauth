@@ -9,6 +9,7 @@ import (
 	googlecontroller "github.com/m-barthelemy/vpn-webauth/controllers/google"
 	usercontroller "github.com/m-barthelemy/vpn-webauth/controllers/user"
 	vpnController "github.com/m-barthelemy/vpn-webauth/controllers/vpn"
+	webauthNController "github.com/m-barthelemy/vpn-webauth/controllers/webauthn"
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"github.com/markbates/pkger"
 	"gorm.io/gorm"
@@ -22,7 +23,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	tplHandler := NewTemplateHandler(config)
 	err := tplHandler.CompileTemplates(dir)
 	if err != nil {
-		log.Printf("Error compiling templates: ", err.Error())
+		log.Fatalf("Error compiling templates: ", err.Error())
 	}
 	mux := http.NewServeMux()
 
@@ -34,14 +35,49 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 
 	googleC := googlecontroller.New(db, config)
 	mux.HandleFunc("/auth/google/login", googleC.OauthGoogleLogin)
-	mux.Handle("/auth/google/callback", handlers.LoggingHandler(os.Stdout, http.HandlerFunc(googleC.OauthGoogleCallback)))
+	mux.Handle("/auth/google/callback",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(googleC.OauthGoogleCallback),
+		),
+	)
 
 	usersC := usercontroller.New(db, config)
-	mux.Handle("/auth/qrcode", handlers.LoggingHandler(os.Stdout, http.HandlerFunc(sessionMiddleware(tokenSigningKey, usersC.GenerateQrCode))))
-	mux.Handle("/auth/validateotp", handlers.LoggingHandler(os.Stdout, http.HandlerFunc(sessionMiddleware(tokenSigningKey, usersC.ValidateOTP))))
+	mux.Handle("/auth/otp/qrcode",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessionMiddleware(tokenSigningKey, usersC.GenerateQrCode)),
+		),
+	)
+	mux.Handle("/auth/otp/validateotp",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessionMiddleware(tokenSigningKey, usersC.ValidateOTP)),
+		),
+	)
+
+	webauthnC := webauthNController.New(db, config)
+	mux.Handle("/auth/webauthn/beginregister",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessionMiddleware(tokenSigningKey, webauthnC.BeginRegisterWebauthn)),
+		),
+	)
+
+	mux.Handle("/auth/webauthn/finishregister",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessionMiddleware(tokenSigningKey, webauthnC.FinishRegisterWebauthn)),
+		),
+	)
 
 	vpnC := vpnController.New(db, config)
-	mux.Handle("/vpn/check", handlers.LoggingHandler(os.Stdout, http.HandlerFunc(vpnC.CheckSession)))
+	mux.Handle("/vpn/check",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(vpnC.CheckSession),
+		),
+	)
 
 	return mux
 }

@@ -33,7 +33,6 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
-
 	userManager := userManager.New(v.db, v.config)
 	allowed, err := userManager.CheckVpnSession(connRequest.Identity, connRequest.SourceIP, false)
 	if err != nil {

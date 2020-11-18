@@ -10,8 +10,9 @@ import (
 	"github.com/pquerna/otp/totp"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
-	"github.com/m-barthelemy/vpn-webauth/services"
+	dataProtector "github.com/m-barthelemy/vpn-webauth/services"
 	userManager "github.com/m-barthelemy/vpn-webauth/services"
+
 	"github.com/m-barthelemy/vpn-webauth/utils"
 
 	"gorm.io/gorm"
@@ -30,7 +31,7 @@ func New(db *gorm.DB, config *models.Config) *UserController {
 func (u *UserController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	if email == "" {
-		http.Redirect(w, r, "/choose2fa", http.StatusTemporaryRedirect)
+		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 	userManager := userManager.New(u.db, u.config)
@@ -46,7 +47,7 @@ func (u *UserController) GenerateQrCode(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
-	dp := services.NewDataProtector(u.config)
+	dp := dataProtector.NewDataProtector(u.config)
 	otpSecret, err := dp.Decrypt(user.TotpSecret)
 	if err != nil {
 		log.Printf("UserController: Error fetching user TOTP secret: %s", err)
@@ -98,7 +99,7 @@ func (u *UserController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dp := services.NewDataProtector(u.config)
+	dp := dataProtector.NewDataProtector(u.config)
 	otpSecret, err := dp.Decrypt(user.TotpSecret)
 	if err != nil {
 		log.Printf("UserController: Error fetching user TOTP secret: %s", err)

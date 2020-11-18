@@ -6,7 +6,7 @@
 <main>
     <center>
         <div class="section"></div>
-        <form action="/auth/validateotp" method="POST">
+        <form action="/auth/otp/validateotp" method="POST">
         <div class="container">
             <div class="z-depth-1 grey lighten-4 row main-container">
                  <img src="{{.LogoURL}}" class="logo"/>
@@ -16,7 +16,7 @@
                 <p>Using your authenticator app (Authy, Google Authenticator...). Only this time!</p>
                 <div class="row">
                     <div class='col s12'>
-                        <img src="/auth/qrcode" class="qrcode"/>
+                        <img src="/auth/otp/qrcode" class="qrcode"/>
                     </div>
                 </div>
                 <br/>

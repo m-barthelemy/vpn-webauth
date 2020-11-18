@@ -104,3 +104,42 @@ func (m *UserManager) CreateVpnSession(user *models.User, ip string) error {
 	log.Printf("UserController: User %s created VPN session from %s", user.Email, ip)
 	return nil
 }
+
+func (m *UserManager) AddMFA(user *models.User, mfaType string) (*models.UserMFA, error) {
+	// First delete any existing session for the same user
+	userMFA := models.UserMFA{
+		Email:     user.Email,
+		Validated: false,
+		Type:      mfaType,
+	}
+
+	result := m.db.Create(&userMFA)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	log.Printf("UserManager: Created %s UserMFA for %s", mfaType, user.Email)
+	return &userMFA, nil
+}
+
+func (m *UserManager) ValidateMFA(user *models.User, mfaType string, data string) error {
+	var userMFA models.UserMFA
+	result := m.db.Where("email = ? AND type = ? AND validated = ?", user.Email, mfaType, false).First(&userMFA)
+	if result.Error != nil {
+		return result.Error
+	}
+	userMFA.Validated = true
+	if data != "" {
+		dp := NewDataProtector(m.config)
+		encryptedData, err := dp.Encrypt(data)
+		if err != nil {
+			return err
+		}
+		userMFA.Data = encryptedData
+	}
+
+	if err := m.db.Save(&userMFA); err != nil {
+		return result.Error
+	}
+	log.Printf("UserManager: Validated %s UserMFA for %s", mfaType, user.Email)
+	return nil
+}
