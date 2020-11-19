@@ -1,5 +1,6 @@
 'use strict';
 
+// Inspired by https://github.com/hbolimovsky/webauthn-example/blob/master/index.html
 async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
     $("#touchid-icon").addClass("fadein-animated");
     const response = await fetch("/auth/webauthn/beginregister?type=touchid", {method: 'POST'});
@@ -25,29 +26,6 @@ async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
     }
     
     let newCredentialInfo = await navigator.credentials.create(optionsData);
-    /*console.log(newCredentialInfo);
-    const regoResponse = {
-        PublicKeyCredential : {
-            ID: newCredentialInfo.id,
-            RawID: btoa(String.fromCharCode(...new Uint8Array(newCredentialInfo.rawId))),
-            Type: newCredentialInfo.type
-        },
-        AttestationResponse: {
-            ClientDataJSON: bufferEncode(newCredentialInfo.response.clientDataJSON),
-            AttestationObject: bufferEncode(newCredentialInfo.response.attestationObject),
-        }
-    };
-    console.log(JSON.stringify(regoResponse));
-    const registerResponse = await fetch("/auth/webauthn/finishregister?type=touchid", {
-        method: "POST",
-        body: JSON.stringify(regoResponse),
-        headers: { "Content-Type": "application/json" },
-    });
-    if (registerResponse.status !== 200) {
-        console.error(registerResponse);
-        $("#error").show();
-        return;
-    }*/
 
     let attestationObject = newCredentialInfo.response.attestationObject;
     let clientDataJSON = newCredentialInfo.response.clientDataJSON;
@@ -71,22 +49,33 @@ async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
         $("#error").show();
         return;
     }
-    
-    /* expected by the go library:
-    CredentialCreationResponse {
-        PublicKeyCredential {
-            ID string
-            Type string
-            RawID URLEncodedBase64
-            Extensions {}
+    else {
+        window.location.href = "/success";
+    }
+}
 
-        }
-        AttestationResponse {
-            ClientDataJSON  URLEncodedBase64
-            AttestationObject URLEncodedBase64
-        }
-    }*/
-     
+async function webAuthNLogin(allowCrossPlatformDevice = false) {
+    $("#touchid-icon").addClass("fadein-animated");
+    const response = await fetch("/auth/webauthn/beginlogin?type=touchid", {method: 'POST'});
+    if (response.status !== 200) {
+        console.error(response);
+        $("#error").show();
+        return;
+    }
+    let credentialRequestOptions = await response.json();
+    console.log(credentialRequestOptions)
+    credentialRequestOptions.publicKey.challenge = bufferDecode(credentialRequestOptions.publicKey.challenge);
+    credentialRequestOptions.publicKey.allowCredentials.forEach(function (listItem) {
+        listItem.id = bufferDecode(listItem.id)
+    });
+    
+    const assertion = await navigator.credentials.get(credentialRequestOptions);
+    console.log(assertion)
+    let authData = assertion.response.authenticatorData;
+    let clientDataJSON = assertion.response.clientDataJSON;
+    let rawId = assertion.rawId;
+    let sig = assertion.response.signature;
+    let userHandle = assertion.response.userHandle;
 }
 
 $(document).ready(async function(){
@@ -115,10 +104,17 @@ $(document).ready(async function(){
             if(tpmAuthAvailable && touchIdAllowed){
                 console.log("TouchID/FaceID/Windows Hello is allowed and available.");
             } else {
-                console.log(`TouchID/FaceID/Windows Hello allowed: ${touchIdAllowed}, available: ${available}`);
+                console.log(`TouchID/FaceID/Windows Hello allowed: ${touchIdAllowed}, available: ${tpmAuthAvailable}`);
                 $("#touchid-section").hide();
             }
         }
+    }
+    let sessionValidity = $("#session-validity").text();
+    console.log(`Session valid until ${sessionValidity}`);
+    if (sessionValidity != "") {
+        let expiry = new Date();
+        expiry.setSeconds(expiry.getSeconds() + parseInt($("#session-validity").text()));
+        $("#session-validity").text(expiry);
     }
 });
 

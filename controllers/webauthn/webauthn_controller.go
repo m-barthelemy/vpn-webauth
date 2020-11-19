@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -30,7 +31,7 @@ func New(db *gorm.DB, config *models.Config) *WebAuthNController {
 	return &WebAuthNController{db: db, config: config}
 }
 
-func (m *WebAuthNController) BeginRegisterWebauthn(w http.ResponseWriter, r *http.Request) {
+func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	if email == "" {
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
@@ -46,16 +47,13 @@ func (m *WebAuthNController) BeginRegisterWebauthn(w http.ResponseWriter, r *htt
 		return
 	}
 
-	webAuthnType := "webauthn"
-	webAuthnTypeParam, ok := r.URL.Query()["type"]
-	if !ok {
-		log.Printf("WebAuthNController: Error getting Url Param 'type'")
+	webAuthnType, err := getWebauthType(r)
+	if err != nil {
+		log.Printf("WebAuthNController: Error getting WebAuthn type: %s", err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
-	if len(webAuthnTypeParam[0]) >= 1 && webAuthnTypeParam[0] == "touchid" {
-		webAuthnType = "touchid"
-	}
+
 	// Ensure Webauthn does not already exist for the user
 	if user.MFAs != nil {
 		for _, item := range user.MFAs {
@@ -108,36 +106,32 @@ func (m *WebAuthNController) BeginRegisterWebauthn(w http.ResponseWriter, r *htt
 	jsonResponse(w, options, http.StatusOK)
 }
 
-func (m *WebAuthNController) FinishRegisterWebauthn(w http.ResponseWriter, r *http.Request) {
+func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	if email == "" {
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
-	webAuthnType := "webauthn"
-	webAuthnTypeParam, ok := r.URL.Query()["type"]
-	if !ok {
-		log.Printf("WebAuthNController: Error getting Url Param 'type'")
+	webAuthnType, err := getWebauthType(r)
+	if err != nil {
+		log.Printf("WebAuthNController: Error getting WebAuthn type: %s", err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
-	}
-	if len(webAuthnTypeParam[0]) >= 1 && webAuthnTypeParam[0] == "touchid" {
-		webAuthnType = "touchid"
 	}
 
 	// Ensure User exists
 	userManager := userManager.New(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching user: %s", err.Error)
+		log.Printf("WebAuthNController: Error fetching user: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	sessionData, err := m.getWebauthNCookie("webauthn_register", w, r)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching registration session for %s: ", user.Email, err.Error)
+		log.Printf("WebAuthNController: Error fetching registration session for %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -172,94 +166,178 @@ func (m *WebAuthNController) FinishRegisterWebauthn(w http.ResponseWriter, r *ht
 	}
 
 	serializedCredential, _ := json.Marshal(credential)
-	println("Credential: %s", string(serializedCredential[:]))
-
 	if err := userManager.ValidateMFA(user, webAuthnType, string(serializedCredential[:])); err != nil {
 		log.Printf("WebAuthNController: failed to save %s registration validation for %s: %s", webAuthnType, user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	m.deleteWebauthNCookie("webauthn_register", w)
+
+	// TODO: Set long retention cookie with
+	// [ {mfa: webauthn, type: touchid, id: xxxx}, {mfa: otp, type: null, id: xxxx}, ...]
+	// for automatically presenting relevant MFA options during logins on same device
 }
 
-/*func BeginLogin(w http.ResponseWriter, r *http.Request) {
+func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	if email == "" {
-		http.Redirect(w, r, "/choose2fa", http.StatusTemporaryRedirect)
+		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
-	// get user
-	user, err := userDB.GetUser(username)
-
-	// user doesn't exist
+	webAuthnType, err := getWebauthType(r)
 	if err != nil {
-		log.Println(err)
-		jsonResponse(w, err.Error(), http.StatusBadRequest)
+		log.Printf("WebAuthNController: Error getting WebAuthn type: %s", err)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
-	// generate PublicKeyCredentialRequestOptions, session data
-	options, sessionData, err := webAuthn.BeginLogin(user)
+	// Ensure User exists
+	userManager := userManager.New(m.db, m.config)
+	user, err := userManager.Get(email)
 	if err != nil {
-		log.Println(err)
-		jsonResponse(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("WebAuthNController: Error fetching user: %s", err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	// store session data as marshaled JSON
-	err = sessionStore.SaveWebauthnSession("authentication", sessionData, r, w)
-	if err != nil {
-		log.Println(err)
-		jsonResponse(w, err.Error(), http.StatusInternalServerError)
+	var requestedMFA models.UserMFA
+	if user.MFAs != nil {
+		for _, item := range user.MFAs {
+			if item.Type == webAuthnType {
+				requestedMFA = item
+				break
+			}
+		}
+	} else {
+		log.Printf("WebAuthNController: User %s doesn't have a validated %s MFA provider.", user.Email, webAuthnType)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
+	}
+
+	webAuthNUser := models.NewWebAuthNUser(requestedMFA.ID, user.Email, user.Email)
+	// Decrypt and deserialize the WebAuthn credential
+	dp := dataProtector.NewDataProtector(m.config)
+	decryptedData, err := dp.Decrypt(requestedMFA.Data)
+	if err != nil {
+		log.Printf("WebAuthNController: %s UserMFA %s Data record could not be decrypted: %s", user.Email, webAuthnType, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	var credential webauthn.Credential
+	if err := json.Unmarshal([]byte(decryptedData), &credential); err != nil {
+		log.Printf("WebAuthNController: %s UserMFA %s Data record could not be deserialized to credential: %s", user.Email, webAuthnType, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	webAuthNUser.AddCredential(credential)
+
+	webAuthn, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: m.config.MFAIssuer,
+		RPID:          m.config.RedirectDomain.Hostname(),
+		RPOrigin:      fmt.Sprintf("%s://%s", m.config.RedirectDomain.Scheme, m.config.RedirectDomain.Hostname()),
+	})
+
+	// Generate PublicKeyCredentialRequestOptions and session data
+	options, sessionData, err := webAuthn.BeginLogin(webAuthNUser)
+	if err != nil {
+		log.Printf("WebAuthNController: Error starting Webauthn login for %s: %s", user.Email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	if err := m.createWebauthNCookie("webauthn_session", sessionData, w); err != nil {
+		log.Printf("WebAuthNController: Failed to create registration cookie: %s", err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 
 	jsonResponse(w, options, http.StatusOK)
 }
 
-func FinishLogin(w http.ResponseWriter, r *http.Request) {
+func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request) {
 
-	// get username
-	vars := mux.Vars(r)
-	username := vars["username"]
-
-	// get user
-	user, err := userDB.GetUser(username)
-
-	// user doesn't exist
-	if err != nil {
-		log.Println(err)
-		jsonResponse(w, err.Error(), http.StatusBadRequest)
+	var email = r.Context().Value("identity").(string)
+	if email == "" {
+		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
-	// load the session data
-	sessionData, err := sessionStore.GetWebauthnSession("authentication", r)
+	webAuthnType, err := getWebauthType(r)
 	if err != nil {
-		log.Println(err)
-		jsonResponse(w, err.Error(), http.StatusBadRequest)
+		log.Printf("WebAuthNController: Error getting WebAuthn type: %s", err)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
-	// in an actual implementation, we should perform additional checks on
-	// the returned 'credential', i.e. check 'credential.Authenticator.CloneWarning'
-	// and then increment the credentials counter
-	_, err = webAuthn.FinishLogin(user, sessionData, r)
+	// Ensure User exists
+	userManager := userManager.New(m.db, m.config)
+	user, err := userManager.Get(email)
 	if err != nil {
-		log.Println(err)
-		jsonResponse(w, err.Error(), http.StatusBadRequest)
+		log.Printf("WebAuthNController: Error fetching user: %s", err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	// handle successful login
+	var requestedMFA models.UserMFA
+	if user.MFAs != nil {
+		for _, item := range user.MFAs {
+			if item.Type == webAuthnType {
+				requestedMFA = item
+				break
+			}
+		}
+	} else {
+		log.Printf("WebAuthNController: User %s doesn't have a validated %s MFA provider.", user.Email, webAuthnType)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	webAuthNUser := models.NewWebAuthNUser(requestedMFA.ID, user.Email, user.Email)
+	// Decrypt and deserialize the WebAuthn credential
+	dp := dataProtector.NewDataProtector(m.config)
+	decryptedData, err := dp.Decrypt(requestedMFA.Data)
+	if err != nil {
+		log.Printf("WebAuthNController: %s UserMFA %s Data record could not be decrypted: %s", user.Email, webAuthnType, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	var credential webauthn.Credential
+	if err := json.Unmarshal([]byte(decryptedData), &credential); err != nil {
+		log.Printf("WebAuthNController: %s UserMFA %s Data record could not be deserialized to credential: %s", user.Email, webAuthnType, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	webAuthNUser.AddCredential(credential)
+
+	webAuthn, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: m.config.MFAIssuer,
+		RPID:          m.config.RedirectDomain.Hostname(),
+		RPOrigin:      fmt.Sprintf("%s://%s", m.config.RedirectDomain.Scheme, m.config.RedirectDomain.Hostname()),
+	})
+
+	sessionData, err := m.getWebauthNCookie("webauthn_session", w, r)
+	if err != nil {
+		log.Printf("WebAuthNController: Error fetching WebAuthn session cookie for %s: %s", user.Email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	// TODO: check 'credential.Authenticator.CloneWarning' when not using touchid
+	_, err = webAuthn.FinishLogin(webAuthNUser, *sessionData, r)
+	if err != nil {
+		log.Printf("WebAuthNController: Error finishing WebAuthn login for %s: %s", user.Email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	// TODO: Set session cookie
 	jsonResponse(w, "Login Success", http.StatusOK)
 }
-*/
+
 func jsonResponse(w http.ResponseWriter, d interface{}, c int) {
 	dj, err := json.Marshal(d)
 	if err != nil {
-		log.Printf("WebAuthNController: Error serializing response to JSON: %s", err.Error)
+		log.Printf("WebAuthNController: Error serializing response to JSON: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -327,4 +405,16 @@ func (m *WebAuthNController) deleteWebauthNCookie(name string, w http.ResponseWr
 
 	http.SetCookie(w, c)
 	return nil
+}
+
+func getWebauthType(r *http.Request) (string, error) {
+	webAuthnType := "webauthn"
+	webAuthnTypeParam, ok := r.URL.Query()["type"]
+	if !ok {
+		return "", errors.New("'webauthn' URL parameter missing")
+	}
+	if len(webAuthnTypeParam[0]) >= 1 && webAuthnTypeParam[0] == "touchid" {
+		webAuthnType = "touchid"
+	}
+	return webAuthnType, nil
 }

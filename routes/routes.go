@@ -60,14 +60,25 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	mux.Handle("/auth/webauthn/beginregister",
 		handlers.LoggingHandler(
 			os.Stdout,
-			http.HandlerFunc(sessionMiddleware(tokenSigningKey, webauthnC.BeginRegisterWebauthn)),
+			http.HandlerFunc(sessionMiddleware(tokenSigningKey, webauthnC.BeginRegister)),
 		),
 	)
-
 	mux.Handle("/auth/webauthn/finishregister",
 		handlers.LoggingHandler(
 			os.Stdout,
-			http.HandlerFunc(sessionMiddleware(tokenSigningKey, webauthnC.FinishRegisterWebauthn)),
+			http.HandlerFunc(sessionMiddleware(tokenSigningKey, webauthnC.FinishRegister)),
+		),
+	)
+	mux.Handle("/auth/webauthn/beginlogin",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessionMiddleware(tokenSigningKey, webauthnC.BeginLogin)),
+		),
+	)
+	mux.Handle("/auth/webauthn/finishlogin",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessionMiddleware(tokenSigningKey, webauthnC.FinishLogin)),
 		),
 	)
 

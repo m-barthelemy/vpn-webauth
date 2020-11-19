@@ -37,7 +37,7 @@ func (m *UserManager) Get(email string) (*models.User, error) {
 func (m *UserManager) CheckOrCreate(email string) (*models.User, error) {
 	var user models.User
 
-	result := m.db.Where("email = ?", email).First(&user)
+	result := m.db.Preload("MFAs").Where("email = ?", email).First(&user)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			otp, err := totp.Generate(totp.GenerateOpts{

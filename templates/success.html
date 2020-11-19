@@ -16,7 +16,8 @@
                     <i class="large material-icons center fadein" style="color: #0c8836; font-size: 5em;">verified_user</i>
                     <br/><br/>
                     <p>You can now connect to <b>{{.MFAIssuer}}</b>.</p>
-                    <small>You can reconnect multiple times from this device without coming back here for the next {{.SessionValidity}} seconds.</small>
+                    <p>You shouldn't have to come back here until <span id="session-validity">{{.SessionValidity}}</span>, 
+                        <br/>as long as you connect from the same place and network.</p>
                     <br/><br/><br/>
                     <div class="row">
                         <div>
@@ -25,9 +26,11 @@
                             </a>
                         </div>
                     </div>
+                    <br/>
                 </div>
             </div>
         </form>
+        <script type="text/javascript" src="/assets/script.js"></script> 
     </center>
 </main>
 </body>

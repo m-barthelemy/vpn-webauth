@@ -102,29 +102,40 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 		// Check if user already has a valid session with OTP
 		allowed, err := userManager.CheckVpnSession(user.Email, sourceIP, true)
 		if err != nil {
-			log.Printf("Error checking existing VPN sessions: ", err.Error())
+			log.Printf("GoogleController: Error checking existing VPN sessions: %s", err.Error())
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		if allowed && user.TotpValidated {
+		if allowed {
 			http.Redirect(w, r, "/success", http.StatusTemporaryRedirect)
-		} else if user.TotpValidated {
-			log.Printf("GoogleController: User %s already has MFA setup, asking TOTP code.", user.Email)
-			http.Redirect(w, r, "/enter2fa", http.StatusTemporaryRedirect)
-		} else {
+		} else if user.MFAs != nil {
 			options := ""
-			if g.config.MFATouchID { //&& utils.New(g.config).HasTouchID(r) {
-				options += "touchid,"
+			for _, item := range user.MFAs {
+				if item.Validated {
+					options += item.Type + ","
+				}
 			}
-			if g.config.MFAOTP {
-				options += "otp,"
+			if len(options) > 1 {
+				log.Printf("GoogleController: User %s already has MFA setup, requesting additional authentication.", user.Email)
+				http.Redirect(w, r, fmt.Sprintf("/enter2fa?options=%s", options), http.StatusTemporaryRedirect)
+				return
 			}
-			if g.config.MFAWebauthn {
-				options += "webauthn,"
-			}
-			log.Printf("GoogleController: User %s hasn't setup MFA, redirecting to MFA selection.", googleUser.Email)
-			http.Redirect(w, r, fmt.Sprintf("/choose2fa?options=%s", options), http.StatusTemporaryRedirect)
+
 		}
+		// If we get there, the User has no MFA configured or validated.
+		options := ""
+		if g.config.MFATouchID {
+			options += "touchid,"
+		}
+		if g.config.MFAOTP {
+			options += "otp,"
+		}
+		if g.config.MFAWebauthn {
+			options += "webauthn,"
+		}
+		log.Printf("GoogleController: User %s hasn't setup MFA, redirecting to MFA selection.", googleUser.Email)
+		http.Redirect(w, r, fmt.Sprintf("/choose2fa?options=%s", options), http.StatusTemporaryRedirect)
+
 	} else { // If no additional 2FA required, user has now been created and authenticated.
 		err := userManager.CreateVpnSession(user, sourceIP)
 		if err != nil {
