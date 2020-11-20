@@ -14,6 +14,8 @@ type VpnSession struct {
 	SourceIP  string
 	MFAID     uuid.UUID `gorm:"type:uuid"`
 	CreatedAt time.Time
-	User      User    `gorm:"primaryKey;foreignKey:Email;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:email"`
-	UserMFA   UserMFA `gorm:"primaryKey;foreignKey:MFAID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:id"`
+	// Tying the session to both the User and UserMFA models ensures that all sessions are immediately invalidated
+	// if a user or their MFA provider gets deleted
+	User    User    `gorm:"primaryKey;foreignKey:Email;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:email"`
+	UserMFA UserMFA `gorm:"primaryKey;foreignKey:MFAID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:id"`
 }

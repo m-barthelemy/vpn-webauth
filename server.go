@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"time"
@@ -14,7 +13,9 @@ import (
 )
 
 func startServer(config *models.Config, handler http.Handler) {
-	domain, _, _ := net.SplitHostPort(config.RedirectDomain.Host)
+	//domain, _, _ := net.SplitHostPort(config.RedirectDomain.Host)
+	domain := config.RedirectDomain.Host
+	println("•••••• DOMAIN PORT IS ", config.RedirectDomain.Host)
 	certManager := autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(domain),

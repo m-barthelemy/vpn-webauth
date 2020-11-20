@@ -15,6 +15,7 @@ import (
 	"github.com/m-barthelemy/vpn-webauth/models"
 	dataProtector "github.com/m-barthelemy/vpn-webauth/services"
 	userManager "github.com/m-barthelemy/vpn-webauth/services"
+	"github.com/m-barthelemy/vpn-webauth/utils"
 
 	"gorm.io/gorm"
 )
@@ -322,7 +323,7 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// TODO: check 'credential.Authenticator.CloneWarning' when not using touchid
+	// TODO: Check 'credential.Authenticator.CloneWarning' when not using touchid
 	_, err = webAuthn.FinishLogin(webAuthNUser, *sessionData, r)
 	if err != nil {
 		log.Printf("WebAuthNController: Error finishing WebAuthn login for %s: %s", user.Email, err.Error())
@@ -330,6 +331,13 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	sourceIP := utils.New(m.config).GetClientIP(r)
+	if err := userManager.CreateVpnSession(requestedMFA.ID, user, sourceIP); err != nil {
+		log.Printf("WebAuthNController: Error creating VPN session for %s : %s", user.Email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("WebAuthNController: User %s created VPN session from %s", user.Email, sourceIP)
 	// TODO: Set session cookie
 	jsonResponse(w, "Login Success", http.StatusOK)
 }
