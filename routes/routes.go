@@ -43,6 +43,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	)
 
 	usersC := usercontroller.New(db, config)
+	// This creates the OTP provider (and secret) for the User
 	mux.Handle("/auth/otp/qrcode",
 		handlers.LoggingHandler(
 			os.Stdout,

@@ -74,7 +74,7 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 		log.Printf("WebAuthNController: failed to create WebAuthn from config: %s", err)
 	}
 
-	newUserMFA, err := userManager.AddMFA(user, webAuthnType)
+	newUserMFA, err := userManager.AddMFA(user, webAuthnType, "")
 	newWebAuthNUser := models.NewWebAuthNUser(newUserMFA.ID, user.Email, user.Email)
 	registerOptions := func(credCreationOpts *protocol.PublicKeyCredentialCreationOptions) {
 		credCreationOpts.CredentialExcludeList = newWebAuthNUser.CredentialExcludeList()

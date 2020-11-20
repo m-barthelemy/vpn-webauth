@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
-	"github.com/pquerna/otp/totp"
 
 	"gorm.io/gorm"
 )
@@ -40,20 +39,8 @@ func (m *UserManager) CheckOrCreate(email string) (*models.User, error) {
 	result := m.db.Preload("MFAs").Where("email = ?", email).First(&user)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			otp, err := totp.Generate(totp.GenerateOpts{
-				Issuer:      m.config.MFAIssuer,
-				AccountName: email,
-			})
-			if err != nil {
-				return nil, err
-			}
-			// Encrypt the secret for storing into DB.
-			dp := NewDataProtector(m.config)
-			otpSecret, err := dp.Encrypt(otp.Secret())
-			if err != nil {
-				return nil, err
-			}
-			user = models.User{Email: email, TotpSecret: otpSecret}
+
+			user = models.User{Email: email}
 			result := m.db.Create(&user)
 			if result.Error != nil {
 				return nil, result.Error
@@ -105,12 +92,20 @@ func (m *UserManager) CreateVpnSession(user *models.User, ip string) error {
 	return nil
 }
 
-func (m *UserManager) AddMFA(user *models.User, mfaType string) (*models.UserMFA, error) {
-	// First delete any existing session for the same user
+func (m *UserManager) AddMFA(user *models.User, mfaType string, data string) (*models.UserMFA, error) {
 	userMFA := models.UserMFA{
 		Email:     user.Email,
 		Validated: false,
 		Type:      mfaType,
+	}
+
+	if data != "" {
+		dp := NewDataProtector(m.config)
+		encryptedData, err := dp.Encrypt(data)
+		if err != nil {
+			return nil, err
+		}
+		userMFA.Data = encryptedData
 	}
 
 	result := m.db.Create(&userMFA)

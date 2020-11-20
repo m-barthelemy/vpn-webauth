@@ -12,7 +12,7 @@ type UserMFA struct {
 	ID        uuid.UUID `gorm:"type:uuid;unique"`
 	Email     string    `gorm:"primaryKey"`
 	Type      string    `gorm:"primaryKey"`
-	Data      string    // Provider-specific data
+	Data      string    // Provider-specific data. (OTP secret...))
 	Validated bool
 	CreatedAt time.Time
 	User      User `gorm:"primaryKey;foreignKey:Email;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:email"`

@@ -28,6 +28,8 @@ func New(db *gorm.DB, config *models.Config) *UserController {
 	return &UserController{db: db, config: config}
 }
 
+// GenerateQrCode creates an OTP MFA provider for the user and the OTP secret.
+// If successful, returns the QRCode image
 func (u *UserController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	if email == "" {
@@ -37,23 +39,50 @@ func (u *UserController) GenerateQrCode(w http.ResponseWriter, r *http.Request) 
 	userManager := userManager.New(u.db, u.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("UserController: Error fetching user: %s", err.Error)
+		log.Printf("UserController: Error fetching user: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
+	var otpMFA *models.UserMFA
+	for _, item := range user.MFAs {
+		if item.Type == "otp" {
+			otpMFA = &item
+			break
+		}
+	}
+
 	// Exposing the TOTP secret, once the user has successfully validated their OTP setup,
 	// would be a security vulnerability.
-	if user.TotpValidated {
+	if otpMFA != nil && otpMFA.Validated {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
-	dp := dataProtector.NewDataProtector(u.config)
-	otpSecret, err := dp.Decrypt(user.TotpSecret)
-	if err != nil {
-		log.Printf("UserController: Error fetching user TOTP secret: %s", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
+
+	if otpMFA == nil {
+		otp, err := totp.Generate(totp.GenerateOpts{
+			Issuer:      u.config.MFAIssuer,
+			AccountName: email,
+		})
+		if err != nil {
+			log.Printf("UserController: Error generating user TOTP secret for %s: %s", user.Email, err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+
+		otpMFA, err = userManager.AddMFA(user, "otp", otp.Secret())
+		if err != nil {
+			log.Printf("UserController: Error creating user TOTP MFA provider for %s: %s", user.Email, err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
 	}
+
+	dp := dataProtector.NewDataProtector(u.config)
+	otpSecret, err := dp.Decrypt(otpMFA.Data)
+	if err != nil {
+		log.Printf("UserController: Error decrypting user TOTP secret for %s: %s", user.Email, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+
 	otpSecretBytes := []byte(otpSecret)
 	key, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      u.config.MFAIssuer,
@@ -72,8 +101,8 @@ func (u *UserController) GenerateQrCode(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	err = png.Encode(&qrBuf, img)
-	if err != nil {
+	pngErr := png.Encode(&qrBuf, img)
+	if pngErr != nil {
 		log.Printf("UserController: Error generating QR code image PNG: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -81,7 +110,7 @@ func (u *UserController) GenerateQrCode(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Content-Length", strconv.Itoa(len(qrBuf.Bytes())))
-	// For security reasons it's best to disable any storage/caching of the QR code
+	// For security reasons it's best to disable any storage aching of the QR code
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := w.Write(qrBuf.Bytes()); err != nil {
 		log.Printf("UserController: Unable to generate QRcode: %s", err.Error())
@@ -94,13 +123,30 @@ func (u *UserController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	userManager := userManager.New(u.db, u.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("UserController: Error fetching user: %s", err.Error)
+		log.Printf("UserController: Error fetching user: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
+	var otpMFA *models.UserMFA
+	for _, item := range user.MFAs {
+		if item.Type == "otp" {
+			otpMFA = &item
+			break
+		}
+	}
+	if otpMFA == nil {
+		log.Printf("UserController: User %s has to TOTP MFA provider", user.Email)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	} else if otpMFA.Validated {
+		log.Printf("UserController: User %s already has a validated TOTP MFA provider", user.Email)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
 	dp := dataProtector.NewDataProtector(u.config)
-	otpSecret, err := dp.Decrypt(user.TotpSecret)
+	otpSecret, err := dp.Decrypt(otpMFA.Data)
 	if err != nil {
 		log.Printf("UserController: Error fetching user TOTP secret: %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -122,23 +168,28 @@ func (u *UserController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
 	if !totp.Validate(r.FormValue("otp"), key.Secret()) {
-		log.Printf("UserController: OTP code validation failed for %s", email)
+		log.Printf("UserController: Error validating OTP code validation for %s", email)
 		http.Redirect(w, r, "/enter2fa?error", http.StatusTemporaryRedirect)
 		return
-	} else {
-		if !user.TotpValidated {
-			user.TotpValidated = true
-			u.db.Save(&user)
-		}
+	}
 
-		sourceIP := utils.New(u.config).GetClientIP(r)
-		if err := userManager.CreateVpnSession(user, sourceIP); err != nil {
-			log.Printf("UserController: Error creating VPN session for %s : %s", email, err.Error())
+	if !otpMFA.Validated {
+		if err := userManager.ValidateMFA(user, "otp", ""); err != nil {
+			log.Printf("UserController: Error updating OTP provider for %s : %s", user.Email, err.Error())
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		log.Printf("UserController: User %s created VPN session from %s", email, sourceIP)
-		http.Redirect(w, r, "/success", http.StatusTemporaryRedirect)
+		log.Printf("UserController: Successfully validated OTP provider for %s", user.Email)
 	}
+
+	sourceIP := utils.New(u.config).GetClientIP(r)
+	if err := userManager.CreateVpnSession(user, sourceIP); err != nil {
+		log.Printf("UserController: Error creating VPN session for %s : %s", email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("UserController: User %s created VPN session from %s", email, sourceIP)
+	http.Redirect(w, r, "/success", http.StatusTemporaryRedirect)
 }
