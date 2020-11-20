@@ -9,7 +9,6 @@ require (
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/gorilla/handlers v1.5.1
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/kisielk/errcheck v1.4.0 // indirect
 	github.com/markbates/pkger v0.17.1
 	github.com/pquerna/otp v1.2.0
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
