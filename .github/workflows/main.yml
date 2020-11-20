@@ -14,16 +14,19 @@ jobs:
       uses: actions/setup-go@v2
       with:
         go-version: '^1.15'
-        args: go vet ./...
+    - name: Run go vet
+      run: go vet ./...
   security:
     name: Review security
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
-    - name: Check missing error check
+    - name: Setup
       uses: actions/setup-go@v2
       with:
-        args: go get; go get github.com/securego/gosec/cmd/gosec; gosec -severity medium ./... # https://github.com/securego/gosec
+        go-version: '^1.15'
+    - name: Run gosec
+      run: go get; go get github.com/securego/gosec/cmd/gosec; gosec -severity medium ./... # https://github.com/securego/gosec
 #  buildable:
 #    name: Buildable
 #    runs-on: ubuntu-latest
