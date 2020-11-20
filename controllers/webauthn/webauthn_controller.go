@@ -246,6 +246,9 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+	if webAuthnType == "touchid" { // Only offer Touchid and skip choice of security key
+		options.Response.AllowedCredentials[0].Transport = append(options.Response.AllowedCredentials[0].Transport, protocol.Internal)
+	}
 
 	if err := m.createWebauthNCookie("webauthn_session", sessionData, w); err != nil {
 		log.Printf("WebAuthNController: Failed to create registration cookie: %s", err.Error())
@@ -256,7 +259,6 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 }
 
 func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request) {
-
 	var email = r.Context().Value("identity").(string)
 	if email == "" {
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
