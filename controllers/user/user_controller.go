@@ -45,9 +45,9 @@ func (u *UserController) GenerateQrCode(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var otpMFA *models.UserMFA
-	for _, item := range user.MFAs {
-		if item.Type == "otp" {
-			otpMFA = &item
+	for i := range user.MFAs {
+		if user.MFAs[i].Type == "otp" {
+			otpMFA = &user.MFAs[i]
 			break
 		}
 	}
@@ -129,9 +129,9 @@ func (u *UserController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var otpMFA *models.UserMFA
-	for _, item := range user.MFAs {
-		if item.Type == "otp" {
-			otpMFA = &item
+	for i := range user.MFAs {
+		if user.MFAs[i].Type == "otp" {
+			otpMFA = &user.MFAs[i]
 			break
 		}
 	}

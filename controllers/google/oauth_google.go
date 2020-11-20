@@ -107,9 +107,9 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 		// ensure they have an oauth2 MFAUser
 		var requestedMFA *models.UserMFA
 		if user.MFAs != nil {
-			for _, item := range user.MFAs {
-				if item.Type == "oauth2" {
-					requestedMFA = &item
+			for i := range user.MFAs {
+				if user.MFAs[i].Type == "oauth2" {
+					requestedMFA = &user.MFAs[i]
 					break
 				}
 			}
