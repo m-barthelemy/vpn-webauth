@@ -23,7 +23,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	tplHandler := NewTemplateHandler(config)
 	err := tplHandler.CompileTemplates(dir)
 	if err != nil {
-		log.Fatalf("Error compiling templates: ", err.Error())
+		log.Fatalf("Error compiling templates: %s", err.Error())
 	}
 	mux := http.NewServeMux()
 
