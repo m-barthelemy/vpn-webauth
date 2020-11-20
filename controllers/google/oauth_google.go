@@ -68,21 +68,21 @@ func (g *GoogleController) OauthGoogleLogin(w http.ResponseWriter, r *http.Reque
 func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	oauthState, err := r.Cookie("oauthstate")
 	if err != nil {
-		log.Printf("GoogleController: error fetching OAuth state cookie: %s", err)
+		log.Printf("GoogleController: Error fetching OAuth state cookie: %s", err)
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
 	// The state value in the URL when Google redirects back to us, and in the `oauthState` cookie, must match.
 	if r.FormValue("state") != oauthState.Value {
-		log.Println("invalid oauth google state")
+		log.Println("GoogleController: Invalid oauth google state")
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
 	googleUser, err := getUserDataFromGoogle(r.FormValue("code"))
 	if err != nil {
-		log.Printf("GoogleController: error fetching user info from Google: %s", err)
+		log.Printf("GoogleController: Error fetching user info from Google: %s", err)
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
@@ -96,7 +96,7 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if g.createSession(user.Email, g.config.EnforceMFA, w) != nil {
-		log.Printf("GoogleController: error creating user session: %s", err)
+		log.Printf("GoogleController: Error creating user oauth2-only session for %s: %s", user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -116,7 +116,7 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 		}
 		if requestedMFA == nil {
 			if requestedMFA, err = userManager.AddMFA(user, "oauth2", ""); err != nil {
-				log.Printf("GoogleController: error creating UserMFA for %s: %s", user.Email, err)
+				log.Printf("GoogleController: Error creating UserMFA for %s: %s", user.Email, err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
@@ -134,7 +134,7 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 	// Check if user already has a valid session with OTP
 	allowed, err := userManager.CheckVpnSession(user.Email, sourceIP, true)
 	if err != nil {
-		log.Printf("GoogleController: Error checking existing VPN sessions: %s", err.Error())
+		log.Printf("GoogleController: Error checking existing VPN sessions for %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}

@@ -23,7 +23,6 @@ func NewWebAuthNUser(id uuid.UUID, name string, displayName string) *WebAuthNUse
 	user.id = id
 	user.name = name
 	user.displayName = displayName
-	// user.credentials = []webauthn.Credential{}
 
 	return &user
 }
