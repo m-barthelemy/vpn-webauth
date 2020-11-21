@@ -11,6 +11,7 @@ import (
 // TODO: this is redefined in oauth_google.go!!!! Ugly!!!
 type Claims struct {
 	Username string `json:"username"`
+	HasMFA   bool   `json:"has_mfa"`
 	jwt.StandardClaims
 }
 
@@ -46,7 +47,9 @@ func sessionMiddleware(jwtKey []byte, h http.HandlerFunc, allowNoSession bool) h
 		}
 
 		if token.Valid {
-			r = r.WithContext(context.WithValue(r.Context(), "identity", claims.Username))
+			ctx := context.WithValue(r.Context(), "identity", claims.Username)
+			ctx = context.WithValue(ctx, "hasMfa", claims.HasMFA)
+			r = r.WithContext(ctx)
 		}
 		h(w, r)
 	}

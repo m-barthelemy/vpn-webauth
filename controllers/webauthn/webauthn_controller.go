@@ -23,6 +23,9 @@ import (
 
 // Inspired by https://github.com/hbolimovsky/webauthn-example/blob/master/server.go
 
+// WebAuthNController manages Webauthn Registrations and Logins.
+// Note: currently Apple TouchID, Windows Hello and any platform TPM are all
+// treated and configured like an Apple TouchID device
 type WebAuthNController struct {
 	db     *gorm.DB
 	config *models.Config
@@ -33,20 +36,27 @@ func New(db *gorm.DB, config *models.Config) *WebAuthNController {
 	return &WebAuthNController{db: db, config: config}
 }
 
+// BeginRegister starts the registration of a new Webauthn device or browser
 func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
+	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 	if email == "" {
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
 	var user *models.User
-	// Ensure User exists
 	userManager := userManager.New(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching user: %s", err.Error())
+		log.Printf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	// Deny if the user has enabled MFA but hasn't logged in fully
+	if user.HasMFA() && !sessionHasMFA {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
 
@@ -57,18 +67,6 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// TODO: RE_ENABLE and reject if not already 2fa-authenticated
-	// Ensure Webauthn does not already exist for the user
-	/*if user.MFAs != nil {
-		for _, item := range user.MFAs {
-			if item.Type == webAuthnType {
-				log.Printf("WebAuthNController: User %s already has an authentication provider of type %s", user.Email, webAuthnType)
-				http.Error(w, http.StatusText(http.StatusConflict), http.StatusConflict)
-				return
-			}
-		}
-	}*/
-
 	webAuthn, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: m.config.MFAIssuer, // Display Name or the site
 		RPID:          m.config.RedirectDomain.Hostname(),
@@ -78,12 +76,12 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 		log.Printf("WebAuthNController: failed to create WebAuthn from config: %s", err)
 	}
 
-	newUserMFA, err := userManager.AddMFA(user, webAuthnType, "")
-	println("•• TODO: REMOVE ME! I'm only here to use newUserMFA: ", newUserMFA.ID.String())
+	_, err = userManager.AddMFA(user, webAuthnType, "")
 	newWebAuthNUser := models.NewWebAuthNUser(user.ID, user.Email, user.Email)
 
 	registerOptions := func(credCreationOpts *protocol.PublicKeyCredentialCreationOptions) {
 		credCreationOpts.CredentialExcludeList = newWebAuthNUser.CredentialExcludeList()
+		// TODO: Add all existing user webauthn creds
 	}
 
 	// Generate PublicKeyCredentialCreationOptions, session data
@@ -96,13 +94,13 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 		options.Response.AuthenticatorSelection.AuthenticatorAttachment = protocol.Platform
 		// Apple attestation format not supported
 		//options.Response.Attestation = protocol.PreferDirectAttestation
+		// Only ES256 (alg: -7) is supported by Touchid
+		pubKey := protocol.CredentialParameter{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256}
+		options.Response.Parameters = nil
+		options.Response.Parameters = append(options.Response.Parameters, pubKey)
 	} else {
 		options.Response.AuthenticatorSelection.AuthenticatorAttachment = protocol.CrossPlatform
 	}
-	// Only ES256 (alg: -7) is supported by Touchid
-	options.Response.Parameters = nil
-	pubKey := protocol.CredentialParameter{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256}
-	options.Response.Parameters = append(options.Response.Parameters, pubKey)
 
 	if err := m.createWebauthNCookie("webauthn_register", sessionData, w); err != nil {
 		log.Printf("WebAuthNController: Failed to create registration cookie: %s", err.Error())
@@ -130,7 +128,7 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 	userManager := userManager.New(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching user: %s", err.Error())
+		log.Printf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -181,6 +179,12 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	log.Printf("WebAuthNController: User %s created VPN session from %s", user.Email, sourceIP)
+
+	if userManager.CreateSession(user.Email, true, w) != nil {
+		log.Printf("GoogleController: Error creating user MFA session for %s: %s", user.Email, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 }
 
 func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) {
@@ -201,7 +205,7 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 	userManager := userManager.New(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching user: %s", err.Error())
+		log.Printf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -260,7 +264,7 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 	userManager := userManager.New(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching user: %s", err.Error())
+		log.Printf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -317,7 +321,13 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	log.Printf("WebAuthNController: User %s created VPN session from %s", user.Email, sourceIP)
-	// TODO: Set session cookie
+
+	if userManager.CreateSession(user.Email, true, w) != nil {
+		log.Printf("GoogleController: Error creating user MFA session for %s: %s", user.Email, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
 	jsonResponse(w, "Login Success", http.StatusOK)
 }
 
@@ -336,29 +346,26 @@ func jsonResponse(w http.ResponseWriter, d interface{}, c int) {
 func (m *WebAuthNController) getAvailableCredentials(user models.User, webAuthnType string, onlyValidated bool) (map[uuid.UUID]webauthn.Credential, error) {
 	dp := dataProtector.NewDataProtector(m.config)
 	availableCredentials := make(map[uuid.UUID]webauthn.Credential)
-	if user.MFAs != nil {
-		for _, item := range user.MFAs {
-			if item.Type == webAuthnType && item.Validated == onlyValidated {
-				if item.Data != "" { // otherwise it's not a credential
-					decryptedData, err := dp.Decrypt(item.Data)
-					if err != nil {
-						return nil, errors.New(
-							fmt.Sprintf("%s Data could not be decrypted: %s", webAuthnType, err.Error()),
-						)
-					}
-					var credential webauthn.Credential
-					if err := json.Unmarshal([]byte(decryptedData), &credential); err != nil {
-						return nil, errors.New(
-							fmt.Sprintf("%s Data could not be deserialized to credential: %s", webAuthnType, err.Error()),
-						)
-					}
-					availableCredentials[item.ID] = credential
-				}
-			}
-		}
-	} else {
+	if user.MFAs == nil {
 		return nil, errors.New("User doesn't have Webauthn credentials")
 	}
+	for _, item := range user.MFAs {
+		if item.Type == webAuthnType && item.Validated == onlyValidated {
+			if item.Data == "" { // otherwise it's not a credential
+				continue
+			}
+			decryptedData, err := dp.Decrypt(item.Data)
+			if err != nil {
+				return nil, fmt.Errorf("%s Data could not be decrypted: %s", webAuthnType, err.Error())
+			}
+			var credential webauthn.Credential
+			if err := json.Unmarshal([]byte(decryptedData), &credential); err != nil {
+				return nil, fmt.Errorf("%s Data could not be deserialized to credential: %s", webAuthnType, err.Error())
+			}
+			availableCredentials[item.ID] = credential
+		}
+	}
+
 	return availableCredentials, nil
 }
 

@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/m-barthelemy/vpn-webauth/models"
 	userManager "github.com/m-barthelemy/vpn-webauth/services"
 	"github.com/m-barthelemy/vpn-webauth/utils"
@@ -29,12 +28,6 @@ type GoogleUser struct {
 	Id            string `json:"sub"`
 	Email         string `json:"email"`
 	EmailVerified string `json:"email_verified"`
-}
-
-// Claims is used Used for the session cookie
-type Claims struct {
-	Username string `json:"username"`
-	jwt.StandardClaims
 }
 
 var googleOauthConfig *oauth2.Config
@@ -110,7 +103,7 @@ func (g *GoogleController) afterFirstAuthStep(email string, w http.ResponseWrite
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	if g.createSession(user.Email, g.config.EnforceMFA, w) != nil {
+	if userManager.CreateSession(user.Email, false, w) != nil {
 		log.Printf("GoogleController: Error creating user oauth2-only session for %s: %s", user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -202,34 +195,6 @@ func (g *GoogleController) generateStateCookie(name string, w http.ResponseWrite
 	http.SetCookie(w, &cookie)
 
 	return state
-}
-
-func (g *GoogleController) createSession(email string, requiresMFA bool, w http.ResponseWriter) error {
-	jwtKey := []byte(g.config.SigningKey)
-	// Session needs to be valid until user has completed initial 2FA registration if needed
-	// hence the 3 minutes here.
-	expirationTime := time.Now().Add(3 * time.Minute)
-	claims := &Claims{
-		Username: email,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: expirationTime.Unix(),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtKey)
-	if err != nil {
-		return err
-	}
-	cookie := http.Cookie{
-		Name:     "vpnwa_session",
-		Value:    tokenString,
-		Expires:  expirationTime,
-		HttpOnly: true,
-		Path:     "/",
-		Secure:   g.config.SSLMode != "off",
-	}
-	http.SetCookie(w, &cookie)
-	return nil
 }
 
 func getUserDataFromGoogle(code string) (GoogleUser, error) {

@@ -3,8 +3,10 @@ package services
 import (
 	"errors"
 	"log"
+	"net/http"
 	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gofrs/uuid"
 	"github.com/m-barthelemy/vpn-webauth/models"
 
@@ -115,6 +117,10 @@ func (m *UserManager) AddMFA(user *models.User, mfaType string, data string) (*m
 		return nil, result.Error
 	}
 	log.Printf("UserManager: Created %s UserMFA for %s", mfaType, user.Email)
+
+	// Cleanup any expired, non validated UserMFA
+	m.db.Delete(&models.UserMFA{}, "id = ? AND validated = ? AND expires_at < ?", user.ID, false, time.Now())
+
 	return &userMFA, nil
 }
 
@@ -143,4 +149,39 @@ func (m *UserManager) ValidateMFA(user *models.User, mfaType string, data string
 
 	log.Printf("UserManager: Validated %s UserMFA for %s", mfaType, user.Email)
 	return &userMFA, nil
+}
+
+// Claims is used Used for the session cookie
+type Claims struct {
+	Username string `json:"username"`
+	HasMFA   bool   `json:"has_mfa"`
+	jwt.StandardClaims
+}
+
+func (m *UserManager) CreateSession(email string, hasMFA bool, w http.ResponseWriter) error {
+	jwtKey := []byte(m.config.SigningKey)
+	// Session needs to be valid until user has completed initial 2FA registration if needed
+	// hence the 3 minutes here.
+	expirationTime := time.Now().Add(3 * time.Minute)
+	claims := &Claims{
+		Username: email,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: expirationTime.Unix(),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtKey)
+	if err != nil {
+		return err
+	}
+	cookie := http.Cookie{
+		Name:     "vpnwa_session",
+		Value:    tokenString,
+		Expires:  expirationTime,
+		HttpOnly: true,
+		Path:     "/",
+		Secure:   m.config.SSLMode != "off",
+	}
+	http.SetCookie(w, &cookie)
+	return nil
 }

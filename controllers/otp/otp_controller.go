@@ -32,15 +32,23 @@ func New(db *gorm.DB, config *models.Config) *OTPController {
 // If successful, returns the QRCode image
 func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
+	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 	if email == "" {
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
+
 	userManager := userManager.New(u.db, u.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("OTPController: Error fetching user: %s", err.Error())
+		log.Printf("OTPController: Error fetching user %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	// Deny if the user has enabled MFA but hasn't logged in fully
+	if user.HasMFA() && !sessionHasMFA {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
 

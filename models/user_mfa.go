@@ -9,10 +9,9 @@ import (
 
 // UserMFA represents a "second factor" authentication provider for a given user
 type UserMFA struct {
-	ID     uuid.UUID `gorm:"type:uuid;primaryKey"`
-	UserID uuid.UUID
-	//Email     string    //`gorm:"primaryKey"`
-	Type      string //`gorm:"primaryKey"`
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UserID    uuid.UUID
+	Type      string
 	Data      string // Provider-specific data. (OTP secret...))
 	Validated bool
 	CreatedAt time.Time

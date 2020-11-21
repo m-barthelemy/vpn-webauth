@@ -151,7 +151,7 @@ $(document).ready(async function(){
     if (sessionValidity != "") {
         let expiry = new Date();
         expiry.setSeconds(expiry.getSeconds() + parseInt($("#session-validity").text()));
-        $("#session-validity").text(expiry);
+        $("#session-validity").text(expiry.toLocaleString());
     }
 
     // Success page: check if it was a registration or a login
