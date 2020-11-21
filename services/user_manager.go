@@ -95,8 +95,9 @@ func (m *UserManager) CreateVpnSession(mfaId uuid.UUID, user *models.User, ip st
 
 func (m *UserManager) AddMFA(user *models.User, mfaType string, data string) (*models.UserMFA, error) {
 	userMFA := models.UserMFA{
-		Email:     user.Email,
+		UserID:    user.ID,
 		Validated: false,
+		ExpiresAt: time.Now().Add(time.Minute * 5),
 		Type:      mfaType,
 	}
 
@@ -117,25 +118,29 @@ func (m *UserManager) AddMFA(user *models.User, mfaType string, data string) (*m
 	return &userMFA, nil
 }
 
-func (m *UserManager) ValidateMFA(user *models.User, mfaType string, data string) error {
+// ValidateMFA sets the UserMFA as validated and saves any data if present.
+// WARNING: Currently we assume that there is only 1 pending validation
+func (m *UserManager) ValidateMFA(user *models.User, mfaType string, data string) (*models.UserMFA, error) {
 	var userMFA models.UserMFA
-	result := m.db.Where("email = ? AND type = ? AND validated = ?", user.Email, mfaType, false).First(&userMFA)
+	result := m.db.Where("user_id = ? AND type = ? AND validated = ? AND expires_at > ?", user.ID, mfaType, false, time.Now()).First(&userMFA)
 	if result.Error != nil {
-		return result.Error
+		return nil, result.Error
 	}
+
 	userMFA.Validated = true
 	if data != "" {
 		dp := NewDataProtector(m.config)
 		encryptedData, err := dp.Encrypt(data)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		userMFA.Data = encryptedData
 	}
 
-	if err := m.db.Save(&userMFA); err != nil {
-		return result.Error
+	if result := m.db.Save(&userMFA); result.Error != nil {
+		return nil, result.Error
 	}
+
 	log.Printf("UserManager: Validated %s UserMFA for %s", mfaType, user.Email)
-	return nil
+	return &userMFA, nil
 }

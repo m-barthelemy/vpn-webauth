@@ -56,6 +56,15 @@ func New(db *gorm.DB, config *models.Config) *GoogleController {
 
 // OauthGoogleLogin redirects to Google for the actual login
 func (g *GoogleController) OauthGoogleLogin(w http.ResponseWriter, r *http.Request) {
+	contextValue := r.Context().Value("identity")
+
+	// If we have a valid session, directly move to next step
+	if contextValue != nil {
+		var email = contextValue.(string)
+		g.afterFirstAuthStep(email, w, r)
+		return
+	}
+
 	oauthState := g.generateStateCookie("oauthstate", w)
 
 	// `select_account` forces displaying the Google account selection step, in case the user has multiple
@@ -88,8 +97,14 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 	}
 
 	log.Printf("User %s completed Google authentication step", googleUser.Email)
+
+	g.afterFirstAuthStep(googleUser.Email, w, r)
+
+}
+
+func (g *GoogleController) afterFirstAuthStep(email string, w http.ResponseWriter, r *http.Request) {
 	userManager := userManager.New(g.db, g.config)
-	user, err := userManager.CheckOrCreate(googleUser.Email)
+	user, err := userManager.CheckOrCreate(email)
 	if err != nil {
 		log.Print(err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -100,7 +115,6 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-
 	sourceIP := utils.New(g.config).GetClientIP(r)
 	if !g.config.EnforceMFA {
 		// If no additional 2FA required, the user has now been created and authenticated.
@@ -131,16 +145,18 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Check if user already has a valid session with OTP
-	allowed, err := userManager.CheckVpnSession(user.Email, sourceIP, true)
-	if err != nil {
-		log.Printf("GoogleController: Error checking existing VPN sessions for %s: %s", user.Email, err.Error())
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-	if allowed {
-		http.Redirect(w, r, "/success", http.StatusTemporaryRedirect)
-	} else if user.MFAs != nil {
+	/*
+		// Check if user already has a valid session with OTP
+		allowed, err := userManager.CheckVpnSession(user.Email, sourceIP, true)
+		if err != nil {
+			log.Printf("GoogleController: Error checking existing VPN sessions for %s: %s", user.Email, err.Error())
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		if allowed {
+			http.Redirect(w, r, "/success", http.StatusTemporaryRedirect)
+		} else if user.MFAs != nil {*/
+	if user.MFAs != nil {
 		options := ""
 		for _, item := range user.MFAs {
 			if item.Validated {
@@ -165,12 +181,12 @@ func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 	if g.config.MFAWebauthn {
 		options += "webauthn,"
 	}
-	log.Printf("GoogleController: User %s hasn't setup MFA, redirecting to MFA selection.", googleUser.Email)
+	log.Printf("GoogleController: User %s hasn't setup MFA, redirecting to MFA selection.", email)
 	http.Redirect(w, r, fmt.Sprintf("/choose2fa?options=%s", options), http.StatusTemporaryRedirect)
 }
 
 func (g *GoogleController) generateStateCookie(name string, w http.ResponseWriter) string {
-	// Session needs to be valid until user has completed )Auth2 login, which may take longer if
+	// Session needs to be valid until user has completed OAuth2 login, which may take longer if
 	// dome for the first time or on a new browser.
 	var expiration = time.Now().Add(3 * time.Minute)
 	b := make([]byte, 64) // random ID

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +39,7 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
+
 	var user *models.User
 	// Ensure User exists
 	userManager := userManager.New(m.db, m.config)
@@ -55,8 +57,9 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// TODO: RE_ENABLE and reject if not already 2fa-authenticated
 	// Ensure Webauthn does not already exist for the user
-	if user.MFAs != nil {
+	/*if user.MFAs != nil {
 		for _, item := range user.MFAs {
 			if item.Type == webAuthnType {
 				log.Printf("WebAuthNController: User %s already has an authentication provider of type %s", user.Email, webAuthnType)
@@ -64,7 +67,7 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 				return
 			}
 		}
-	}
+	}*/
 
 	webAuthn, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: m.config.MFAIssuer, // Display Name or the site
@@ -76,7 +79,9 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 	}
 
 	newUserMFA, err := userManager.AddMFA(user, webAuthnType, "")
-	newWebAuthNUser := models.NewWebAuthNUser(newUserMFA.ID, user.Email, user.Email)
+	println("•• TODO: REMOVE ME! I'm only here to use newUserMFA: ", newUserMFA.ID.String())
+	newWebAuthNUser := models.NewWebAuthNUser(user.ID, user.Email, user.Email)
+
 	registerOptions := func(credCreationOpts *protocol.PublicKeyCredentialCreationOptions) {
 		credCreationOpts.CredentialExcludeList = newWebAuthNUser.CredentialExcludeList()
 	}
@@ -148,14 +153,7 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	sessionUserID, err := uuid.FromBytes(sessionData.UserID)
-	if err != nil {
-		log.Printf("WebAuthNController: failed to get WebAuthn ID from session: %s", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	webAuthNUser := models.NewWebAuthNUser(sessionUserID, user.Email, user.Email)
+	webAuthNUser := models.NewWebAuthNUser(user.ID, user.Email, user.Email)
 	credential, err := webAuthn.FinishRegistration(webAuthNUser, *sessionData, r)
 	if err != nil {
 		log.Printf("WebAuthNController: Error validating WebAuthn registration for %s: %s", user.Email, err)
@@ -167,16 +165,22 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 	}
 
 	serializedCredential, _ := json.Marshal(credential)
-	if err := userManager.ValidateMFA(user, webAuthnType, string(serializedCredential[:])); err != nil {
+	// TODO: ValidateMFA needs to take a UserMFA ID
+	validatedMFA, err := userManager.ValidateMFA(user, webAuthnType, string(serializedCredential[:]))
+	if err != nil {
 		log.Printf("WebAuthNController: failed to save %s registration validation for %s: %s", webAuthnType, user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	m.deleteWebauthNCookie("webauthn_register", w)
 
-	// TODO: Set long retention cookie with
-	// [ {mfa: webauthn, type: touchid, id: xxxx}, {mfa: otp, type: null, id: xxxx}, ...]
-	// for automatically presenting relevant MFA options during logins on same device
+	sourceIP := utils.New(m.config).GetClientIP(r)
+	if err := userManager.CreateVpnSession(validatedMFA.ID, user, sourceIP); err != nil {
+		log.Printf("WebAuthNController: Error creating VPN session for %s : %s", user.Email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("WebAuthNController: User %s created VPN session from %s", user.Email, sourceIP)
 }
 
 func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) {
@@ -202,36 +206,16 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var requestedMFA models.UserMFA
-	if user.MFAs != nil {
-		for _, item := range user.MFAs {
-			if item.Type == webAuthnType {
-				requestedMFA = item
-				break
-			}
-		}
-	} else {
-		log.Printf("WebAuthNController: User %s doesn't have a validated %s MFA provider.", user.Email, webAuthnType)
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		return
-	}
-
-	webAuthNUser := models.NewWebAuthNUser(requestedMFA.ID, user.Email, user.Email)
-	// Decrypt and deserialize the WebAuthn credential
-	dp := dataProtector.NewDataProtector(m.config)
-	decryptedData, err := dp.Decrypt(requestedMFA.Data)
+	webAuthNUser := models.NewWebAuthNUser(user.ID, user.Email, user.Email)
+	availableCredentials, err := m.getAvailableCredentials(*user, webAuthnType, true)
 	if err != nil {
-		log.Printf("WebAuthNController: %s UserMFA %s Data record could not be decrypted: %s", user.Email, webAuthnType, err.Error())
+		log.Printf("WebAuthNController: Error fetching available webauthn credentials for %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	var credential webauthn.Credential
-	if err := json.Unmarshal([]byte(decryptedData), &credential); err != nil {
-		log.Printf("WebAuthNController: %s UserMFA %s Data record could not be deserialized to credential: %s", user.Email, webAuthnType, err.Error())
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
+	for _, credential := range availableCredentials {
+		webAuthNUser.AddCredential(credential)
 	}
-	webAuthNUser.AddCredential(credential)
 
 	webAuthn, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: m.config.MFAIssuer,
@@ -250,7 +234,7 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 		options.Response.AllowedCredentials[0].Transport = append(options.Response.AllowedCredentials[0].Transport, protocol.Internal)
 	}
 
-	if err := m.createWebauthNCookie("webauthn_session", sessionData, w); err != nil {
+	if err := m.createWebauthNCookie("webauthn_login", sessionData, w); err != nil {
 		log.Printf("WebAuthNController: Failed to create registration cookie: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
@@ -281,36 +265,23 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var requestedMFA models.UserMFA
-	if user.MFAs != nil {
-		for _, item := range user.MFAs {
-			if item.Type == webAuthnType {
-				requestedMFA = item
-				break
-			}
-		}
-	} else {
-		log.Printf("WebAuthNController: User %s doesn't have a validated %s MFA provider.", user.Email, webAuthnType)
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	sessionData, err := m.getWebauthNCookie("webauthn_login", w, r)
+	if err != nil {
+		log.Printf("WebAuthNController: Error fetching WebAuthn session cookie for %s: %s", user.Email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	webAuthNUser := models.NewWebAuthNUser(requestedMFA.ID, user.Email, user.Email)
-	// Decrypt and deserialize the WebAuthn credential
-	dp := dataProtector.NewDataProtector(m.config)
-	decryptedData, err := dp.Decrypt(requestedMFA.Data)
+	webAuthNUser := models.NewWebAuthNUser(user.ID, user.Email, user.Email)
+	availableCredentials, err := m.getAvailableCredentials(*user, webAuthnType, true)
 	if err != nil {
-		log.Printf("WebAuthNController: %s UserMFA %s Data record could not be decrypted: %s", user.Email, webAuthnType, err.Error())
+		log.Printf("WebAuthNController: Error fetching available webauthn credentials for %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	var credential webauthn.Credential
-	if err := json.Unmarshal([]byte(decryptedData), &credential); err != nil {
-		log.Printf("WebAuthNController: %s UserMFA %s Data record could not be deserialized to credential: %s", user.Email, webAuthnType, err.Error())
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
+	for _, credential := range availableCredentials {
+		webAuthNUser.AddCredential(credential)
 	}
-	webAuthNUser.AddCredential(credential)
 
 	webAuthn, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: m.config.MFAIssuer,
@@ -318,23 +289,29 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 		RPOrigin:      fmt.Sprintf("%s://%s", m.config.RedirectDomain.Scheme, m.config.RedirectDomain.Hostname()),
 	})
 
-	sessionData, err := m.getWebauthNCookie("webauthn_session", w, r)
-	if err != nil {
-		log.Printf("WebAuthNController: Error fetching WebAuthn session cookie for %s: %s", user.Email, err.Error())
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
 	// TODO: Check 'credential.Authenticator.CloneWarning' when not using touchid
-	_, err = webAuthn.FinishLogin(webAuthNUser, *sessionData, r)
+	successLoginCredential, err := webAuthn.FinishLogin(webAuthNUser, *sessionData, r)
 	if err != nil {
 		log.Printf("WebAuthNController: Error finishing WebAuthn login for %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
+	// Determine which UserMFA was used
+	var usedMFAID uuid.UUID
+	for mfaID, cred := range availableCredentials {
+		if bytes.Compare(cred.ID, successLoginCredential.ID) == 0 {
+			usedMFAID = mfaID
+		}
+	}
+	if err != nil {
+		log.Printf("WebAuthNController: Error getting webauthn credential ID for %s: %s", user.Email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
 	sourceIP := utils.New(m.config).GetClientIP(r)
-	if err := userManager.CreateVpnSession(requestedMFA.ID, user, sourceIP); err != nil {
+	if err := userManager.CreateVpnSession(usedMFAID, user, sourceIP); err != nil {
 		log.Printf("WebAuthNController: Error creating VPN session for %s : %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -354,6 +331,35 @@ func jsonResponse(w http.ResponseWriter, d interface{}, c int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(c)
 	fmt.Fprintf(w, "%s", dj)
+}
+
+func (m *WebAuthNController) getAvailableCredentials(user models.User, webAuthnType string, onlyValidated bool) (map[uuid.UUID]webauthn.Credential, error) {
+	dp := dataProtector.NewDataProtector(m.config)
+	availableCredentials := make(map[uuid.UUID]webauthn.Credential)
+	if user.MFAs != nil {
+		for _, item := range user.MFAs {
+			if item.Type == webAuthnType && item.Validated == onlyValidated {
+				if item.Data != "" { // otherwise it's not a credential
+					decryptedData, err := dp.Decrypt(item.Data)
+					if err != nil {
+						return nil, errors.New(
+							fmt.Sprintf("%s Data could not be decrypted: %s", webAuthnType, err.Error()),
+						)
+					}
+					var credential webauthn.Credential
+					if err := json.Unmarshal([]byte(decryptedData), &credential); err != nil {
+						return nil, errors.New(
+							fmt.Sprintf("%s Data could not be deserialized to credential: %s", webAuthnType, err.Error()),
+						)
+					}
+					availableCredentials[item.ID] = credential
+				}
+			}
+		}
+	} else {
+		return nil, errors.New("User doesn't have Webauthn credentials")
+	}
+	return availableCredentials, nil
 }
 
 // Create an encrypted cookie with webauthn stateful session data
@@ -412,7 +418,6 @@ func (m *WebAuthNController) deleteWebauthNCookie(name string, w http.ResponseWr
 		Secure:   m.config.SSLMode != "off",
 		HttpOnly: true,
 	}
-
 	http.SetCookie(w, c)
 	return nil
 }

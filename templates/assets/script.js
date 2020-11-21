@@ -50,7 +50,7 @@ async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
         return;
     }
     else {
-        window.location.href = "/success";
+        window.location.href = "/success?source=register&provider=webauthn";
     }
 }
 
@@ -68,9 +68,21 @@ async function webAuthNLogin(allowCrossPlatformDevice = false) {
     credentialRequestOptions.publicKey.allowCredentials.forEach(function (listItem) {
         listItem.id = bufferDecode(listItem.id)
     });
+    credentialRequestOptions.mediation = "silent";
+
+    let assertion;
+    try{
+        assertion = await navigator.credentials.get(credentialRequestOptions);
+    }
+    catch (e) {
+        $("#touchid-icon").removeClass("fadein-animated");
+        $("#error").html(`<b>You may be trying to authenticate from a new device or browser. <br/>
+            Sign in using your allowed device or browser, and click 'Add new browser or device'.<br/>
+            Then follow the instructions.</b>`);
+        $("#error").show();
+        return;
+    }
     
-    const assertion = await navigator.credentials.get(credentialRequestOptions);
-    console.log(assertion)
     let authData = assertion.response.authenticatorData;
     let clientDataJSON = assertion.response.clientDataJSON;
     let rawId = assertion.rawId;
@@ -140,6 +152,17 @@ $(document).ready(async function(){
         let expiry = new Date();
         expiry.setSeconds(expiry.getSeconds() + parseInt($("#session-validity").text()));
         $("#session-validity").text(expiry);
+    }
+
+    // Success page: check if it was a registration or a login
+    if (searchParams.has('source')) {
+        const source = searchParams.get('source');
+        const provider = searchParams.get('provider');
+        if (source == "register" && provider == "webauthn") {
+            $("#success-info-message").text("The next times you sign in, you will need to use the same browser.");
+            $("#success-info").show();
+        }
+
     }
 });
 

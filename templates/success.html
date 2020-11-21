@@ -18,11 +18,27 @@
                     <p>You can now connect to <b>{{.MFAIssuer}}</b>.</p>
                     <p>You shouldn't have to come back here until <span id="session-validity">{{.SessionValidity}}</span>, 
                         <br/>as long as you connect from the same place and network.</p>
-                    <br/><br/><br/>
+                    <br/>
+                    <div id="success-info" class="card-panel green accent-2" style="display: none;">
+                        <span class="valign-wrapper">
+                            <i class="material-icons fadein">info_outline</i>
+                            &nbsp;<b id="success-info-message"></b>
+                        </span>
+                    </div>
+                    <br/><br/>
                     <div class="row">
                         <div>
-                            <a class="btn col s12 waves-effect blue-grey" href="/" style="text-transform:none">
-                                Go back to Login page
+                            <a class="btn col s12 waves-effect blue-grey left" href="/" style="text-transform:none">
+                                    <i class="material-icons left">home</i>Go back to Login page
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div>
+                            <a class="btn col s12 waves-effect blue-grey left" style="text-transform:none"
+                                onclick="webAuthNLogin(false);">
+                                <i class="material-icons left">add_circle_outline</i>&nbsp;Add new browser or device
                             </a>
                         </div>
                     </div>

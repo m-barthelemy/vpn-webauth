@@ -9,13 +9,15 @@ import (
 
 // UserMFA represents a "second factor" authentication provider for a given user
 type UserMFA struct {
-	ID        uuid.UUID `gorm:"type:uuid;unique"`
-	Email     string    `gorm:"primaryKey"`
-	Type      string    `gorm:"primaryKey"`
-	Data      string    // Provider-specific data. (OTP secret...))
+	ID     uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UserID uuid.UUID
+	//Email     string    //`gorm:"primaryKey"`
+	Type      string //`gorm:"primaryKey"`
+	Data      string // Provider-specific data. (OTP secret...))
 	Validated bool
 	CreatedAt time.Time
-	User      User `gorm:"primaryKey;foreignKey:Email;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:email"`
+	ExpiresAt time.Time // Expiration date when validation is pending
+	User      User      `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 // BeforeCreate ensures the model has an ID before saving it
