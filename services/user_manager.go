@@ -160,11 +160,10 @@ type Claims struct {
 
 func (m *UserManager) CreateSession(email string, hasMFA bool, w http.ResponseWriter) error {
 	jwtKey := []byte(m.config.SigningKey)
-	// Session needs to be valid until user has completed initial 2FA registration if needed
-	// hence the 3 minutes here.
 	expirationTime := time.Now().Add(3 * time.Minute)
 	claims := &Claims{
 		Username: email,
+		HasMFA:   hasMFA,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime.Unix(),
 		},
