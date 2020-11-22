@@ -20,7 +20,6 @@ type Config struct {
 	RedirectDomain      *url.URL // VPNWA_REDIRECTDOMAIN
 	GoogleClientID      string   // VPNWA_GOOGLECLIENTID
 	GoogleClientSecret  string   // VPNWA_GOOGLECLIENTSECRET
-	SessionValidity     int      // VPNWA_SESSIONVALIDITY
 	EnforceMFA          bool     // VPNWA_ENFORCEMFA
 	MFAOTP              bool     // VPNWA_MFAOTP
 	MFAIssuer           string   // VPNWA_OTPISSUER
@@ -36,6 +35,7 @@ type Config struct {
 	SSLAutoCertsDir     string   // VPNWA_SSLAUTOCERTSDIR
 	SSLCustomCertPath   string   // VPNWA_SSLCUSTOMCERTPATH
 	SSLCustomKeyPath    string   // VPNWA_SSLCUSTOMKEYPATH
+	VPNSessionValidity  int      // VPNWA_VPNSESSIONVALIDITY
 }
 
 func (config *Config) New() Config {
@@ -45,7 +45,7 @@ func (config *Config) New() Config {
 		Debug:               false,
 		Port:                8080,
 		Host:                "127.0.0.1",
-		SessionValidity:     3600,
+		VPNSessionValidity:  3600,
 		EnforceMFA:          true,
 		MFAIssuer:           "VPN",
 		MFAOTP:              true,
@@ -59,7 +59,7 @@ func (config *Config) New() Config {
 	}
 	redirDomain, _ := url.Parse(fmt.Sprintf("http://%s:%v", defaultConfig.Host, defaultConfig.Port))
 	defaultConfig.RedirectDomain = redirDomain
-	defaultConfig.MFAValidity = defaultConfig.SessionValidity
+	defaultConfig.MFAValidity = defaultConfig.VPNSessionValidity
 	// We create a default random key for signing session tokens
 	b := make([]byte, 32) // random ID
 	rand.Read(b)
@@ -70,7 +70,7 @@ func (config *Config) New() Config {
 }
 
 func (config *Config) Verify() {
-	log.Printf("Session validity set to %v seconds", config.SessionValidity)
+	log.Printf("Session validity set to %v seconds", config.VPNSessionValidity)
 	log.Printf("Google callback redirect set to %s", config.RedirectDomain)
 	if config.GoogleClientID == "" {
 		log.Fatal("VPNWA_GOOGLECLIENTID is not set")

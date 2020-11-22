@@ -33,10 +33,6 @@ func New(db *gorm.DB, config *models.Config) *OTPController {
 func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
-	if email == "" {
-		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
-		return
-	}
 
 	userManager := userManager.New(u.db, u.config)
 	user, err := userManager.Get(email)

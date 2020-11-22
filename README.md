@@ -106,12 +106,12 @@ All the configuration parameters have to passed as environment variables.
   - `VPNWA_GOOGLECLIENTID`: Google Client ID. **Mandatory**.
   - `VPNWA_GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
   - `VPNWA_ENCRYPTIONKEY`: Key used to encrypt the users OTP secrets in the database. Must be 32 characters. **Mandatory** if `VPNWA_ENFORCEMFA` is set to `true`.
-  - `VPNWA_SESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication, in seconds. Default: `3600` (1h).
+  - `VPNWA_VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication, in seconds. Default: `3600` (1h).
     > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
 
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
   - `VPNWA_ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`.
-  - `VPNWA_MFAVALIDITY`: How long to allow re-authenticating only with Google, without having to use the additional auth again. Default: `VPNWA_SESSIONVALIDITY` (require 2FA during every login). Must be greater than, or equal to, `VPNWA_SESSIONVALIDITY`.
+  - `VPNWA_MFAVALIDITY`: How long a web authentication is valid. during this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `VPNWA_VPNSESSIONVALIDITY`. 
   - `VPNWA_MFAISSUER`: Name that appears on the users authenticator app or TouchID/Physical key prompt. Default: `VPN`.
   - `VPNWA_MFAOTP`: Whether to enable OTP token authrntication after OAuth2 login. Default: `true`. 
     > NOTE: This is not related to Google 2FA. By default Google will only require 2FA if your organization enforces it, and it will remember a device/browser for a very long time. This option adds a mandatory 2FA verifications upon each login, independently from your Google settings. Your users will have to register a new 2FA entry in their favorite authenticator app when using this web authentication for the first time.

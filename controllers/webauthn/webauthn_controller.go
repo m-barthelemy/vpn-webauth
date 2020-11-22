@@ -40,10 +40,6 @@ func New(db *gorm.DB, config *models.Config) *WebAuthNController {
 func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
-	if email == "" {
-		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
-		return
-	}
 
 	var user *models.User
 	userManager := userManager.New(m.db, m.config)
@@ -112,10 +108,6 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 
 func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
-	if email == "" {
-		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
-		return
-	}
 
 	webAuthnType, err := getWebauthType(r)
 	if err != nil {
@@ -189,10 +181,6 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 
 func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
-	if email == "" {
-		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
-		return
-	}
 
 	webAuthnType, err := getWebauthType(r)
 	if err != nil {
@@ -248,10 +236,6 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 
 func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
-	if email == "" {
-		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
-		return
-	}
 
 	webAuthnType, err := getWebauthType(r)
 	if err != nil {

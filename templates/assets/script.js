@@ -3,7 +3,16 @@
 // Inspired by https://github.com/hbolimovsky/webauthn-example/blob/master/index.html
 async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
     $("#touchid-icon").addClass("fadein-animated");
-    const response = await fetch("/auth/webauthn/beginregister?type=touchid", {method: 'POST'});
+    const response = await fetch("/auth/webauthn/beginregister?type=touchid", {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+    });
+    if (response.status == 401) {
+        window.location.href = "/";
+    }
     if (response.status !== 200) {
         console.error(response);
         $("#error").show();
@@ -42,7 +51,10 @@ async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
     const registerResponse = await fetch("/auth/webauthn/finishregister?type=touchid", {
         method: "POST",
         body: JSON.stringify(regoResponse),
-        headers: { "Content-Type": "application/json" },
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
     });
     if (registerResponse.status !== 200) {
         console.error(registerResponse);
@@ -56,7 +68,16 @@ async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
 
 async function webAuthNLogin(allowCrossPlatformDevice = false) {
     $("#touchid-icon").addClass("fadein-animated");
-    const response = await fetch("/auth/webauthn/beginlogin?type=touchid", {method: 'POST'});
+    const response = await fetch("/auth/webauthn/beginlogin?type=touchid", {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+    });
+    if (response.status == 401) {
+        window.location.href = "/";
+    }
     if (response.status !== 200) {
         console.error(response);
         $("#error").show();
@@ -78,7 +99,9 @@ async function webAuthNLogin(allowCrossPlatformDevice = false) {
         $("#touchid-icon").removeClass("fadein-animated");
         $("#error").html(`<b>You may be trying to authenticate from a new device or browser. <br/>
             Sign in using your allowed device or browser, and click 'Add new browser or device'.<br/>
-            Then follow the instructions.</b>`);
+            Then follow the instructions.<br/>
+            <a href="/enter2fa?options=code">I got a temporary code</a>
+            </b>`);
         $("#error").show();
         return;
     }
@@ -103,7 +126,10 @@ async function webAuthNLogin(allowCrossPlatformDevice = false) {
     const loginResponse = await fetch("/auth/webauthn/finishlogin?type=touchid", {
         method: "POST",
         body: JSON.stringify(loginResponseData),
-        headers: { "Content-Type": "application/json" },
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
     });
     if (!loginResponse.ok) {
         console.error(loginResponse);
@@ -131,6 +157,11 @@ $(document).ready(async function(){
         if(!allOptions.includes("otp")) {
             console.log("OTP is not allowed");
             $("#otp-section").hide();
+        }
+        // This one is very specific, so hidden by default
+        if(allOptions.includes("code")) {
+            console.log("Single usage code is allowed");
+            $("#code-section").show();
         }
         if (!window.PublicKeyCredential) { // Browser without any Webauthn support
             $("#touchid-section").hide();
@@ -164,18 +195,31 @@ $(document).ready(async function(){
         }
 
     }
+
+    //$("input[type='number']").keyup( function() {
+    $("#otp").keyup( function() {
+        const dataLength = $(this).val().length;
+        
+        if(dataLength > 0) {
+            $("#error").hide();
+        }
+        if (dataLength == 6) {
+            $("#otp-form").submit();
+        }
+    }).change();
+
+    $("#code").keyup( function() {
+        const dataLength = $(this).val().length;
+        
+        if(dataLength > 0) {
+            $("#error").hide();
+        }
+        if (dataLength == 6) {
+            $("#code-form").submit();
+        }
+    }).change();
 });
 
-$("input[type='number']").keyup( function() {
-    const dataLength = $(this).val().length;
-    
-    if(dataLength > 0) {
-        $("#error").hide();
-    }
-    if (dataLength == 6) {
-        $("form").submit();
-    }
-}).change();
 
 // ArrayBuffer to URLBase64
 function bufferEncode(value) {

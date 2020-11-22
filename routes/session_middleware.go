@@ -21,6 +21,10 @@ func sessionMiddleware(jwtKey []byte, h http.HandlerFunc, allowNoSession bool) h
 		if err != nil {
 			if !allowNoSession {
 				log.Printf("Cannot find session cookie: %s", err.Error())
+				if r.Header.Get("Accept") == "application/json" {
+					http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+					return
+				}
 				http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 				return
 			}

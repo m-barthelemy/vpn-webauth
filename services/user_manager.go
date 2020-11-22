@@ -63,7 +63,7 @@ func (m *UserManager) CheckVpnSession(identity string, ip string, otpValid bool)
 	if otpValid {
 		duration = m.config.MFAValidity
 	} else {
-		duration = m.config.SessionValidity
+		duration = m.config.VPNSessionValidity
 	}
 	minDate := time.Now().Add(time.Second * time.Duration(-duration))
 	result := m.db.Where("email = ? AND source_ip = ? AND created_at > ?", identity, ip, minDate).First(&session)
@@ -160,7 +160,7 @@ type Claims struct {
 
 func (m *UserManager) CreateSession(email string, hasMFA bool, w http.ResponseWriter) error {
 	jwtKey := []byte(m.config.SigningKey)
-	expirationTime := time.Now().Add(3 * time.Minute)
+	expirationTime := time.Now().Add(time.Duration(m.config.MFAValidity) * time.Second)
 	claims := &Claims{
 		Username: email,
 		HasMFA:   hasMFA,

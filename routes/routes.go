@@ -56,7 +56,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			http.HandlerFunc(sessionMiddleware(tokenSigningKey, otpC.GenerateQrCode, false)),
 		),
 	)
-	mux.Handle("/auth/otp/validateotp",
+	mux.Handle("/auth/otp/validate",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessionMiddleware(tokenSigningKey, otpC.ValidateOTP, false)),
