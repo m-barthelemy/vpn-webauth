@@ -78,7 +78,8 @@ func (m *UserManager) CheckVpnSession(identity string, ip string, otpValid bool)
 	return true, nil
 }
 
-func (m *UserManager) CreateVpnSession(mfaId uuid.UUID, user *models.User, ip string) error {
+// CreateVpnSession Creates a new VPN "Session" for the `User` from the specified IP address.
+func (m *UserManager) CreateVpnSession(mfaID uuid.UUID, user *models.User, ip string) error {
 	// First delete any existing session for the same user
 	oldSession := models.VpnSession{Email: user.Email}
 	deleteResult := m.db.Delete(&oldSession)
@@ -86,7 +87,7 @@ func (m *UserManager) CreateVpnSession(mfaId uuid.UUID, user *models.User, ip st
 		return deleteResult.Error
 	}
 	// Then create the new "session"
-	var vpnSession = models.VpnSession{MFAID: mfaId, Email: user.Email, SourceIP: ip}
+	var vpnSession = models.VpnSession{MFAID: mfaID, Email: user.Email, SourceIP: ip}
 	result := m.db.Create(&vpnSession)
 	if result.Error != nil {
 		return result.Error
@@ -95,6 +96,7 @@ func (m *UserManager) CreateVpnSession(mfaId uuid.UUID, user *models.User, ip st
 	return nil
 }
 
+// AddMFA Creates a new `UserMFA`, and encrypts the `data` field
 func (m *UserManager) AddMFA(user *models.User, mfaType string, data string) (*models.UserMFA, error) {
 	userMFA := models.UserMFA{
 		UserID:    user.ID,

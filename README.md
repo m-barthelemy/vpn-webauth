@@ -102,6 +102,10 @@ All the configuration parameters have to passed as environment variables.
     > By default a Sqlite database is created. You probably want to at least change its path. Sqlite is only suitable for testing purposes or for a small number of concurrent users, and will only work with with a single instance of the app. It is recommended to use MySQL or Postgres instead.
 
     > NOTE: the app will automatically create the tables and thus needs to have the privileges to do so.
+  - `VPNWA_EXCLUDEDIDENTITIES`: list of VPN accounts (identities) that do not require any additional authentication by this app, separated by comma. Optional.
+    > The VPN server will still query the application when these accounts try to connect, but will always get a positive response.
+
+    > NOTE: Your VPN's own authentication process still fully applies.
   - `VPNWA_REDIRECTDOMAIN`: the base URL that oAuth2/Google will redirect to after signing in. Default: http://`VPNWA_HOST`:`VPNWA_PORT`
   - `VPNWA_GOOGLECLIENTID`: Google Client ID. **Mandatory**.
   - `VPNWA_GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
@@ -111,6 +115,7 @@ All the configuration parameters have to passed as environment variables.
 
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
   - `VPNWA_ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`.
+    > NOTE: if MFA is not enforced, related options are not shown to the users; however, they can still enable it by visiting the registration page.
   - `VPNWA_MFAVALIDITY`: How long a web authentication is valid. during this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `VPNWA_VPNSESSIONVALIDITY`. 
   - `VPNWA_MFAISSUER`: Name that appears on the users authenticator app or TouchID/Physical key prompt. Default: `VPN`.
   - `VPNWA_MFAOTP`: Whether to enable OTP token authrntication after OAuth2 login. Default: `true`. 

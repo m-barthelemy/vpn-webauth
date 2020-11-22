@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/gorilla/handlers"
+	singleCodeController "github.com/m-barthelemy/vpn-webauth/controllers/code"
 	googlecontroller "github.com/m-barthelemy/vpn-webauth/controllers/google"
 	otpController "github.com/m-barthelemy/vpn-webauth/controllers/otp"
 	vpnController "github.com/m-barthelemy/vpn-webauth/controllers/vpn"
@@ -86,6 +87,14 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessionMiddleware(tokenSigningKey, webauthnC.FinishLogin, false)),
+		),
+	)
+
+	singleCodeC := singleCodeController.New(db, config)
+	mux.Handle("/auth/code/validate",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessionMiddleware(tokenSigningKey, singleCodeC.GenerateSingleUseCode, false)),
 		),
 	)
 

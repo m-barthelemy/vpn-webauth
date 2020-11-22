@@ -103,7 +103,7 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 
-	jsonResponse(w, options, http.StatusOK)
+	utils.JSONResponse(w, options, http.StatusOK)
 }
 
 func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Request) {
@@ -231,7 +231,7 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 
-	jsonResponse(w, options, http.StatusOK)
+	utils.JSONResponse(w, options, http.StatusOK)
 }
 
 func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request) {
@@ -312,19 +312,7 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	jsonResponse(w, "Login Success", http.StatusOK)
-}
-
-func jsonResponse(w http.ResponseWriter, d interface{}, c int) {
-	dj, err := json.Marshal(d)
-	if err != nil {
-		log.Printf("WebAuthNController: Error serializing response to JSON: %s", err.Error())
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(c)
-	fmt.Fprintf(w, "%s", dj)
+	utils.JSONResponse(w, "Login Success", http.StatusOK)
 }
 
 func (m *WebAuthNController) getAvailableCredentials(user models.User, webAuthnType string, onlyValidated bool) (map[uuid.UUID]webauthn.Credential, error) {

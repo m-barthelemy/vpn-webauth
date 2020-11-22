@@ -17,6 +17,7 @@ type Config struct {
 	Host                string   // VPNWA_HOST
 	DbType              string   // VPNWA_DBTYPE
 	DbDSN               string   // VPNWA_DBDSN
+	ExcludedIdentities  []string // VPNWA_EXCLUDEDIDENTITIES
 	RedirectDomain      *url.URL // VPNWA_REDIRECTDOMAIN
 	GoogleClientID      string   // VPNWA_GOOGLECLIENTID
 	GoogleClientSecret  string   // VPNWA_GOOGLECLIENTSECRET
@@ -43,6 +44,7 @@ func (config *Config) New() Config {
 		DbType:              "sqlite",
 		DbDSN:               "/tmp/vpnwa.db",
 		Debug:               false,
+		ExcludedIdentities:  []string{},
 		Port:                8080,
 		Host:                "127.0.0.1",
 		VPNSessionValidity:  3600,
