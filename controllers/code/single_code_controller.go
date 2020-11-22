@@ -119,7 +119,7 @@ func (c *SingleUseCodeController) ValidateSingleUseCode(w http.ResponseWriter, r
 	dp := dataProtector.NewDataProtector(c.config)
 	decryptedData, err := dp.Decrypt(codeMFA.Data)
 	if err != nil {
-		log.Printf("SingleUseCodeController: Unable to decrypt %s single-use code", user.Email, err.Error())
+		log.Printf("SingleUseCodeController: Unable to decrypt %s single-use code: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -138,7 +138,7 @@ func (c *SingleUseCodeController) ValidateSingleUseCode(w http.ResponseWriter, r
 	}
 
 	if singleUseCode.RemainingTries == 0 {
-		log.Printf("SingleUseCodeController: Maximum number of attempts reached for %s single-use code", user.Email, err.Error())
+		log.Printf("SingleUseCodeController: Maximum number of attempts reached for %s single-use code", user.Email)
 		http.Error(w, "Too many failed attempts", http.StatusInternalServerError)
 		return
 	}
@@ -148,7 +148,7 @@ func (c *SingleUseCodeController) ValidateSingleUseCode(w http.ResponseWriter, r
 		newData, _ := json.Marshal(singleUseCode)
 		codeMFA.Data = string(newData[:])
 		if _, err = userManager.UpdateMFA(*codeMFA); err != nil {
-			log.Printf("SingleUseCodeController: Unable to update User single-use code MFA", err.Error())
+			log.Printf("SingleUseCodeController: Unable to update %s single-use code MFA: %s", user.Email, err.Error())
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
