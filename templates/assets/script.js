@@ -141,6 +141,27 @@ async function webAuthNLogin(allowCrossPlatformDevice = false) {
     }
 }
 
+async function getSingleUseCode() {
+    const codeResponse = await fetch("/auth/code/generate", {
+        method: "POST",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+    });
+    if (!codeResponse.ok) {
+        console.error(codeResponse);
+        $("#error").text(codeResponse.statusText);
+        $("#error").show();
+        return;
+    }
+    else {
+        const code = await codeResponse.json();
+        $("#temp-code-value").text(code.code);
+
+    }
+}
+
 $(document).ready(async function(){
     const searchParams = new URLSearchParams(window.location.search);
 
@@ -208,14 +229,32 @@ $(document).ready(async function(){
         }
     }).change();
 
-    $("#code").keyup( function() {
+    $("#code").keyup( async function() {
         const dataLength = $(this).val().length;
         
         if(dataLength > 0) {
             $("#error").hide();
         }
         if (dataLength == 6) {
-            $("#code-form").submit();
+            const codeResponse = await fetch("/auth/code/validate", {
+                method: "POST",
+                body: JSON.stringify(
+                    { code: $(this).val() }
+                ),
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+            });
+            if (!codeResponse.ok) {
+                console.error(codeResponse);
+                $("#error").text(codeResponse.statusText);
+                $("#error").show();
+                return;
+            }
+            else {
+                window.location.href = "/choose2fa";
+            }
         }
     }).change();
 });

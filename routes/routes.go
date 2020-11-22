@@ -91,10 +91,16 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	)
 
 	singleCodeC := singleCodeController.New(db, config)
-	mux.Handle("/auth/code/validate",
+	mux.Handle("/auth/code/generate",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessionMiddleware(tokenSigningKey, singleCodeC.GenerateSingleUseCode, false)),
+		),
+	)
+	mux.Handle("/auth/code/validate",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessionMiddleware(tokenSigningKey, singleCodeC.ValidateSingleUseCode, false)),
 		),
 	)
 

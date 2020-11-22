@@ -16,7 +16,7 @@
                     <i class="large material-icons center fadein" style="color: #0c8836; font-size: 5em;">verified_user</i>
                     <br/><br/>
                     <p>You can now connect to <b>{{.MFAIssuer}}</b>.</p>
-                    <p>You shouldn't have to come back here until <span id="session-validity">{{.SessionValidity}}</span>, 
+                    <p>You shouldn't have to come back here until <span id="session-validity">{{.VPNSessionValidity}}</span>, 
                         <br/>as long as you connect from the same place and network.</p>
                     <br/>
                     <div id="success-info" class="card-panel green accent-2" style="display: none;">
@@ -36,8 +36,7 @@
 
                     <div class="row">
                         <div>
-                            <a class="btn col s12 waves-effect blue-grey left" style="text-transform:none"
-                                onclick="webAuthNLogin(false);">
+                            <a class="btn col s12 waves-effect blue-grey left" href="/addDevice" style="text-transform:none">
                                 <i class="material-icons left">add_circle_outline</i>&nbsp;Add new browser or device
                             </a>
                         </div>

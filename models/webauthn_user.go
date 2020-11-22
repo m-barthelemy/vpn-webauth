@@ -1,9 +1,6 @@
 package models
 
 import (
-	"crypto/rand"
-	"encoding/binary"
-
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/webauthn"
 	"github.com/gofrs/uuid"
@@ -25,12 +22,6 @@ func NewWebAuthNUser(id uuid.UUID, name string, displayName string) *WebAuthNUse
 	user.displayName = displayName
 
 	return &user
-}
-
-func randomUint64() uint64 {
-	buf := make([]byte, 8)
-	rand.Read(buf)
-	return binary.LittleEndian.Uint64(buf)
 }
 
 // WebAuthnID returns the user's ID

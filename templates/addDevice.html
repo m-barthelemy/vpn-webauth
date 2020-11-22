@@ -1,0 +1,39 @@
+{{ define "addDevice" }}
+<html>
+{{ template "header" . }} 
+<body>
+<div class="section"></div>
+<main>
+    <center>
+        <div class="section"></div>
+        <form action="/auth/validateotp" method="POST">
+        <div class="container">
+            <div class="z-depth-1 grey lighten-4 row main-container ">
+                <img src="{{.LogoURL}}" class="logo"/>
+                <br/><br/>
+                <br/>
+                <h4 class="section-title">Add new Device or new Browser</h4>
+                <br/><br/>
+                <p>You can generate a temporary, one-time code to enter on the new device or browser.</p>
+                <br/><br/>
+                <div class="row" id="temp-code-section">
+                    <div class='col s12'>
+                        <a class="btn-large waves-effect blue-grey left mfa-choose-btn" 
+                            onclick="getSingleUseCode();">
+                            <i class="large material-icons left" style="font-size: 2.2em;">lock_open</i>&nbsp;Get a single usage code
+                        </a>
+                    </div>
+                    <br/>
+                </div>
+                <br/>
+                <div id="temp-code-value" class="card-panel green accent-2 otp">000000</div>
+                <br/>
+            </div>
+        </div>
+    </form>
+    </center>
+</main>
+</body>
+
+</html>
+{{ end }}

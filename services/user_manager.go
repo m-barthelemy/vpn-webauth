@@ -126,6 +126,26 @@ func (m *UserManager) AddMFA(user *models.User, mfaType string, data string) (*m
 	return &userMFA, nil
 }
 
+// UpdateMFA updates a `UserMFA`.
+// It assumes that the `data` field need to be encrypted again.
+func (m *UserManager) UpdateMFA(userMFA models.UserMFA) (*models.UserMFA, error) {
+	if userMFA.Data != "" {
+		dp := NewDataProtector(m.config)
+		encryptedData, err := dp.Encrypt(userMFA.Data)
+		if err != nil {
+			return nil, err
+		}
+		userMFA.Data = encryptedData
+	}
+
+	result := m.db.Save(&userMFA)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &userMFA, nil
+}
+
 // ValidateMFA sets the UserMFA as validated and saves any data if present.
 // WARNING: Currently we assume that there is only 1 pending validation
 func (m *UserManager) ValidateMFA(user *models.User, mfaType string, data string) (*models.UserMFA, error) {
