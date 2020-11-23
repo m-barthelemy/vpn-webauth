@@ -138,22 +138,11 @@ func (g *GoogleController) afterFirstAuthStep(email string, w http.ResponseWrite
 		return
 	}
 
-	/*
-		// Check if user already has a valid session with OTP
-		allowed, err := userManager.CheckVpnSession(user.Email, sourceIP, true)
-		if err != nil {
-			log.Printf("GoogleController: Error checking existing VPN sessions for %s: %s", user.Email, err.Error())
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		if allowed {
-			http.Redirect(w, r, "/success", http.StatusTemporaryRedirect)
-		} else if user.MFAs != nil {*/
-	if user.MFAs != nil {
+	if user.HasMFA() {
 		options := ""
-		for _, item := range user.MFAs {
-			if item.Validated {
-				options += item.Type + ","
+		for _, mfa := range user.MFAs {
+			if mfa.Validated {
+				options += mfa.Type + ","
 			}
 		}
 		if len(options) > 1 {
@@ -161,8 +150,8 @@ func (g *GoogleController) afterFirstAuthStep(email string, w http.ResponseWrite
 			http.Redirect(w, r, fmt.Sprintf("/enter2fa?options=%s", options), http.StatusTemporaryRedirect)
 			return
 		}
-
 	}
+
 	// If we get there, the User has no MFA configured or validated.
 	options := ""
 	if g.config.MFATouchID {
@@ -180,7 +169,7 @@ func (g *GoogleController) afterFirstAuthStep(email string, w http.ResponseWrite
 
 func (g *GoogleController) generateStateCookie(name string, w http.ResponseWriter) string {
 	// Session needs to be valid until user has completed OAuth2 login, which may take longer if
-	// dome for the first time or on a new browser.
+	// done for the first time or on a new browser.
 	var expiration = time.Now().Add(3 * time.Minute)
 	b := make([]byte, 64) // random ID
 	rand.Read(b)

@@ -176,7 +176,7 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !otpMFA.Validated {
-		if _, err := userManager.ValidateMFA(user, "otp", ""); err != nil {
+		if _, err := userManager.ValidateMFA(otpMFA, ""); err != nil {
 			log.Printf("OTPController: Error updating OTP provider for %s : %s", user.Email, err.Error())
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return

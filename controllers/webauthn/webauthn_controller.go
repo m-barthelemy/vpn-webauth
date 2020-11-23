@@ -116,7 +116,6 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Ensure User exists
 	userManager := userManager.New(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
@@ -154,15 +153,28 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Determine which UserMFA to use
+	var usedMFA *models.UserMFA
+	for i, mfa := range user.MFAs {
+		if mfa.Type == webAuthnType && !mfa.Validated && mfa.ExpiresAt.After(time.Now()) {
+			usedMFA = &user.MFAs[i]
+			break
+		}
+	}
+	if usedMFA == nil {
+		log.Printf("WebAuthNController: Couldn't find %s MFA pending validation for %s", webAuthnType, user.Email)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
 	serializedCredential, _ := json.Marshal(credential)
-	// TODO: ValidateMFA needs to take a UserMFA ID
-	validatedMFA, err := userManager.ValidateMFA(user, webAuthnType, string(serializedCredential[:]))
+	validatedMFA, err := userManager.ValidateMFA(usedMFA, string(serializedCredential[:]))
 	if err != nil {
 		log.Printf("WebAuthNController: failed to save %s registration validation for %s: %s", webAuthnType, user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	m.deleteWebauthNCookie("webauthn_register", w)
+	_ = m.deleteWebauthNCookie("webauthn_register", w)
 
 	sourceIP := utils.New(m.config).GetClientIP(r)
 	if err := userManager.CreateVpnSession(validatedMFA.ID, user, sourceIP); err != nil {
@@ -286,20 +298,20 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Determine which UserMFA was used
-	var usedMFAID uuid.UUID
+	var usedMFAID *uuid.UUID
 	for mfaID, cred := range availableCredentials {
 		if bytes.Compare(cred.ID, successLoginCredential.ID) == 0 {
-			usedMFAID = mfaID
+			usedMFAID = &mfaID
 		}
 	}
-	if err != nil {
+	if usedMFAID == nil {
 		log.Printf("WebAuthNController: Error getting webauthn credential ID for %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	sourceIP := utils.New(m.config).GetClientIP(r)
-	if err := userManager.CreateVpnSession(usedMFAID, user, sourceIP); err != nil {
+	if err := userManager.CreateVpnSession(*usedMFAID, user, sourceIP); err != nil {
 		log.Printf("WebAuthNController: Error creating VPN session for %s : %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -323,7 +335,7 @@ func (m *WebAuthNController) getAvailableCredentials(user models.User, webAuthnT
 	}
 	for _, item := range user.MFAs {
 		if item.Type == webAuthnType && item.Validated == onlyValidated {
-			if item.Data == "" { // otherwise it's not a credential
+			if item.Data == "" { // it's not a credential
 				continue
 			}
 			decryptedData, err := dp.Decrypt(item.Data)

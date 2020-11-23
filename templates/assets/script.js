@@ -158,6 +158,7 @@ async function getSingleUseCode() {
     else {
         const code = await codeResponse.json();
         $("#temp-code-value").text(code.code);
+        $("#temp-code-value").show();
 
     }
 }
@@ -211,7 +212,8 @@ $(document).ready(async function(){
         const source = searchParams.get('source');
         const provider = searchParams.get('provider');
         if (source == "register" && provider == "webauthn") {
-            $("#success-info-message").text("The next times you sign in, you will need to use the same browser.");
+            $("#success-info-message").html(`The next times you sign in, you will need to use the same browser, <br/>
+            or any other browser added using the "Add new browser or device" option.`);
             $("#success-info").show();
         }
 

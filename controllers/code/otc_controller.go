@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
@@ -15,19 +16,19 @@ import (
 	"gorm.io/gorm"
 )
 
-type SingleUseCodeController struct {
+type OneTimeCodeController struct {
 	db     *gorm.DB
 	config *models.Config
 }
 
 // New creates an instance of the singleCodeController controller and sets its DB handle
-func New(db *gorm.DB, config *models.Config) *SingleUseCodeController {
-	return &SingleUseCodeController{db: db, config: config}
+func New(db *gorm.DB, config *models.Config) *OneTimeCodeController {
+	return &OneTimeCodeController{db: db, config: config}
 }
 
 // SingleUseCode is what is received from the Stringswan `ext-auth` script request
-type SingleUseCode struct {
-	Code           uint64 `json:"code"`
+type OneTimeCode struct {
+	Code           string `json:"code"`
 	RemainingTries int    `json:"remaining_tries"`
 }
 
@@ -35,7 +36,7 @@ type SingleUseCode struct {
 // Useful when a user only has Webauthn MFA, which is specific to a device and browser.
 // Without alternative MFA such as OTP, they would use this temporary code feature
 //  to be allowed to register webauthn on another device or browser.
-func (c *SingleUseCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *http.Request) {
+func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
@@ -58,7 +59,8 @@ func (c *SingleUseCodeController) GenerateSingleUseCode(w http.ResponseWriter, r
 
 	// Deny if there's already a valid single-use code
 	for _, mfa := range user.MFAs {
-		if mfa.Type == "code" && !mfa.Validated && mfa.ExpiresAt.After(time.Now()) {
+		if mfa.Type == "code" && mfa.ExpiresAt.After(time.Now()) {
+			log.Printf("SingleUseCodeController: Cannot generate single use code for user %s: found other pending unique code", user.Email)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -71,17 +73,28 @@ func (c *SingleUseCodeController) GenerateSingleUseCode(w http.ResponseWriter, r
 		return
 	}
 
-	code := SingleUseCode{
-		Code:           randomCode.Uint64(),
+	code := OneTimeCode{
+		Code:           strconv.FormatUint(randomCode.Uint64(), 10),
 		RemainingTries: 3,
 	}
 	serialized, _ := json.Marshal(code)
-	userManager.AddMFA(user, "code", string(serialized[:]))
+	otcMFA, err := userManager.AddMFA(user, "code", string(serialized[:]))
+	if err != nil {
+		log.Printf("SingleUseCodeController: Error saving random numeric code for user %s: %s", user.Email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	_, err = userManager.ValidateMFA(otcMFA, "")
+	if err != nil {
+		log.Printf("SingleUseCodeController: Error updating random numeric code for user %s: %s", user.Email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 
 	utils.JSONResponse(w, code, http.StatusOK)
 }
 
-func (c *SingleUseCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *http.Request) {
+func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
@@ -105,9 +118,9 @@ func (c *SingleUseCodeController) ValidateSingleUseCode(w http.ResponseWriter, r
 	// Get active single-use code `UserMFA`
 	var codeMFA *models.UserMFA
 	for i, mfa := range user.MFAs {
-		if mfa.Type == "code" && !mfa.Validated && mfa.ExpiresAt.After(time.Now()) {
+		if mfa.Type == "code" && mfa.Validated && mfa.ExpiresAt.After(time.Now()) {
 			codeMFA = &user.MFAs[i]
-			return
+			break
 		}
 	}
 	if codeMFA == nil {
@@ -123,14 +136,14 @@ func (c *SingleUseCodeController) ValidateSingleUseCode(w http.ResponseWriter, r
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	var singleUseCode SingleUseCode
+	var singleUseCode OneTimeCode
 	if err := json.Unmarshal([]byte(decryptedData), &singleUseCode); err != nil {
 		log.Printf("SingleUseCodeController: Data could not be deserialized to SingleUseCode for %s single-use code: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	var codeToValidate SingleUseCode
+	var codeToValidate OneTimeCode
 	err = json.NewDecoder(r.Body).Decode(&codeToValidate)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -153,6 +166,16 @@ func (c *SingleUseCodeController) ValidateSingleUseCode(w http.ResponseWriter, r
 			return
 		}
 		http.Error(w, "Invalid code", http.StatusBadRequest)
+		return
+	}
+
+	// Success, disable the UserMFA and log in
+	codeMFA.Data = "disabled"
+	codeMFA.Validated = false
+	codeMFA.ExpiresAt = time.Time{}
+	if _, err := userManager.UpdateMFA(*codeMFA); err != nil {
+		log.Printf("SingleUseCodeController: Unable to deactivate %s single-use code MFA: %s", user.Email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 

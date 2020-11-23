@@ -12,6 +12,20 @@
                     <br/><br/>
                     <h2>Confirm you're you!</h2>
                     <br/><br/>
+
+                    <form id="code-form" action="/auth/code/validate" method="POST">
+                    <div class="row" id="code-section" style="display: none;">
+                        <br/>
+                        <p>Enter the temporary code from your other device</p>
+                        <div class='input-field col s12'>
+                            <i class="material-icons prefix">keyboard</i>
+                            <input class='validate otp' type='number' name='code' id='code' max="999999" minlength="6" maxlength="6" autofocus/>
+                            <span class="helper-text" data-error="Must be 6 digits" data-success="right"></span>
+                        </div>
+                        <br/><br/>
+                    </div>
+                    </form> 
+
                     <div class="row" id="touchid-section">
                         <div class='col s12'>
                             <a class="btn-large waves-effect blue-grey left mfa-choose-btn" 
@@ -49,19 +63,6 @@
                         <br/><br/>
                     </div>
                     </form>
-
-                    <form id="code-form" action="/auth/code/validate" method="POST">
-                    <div class="row" id="code-section" style="display: none;">
-                        <br/>
-                        <p>Enter the temporary code from your other device</p>
-                        <div class='input-field col s12'>
-                            <i class="material-icons prefix">keyboard</i>
-                            <input class='validate otp' type='number' name='code' id='code' max="999999" minlength="6" maxlength="6" autofocus/>
-                            <span class="helper-text" data-error="Must be 6 digits" data-success="right"></span>
-                        </div>
-                        <br/><br/>
-                    </div>
-                    </form> 
 
                     <br/>
                     <div id="error" class="card-panel red accent-3" style="display: none; color: #ffffff;"><b>The code was invalid</b></div>

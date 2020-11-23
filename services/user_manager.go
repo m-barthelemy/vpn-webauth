@@ -98,6 +98,9 @@ func (m *UserManager) CreateVpnSession(mfaID uuid.UUID, user *models.User, ip st
 
 // AddMFA Creates a new `UserMFA`, and encrypts the `data` field
 func (m *UserManager) AddMFA(user *models.User, mfaType string, data string) (*models.UserMFA, error) {
+	// Cleanup any expired, non validated UserMFA
+	_ = m.db.Delete(&models.UserMFA{}, "id = ? AND validated = ? AND expires_at < ?", user.ID, false, time.Now())
+
 	userMFA := models.UserMFA{
 		UserID:    user.ID,
 		Validated: false,
@@ -119,9 +122,6 @@ func (m *UserManager) AddMFA(user *models.User, mfaType string, data string) (*m
 		return nil, result.Error
 	}
 	log.Printf("UserManager: Created %s UserMFA for %s", mfaType, user.Email)
-
-	// Cleanup any expired, non validated UserMFA
-	m.db.Delete(&models.UserMFA{}, "id = ? AND validated = ? AND expires_at < ?", user.ID, false, time.Now())
 
 	return &userMFA, nil
 }
@@ -147,10 +147,9 @@ func (m *UserManager) UpdateMFA(userMFA models.UserMFA) (*models.UserMFA, error)
 }
 
 // ValidateMFA sets the UserMFA as validated and saves any data if present.
-// WARNING: Currently we assume that there is only 1 pending validation
-func (m *UserManager) ValidateMFA(user *models.User, mfaType string, data string) (*models.UserMFA, error) {
+func (m *UserManager) ValidateMFA(mfa *models.UserMFA, data string) (*models.UserMFA, error) {
 	var userMFA models.UserMFA
-	result := m.db.Where("user_id = ? AND type = ? AND validated = ? AND expires_at > ?", user.ID, mfaType, false, time.Now()).First(&userMFA)
+	result := m.db.Where("id = ? AND validated = ? AND expires_at > ?", mfa.ID, false, time.Now()).First(&userMFA)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -169,7 +168,7 @@ func (m *UserManager) ValidateMFA(user *models.User, mfaType string, data string
 		return nil, result.Error
 	}
 
-	log.Printf("UserManager: Validated %s UserMFA for %s", mfaType, user.Email)
+	log.Printf("UserManager: Validated %s UserMFA for User %s", userMFA.Type, userMFA.ID.String())
 	return &userMFA, nil
 }
 
