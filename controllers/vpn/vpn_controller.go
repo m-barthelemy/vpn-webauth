@@ -30,7 +30,13 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	var connRequest VpnConnectionRequest
 	err := json.NewDecoder(r.Body).Decode(&connRequest)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Early exit if identity is excluded from any additional auth.
+	if contains(v.config.ExcludedIdentities, connRequest.Identity) {
+		http.Error(w, "Excluded", http.StatusOK)
 		return
 	}
 
@@ -49,4 +55,13 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ok", http.StatusOK)
 		return
 	}
+}
+
+func contains(arr []string, str string) bool {
+	for _, a := range arr {
+		if a == str {
+			return true
+		}
+	}
+	return false
 }

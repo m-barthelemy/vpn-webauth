@@ -48,7 +48,9 @@ func main() {
 	if err := db.AutoMigrate(&models.VpnSession{}); err != nil {
 		log.Fatalf("Failed to run database migrations for VpnSession model: %s", err)
 	}
-
+	if err := db.AutoMigrate(&models.UserMFA{}); err != nil {
+		log.Fatalf("Failed to run database migrations for UserMFA model: %s", err)
+	}
 	startServer(&config, routes.New(&config, db))
 
 }

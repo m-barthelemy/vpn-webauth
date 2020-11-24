@@ -3,22 +3,39 @@ package models
 import (
 	"time"
 
+	"github.com/gofrs/uuid"
 	"gorm.io/gorm"
 )
 
-// User is a Google account
+// User is a successfully authenticated OAuth2 account
 type User struct {
 	gorm.Model
-	// Gorm defaults to creating an ID pkey, whereas here the email is unique so it makes a perfect primary key.
-	// We need to explicitly declare ID and then set the `primaryKey` tag on the field we choose to override the default behavior.
-	ID    int64
-	Email string `gorm:"primaryKey"`
-
-	// The secret created during the 2FA enrollment (QR code scan)
-	TotpSecret string
-	// Whether the user sent an initial valid OTP code matching the secret
-	TotpValidated bool
-
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
+	Email     string    `gorm:"unique"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	MFAs      []UserMFA
+}
+
+// BeforeCreate ensures the model has an ID before saving it
+func (user *User) BeforeCreate(scope *gorm.DB) error {
+	uuid, err := uuid.NewV4()
+	if err != nil {
+		return err
+	}
+	user.ID = uuid
+	return nil
+}
+
+// HasMFA returns `true` if the `User` has at least one validated MFA provider
+func (user *User) HasMFA() bool {
+	if user.MFAs == nil {
+		return false
+	}
+	for _, item := range user.MFAs {
+		if item.Validated {
+			return true
+		}
+	}
+	return false
 }

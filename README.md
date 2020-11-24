@@ -18,7 +18,7 @@ It can also help achieve compliance with some security standards requiring MFA t
 
  - The user goes to the webapp _before_ connecting to the VPN
  - They authenticate using OAuth2 (for now, only Google is supported)
- - Optionally, they are required to enter a 2FA code (independent from the oAuth2/Google authentication provider)
+ - Optionally, they are required to complete additional authentication, using an OTP token (independent from any Google/OAuth2 2FA), TouchID/FaceID or a physical security key.
  - A "session" is created with the user email, their source IP address and the time when they completed the web authentication
  - They now connect to the VPN
  - After the normal VPN authentication, the `ext-auth` plugin calls this webapp to check if the user has successfully completed a web authentication recently and from the same source IP address. If not, the connection is rejected.
@@ -40,10 +40,11 @@ Subsequent web auths:
 
 ## Limitations
 - The web auth has to happen **before** connecting to the VPN, since the VPN will verify the existence of a web "session" when the user connects.
-- The user identity reported by Strongswan **must** match the email reported by the web authentication.
+- The user identity reported by Strongswan **must** match the email reported by the web authentication. However, if the Strongswan identity is the first part of the email address (without @domain.tld), you can modify the `webauth-check.sh` script to add the domain.
+- If a user successfully authenticates using this app, someone else on the same local network would be able to reuse the web session, provided they have the user's Strongswan credentials. This by design, since the app matches a web auth with a Strongswan connection only using the Strongswan identity and the source IP address.
 - Only Google is currently supported for the web authentication.
 - Since the web authentication has to happen before connecting to the VPN, is probably needs to be hosted in a less protected part of your environment.
-- There is currently no way to reset a user account if they have lost their 2FA device. You need to manually delete the User record in the database.
+- There is currently no way to reset a user account if they have lost or changed their 2FA device. However, all you need to do is manually delete the User record in the database (`DELETE FROM users WHERE email='user@domain.tld'`).
 - Strongswan blocks during the call to the `ext-auth` plugin. Since checking the user web authentication against this app is fast, this shouldn't be an issue, unless you have a high number of users connecting almost simultaneously.
 - There is currently no limit on how many attempts a user can make at entering a 2FA code.
 
@@ -66,7 +67,7 @@ Alternatively, you can use the provided Dockerfile.
  ```
  and then set `VPNWA_ORIGINALIPHEADER` to `X-Forwarded-For`.
  
- You should also set a proper database configuration to store your sessions. By default, the app will store them into a Sqlite database in the `tmp` directory. For a real setup, you can use Mysql or Postgres.
+ You should also set a proper database configuration to store your sessions. By default, the app will store them into a Sqlite database in the `/tmp` directory. For a real setup, you can use Mysql or Postgres.
 
  ### Strongswan
  Make sure that Strongswan was build with the `ext-auth` module. While this is an [official module](https://wiki.strongswan.org/projects/strongswan/wiki/Ext-auth), it is not enabled in all Linux distributions (Ubuntu and Debian don't ship it for example):
@@ -91,6 +92,14 @@ plugins {
 }
 ```
 
+The application endpoint verifying if a user will be allowed to connect is `/vpn/check`.
+It expect the following JSON encoded body data:
+```json
+{
+	"Identity": "string",  // the VPN connection identity/login, matching the OAuth2 identity (email)
+	"SourceIP": "string"
+}
+```
 
  ## Configuration options
 All the configuration parameters have to passed as environment variables.
@@ -98,37 +107,49 @@ All the configuration parameters have to passed as environment variables.
   - `VPNWA_PORT`: the port to listen to. Default: `8080`
   - `VPNWA_DBTYPE`: the database engine where the sessions will be stored. Default: `sqlite`. Can be `sqlite`, `postgres`, `mysql`.
   - `VPNWA_DBDSN`: the database connection string. Default: `tmp/vpnwa.db`. Check https://gorm.io/docs/connecting_to_the_database.html for examples.
-    > By default a Sqlite database is created. You probably want to at least change its path. Sqlite is only suitable for testing purposed or for a small number of concurrent users, and will only with with a single instance of the app. It is recommended to use MySQL or Postgres instead.
+    > By default a Sqlite database is created. You probably want to at least change its path. Sqlite is only suitable for testing purposes or for a small number of concurrent users, and will only work with with a single instance of the app. It is recommended to use MySQL or Postgres instead.
 
     > NOTE: the app will automatically create the tables and thus needs to have the privileges to do so.
+  - `VPNWA_EXCLUDEDIDENTITIES`: list of VPN accounts (identities) that do not require any additional authentication by this app, separated by comma. Optional.
+    > The VPN server will still query the application when these accounts try to connect, but will always get a positive response.
+
+    > NOTE: Your VPN's own authentication process still fully applies.
   - `VPNWA_REDIRECTDOMAIN`: the base URL that oAuth2/Google will redirect to after signing in. Default: http://`VPNWA_HOST`:`VPNWA_PORT`
   - `VPNWA_GOOGLECLIENTID`: Google Client ID. **Mandatory**.
   - `VPNWA_GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
-  - `VPNWA_ENCRYPTIONKEY`: Key used to encrypt the users OTP secrets in the database. Must be 32 characters. **Mandatory** if `VPNWA_OTP` is set to `true`.
-  - `VPNWA_SESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication, in seconds. Default: `3600` (1h).
+  - `VPNWA_ENCRYPTIONKEY`: Key used to encrypt the users OTP secrets in the database. Must be 32 characters. **Mandatory** if `VPNWA_ENFORCEMFA` is set to `true`.
+  - `VPNWA_VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication, in seconds. Default: `3600` (1h).
     > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
 
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
-  - `VPNWA_OTP`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`. 
+  - `VPNWA_ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`.
+    > NOTE: if MFA is not enforced, related options are not shown to the users; however, they can still enable it by visiting the registration page.
+  - `VPNWA_MFAVALIDITY`: How long a web authentication is valid. during this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `VPNWA_VPNSESSIONVALIDITY`. 
+  - `VPNWA_MFAISSUER`: Name that appears on the users authenticator app or TouchID/Physical key prompt. Default: `VPN`.
+  - `VPNWA_MFAOTP`: Whether to enable OTP token authrntication after OAuth2 login. Default: `true`. 
     > NOTE: This is not related to Google 2FA. By default Google will only require 2FA if your organization enforces it, and it will remember a device/browser for a very long time. This option adds a mandatory 2FA verifications upon each login, independently from your Google settings. Your users will have to register a new 2FA entry in their favorite authenticator app when using this web authentication for the first time.
-  - `VPNWA_OTPISSUER`: Name that appears on the users authenticator app. Default: `VPN`.
-    > If you change this value once you already have 2FA users, they will need to scan a QR code again and create another entry in their authenticator app.
-  - `VPNWA_OTPVALIDITY`: How long to allow re-authenticating only with Google, without having to enter a 2FA code again. Default: `VPNWA_SESSIONVALIDITY` (require 2FA during every login). Must be greater than, or equal to, `VPNWA_SESSIONVALIDITY`.
-    > NOTE: if a user re-authenticates from a different IP address, 2FA is always required.
+  - `VPNWA_MFATOUCHID`: Whether to enable Apple TouchID/FaceID and Windows Hello biometrics authentication after OAuth2 login, if a compatible device is detected. Default: `true`.
+    > With compatible devices and operating systems, this is certainly the fastest, most convenient and most secure additional authentication. 
+    > This feature complies with the definiton of "Something you are" of the common three authentication factors.
+    > NOTE: TouchID/FaceID feature is available in MacOS >= 11.x and iOS >= 14.x. The option will only be shown to the user if a compatible OS is detected.
+  - `VPNWA_MFAWEBAUTHN`: Whether to enable strong authentication using security devices such as Fido keys after OAuth2 login. Default: `true`.
+
   - `VPNWA_LOGOURL`: Add your organization logo on top of the webapp pages. Optional.
   - `VPNWA_SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
-    > These tokens have a very short duration since they are only required during the sign in process, so regenerating a new key every time the application starts shouldn't be too much of a problem even if that means that every existing session will be invalidated. 
-    > If you plan to run multiple instances of this app behind a load-balancer, you should probably consider defining your own key, identical on all nodes, or use some form of session persistence.
-  - `VPNWA_ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. If running this app behind Nginx for example, you will need to configure Nginx to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-for` is used for this purpose.
+    > Regenerating a new key every time the application starts means that all your users web sessions will be invalid and they will have to sign in again if they need a new VPN "session".
+    > It is recommended that you create and pass your own key.
+  - `VPNWA_ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. If running this app behind Nginx for example, you will need to configure Nginx to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-For` is used for this purpose. Default: empty.
+  - `VPNWA_ORIGINALPROTOHEADER`: the header to use to fetch the real protocol (http, https) used between the clients and the proxy. Default: `X-Forwarded-Proto`.
   - `VPNWA_SSLMODE`: whether and how SSL is enabled. Default: `off`. Can be `auto`, `custom`, `proxy`, `off`.
     > `off` doesn't enforce SSL at all at the application level. In that case you can still place the app behind an HTTPS proxy.
 
-    > `auto` automatically generates a private key and a Let'sEncrypt SSL certificate for the domain specified in `VPNWA_REDIRECTDOMAIN`. The generated key and certificates are stored into `VPNWA_SSLKEYPATH` and `VPNWA_SSLCERTPATH` and reused during future application restarts.
+    > `auto` automatically generates a private key and a Let'sEncrypt SSL certificate for the domain specified in `VPNWA_REDIRECTDOMAIN`. The generated key and certificates are stored into `VPNWA_SSLAUTOCERTSDIR` and reused during future application restarts.
 
-    > NOTE: `auto` will force the application to also listen on port 80 in order to generate the LetsEncrypt certificate. This port is privileged, meaning that you will need to start the application as root using `sudo`, or executing `chmod u+s vpn-webauth` to grant the binary admin permissions. Additionally, any user request to port 80 will redirect to the `VPNWA_PORT` HTTPS port.
+    > NOTE: `auto` will force the application to also listen on port 80 in order to generate the LetsEncrypt certificate. This port is privileged, meaning that you will need to start the application as root using `sudo`, or executing `chmod u+s vpn-webauth` to grant the binary admin permissions. Any user request to port 80 will redirect to the `VPNWA_PORT` HTTPS port.
 
     > `custom` will let you specify a custom certificate and key using `VPNWA_SSLCUSTOMCERTPATH` and `VPNWA_SSLCUSTOMKEYPATH`.
 
-    > `proxy` delegates the responsibility of providing SSL termination to an external component or proxy. But unlike `off`, it sets the `Secure` flag for the cookies generated by the application.
+    > `proxy` delegates the responsibility of providing SSL termination to an external component or proxy. However, unlike `off`, it sets the `Secure` flag for the cookies generated by the application and add an HSTS HTTP header.
   - `VPNWA_SSLCUSTOMCERTPATH`: path to the SSL certificate. Optional. Default: `/ssl/key.pem`. If needed, this file can contain any additional certificate required to build the full chain, _after_ the leaf certificate.
   - `VPNWA_SSLCUSTOMKEYPATH`: path to the SSL certificate private key. Optional. Default: `/ssl/cert.pem`.
+  - `VPNWA_SSLAUTOCERTSDIR`: used to store automatically manage certificates when `VPNWA_SSLMODE` is set to `auto`. Default: `/tmp`. Should be changed to a more persistent path. Path must be writeable.

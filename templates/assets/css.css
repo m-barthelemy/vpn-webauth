@@ -9,6 +9,12 @@ main {
     flex: 1 0 auto;
 }
 
+.main-container {
+    display: inline-block;
+    padding: 32px 48px 0px 48px;
+    border: 1px solid #EEE;
+}
+
 .logo {
     max-height: 4em;
 }
@@ -25,4 +31,23 @@ main {
 
 .section-title {
     text-align: left;
+}
+
+.mfa-choose-btn {
+    text-transform:none; 
+    width: 100%; 
+    font-size: 1.3em;
+}
+
+@keyframes fadeIn { 
+    from { opacity: 0; } 
+}
+
+.fadein-animated {
+    color: #ff80ab;
+    animation: fadeIn 1s infinite alternate;
+}
+
+.fadein {
+    animation: fadeIn 4s alternate;
 }

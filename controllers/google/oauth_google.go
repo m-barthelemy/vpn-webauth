@@ -9,9 +9,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/m-barthelemy/vpn-webauth/models"
 	userManager "github.com/m-barthelemy/vpn-webauth/services"
 	"github.com/m-barthelemy/vpn-webauth/utils"
@@ -31,12 +31,6 @@ type GoogleUser struct {
 	EmailVerified string `json:"email_verified"`
 }
 
-// Used for the session cookie
-type Claims struct {
-	Username string `json:"username"`
-	jwt.StandardClaims
-}
-
 var googleOauthConfig *oauth2.Config
 
 const oauthGoogleUrlAPI = "https://www.googleapis.com/oauth2/v2/userinfo?access_token="
@@ -54,80 +48,126 @@ func New(db *gorm.DB, config *models.Config) *GoogleController {
 	return &GoogleController{db: db, config: config}
 }
 
+// OauthGoogleLogin redirects to Google for the actual login
 func (g *GoogleController) OauthGoogleLogin(w http.ResponseWriter, r *http.Request) {
+	contextValue := r.Context().Value("identity")
+
+	// If we have a valid session, directly move to next step
+	if contextValue != nil {
+		var email = contextValue.(string)
+		g.afterFirstAuthStep(email, w, r)
+		return
+	}
+
 	oauthState := g.generateStateCookie("oauthstate", w)
 
-	// The state value in the URL when Google redirects back to us, and in the oauthstate cookie, must match.
+	// `select_account` forces displaying the Google account selection step, in case the user has multiple
+	//  accounts registered on their device.
 	url := googleOauthConfig.AuthCodeURL(oauthState) + "&prompt=select_account"
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
+// OauthGoogleCallback is called once the Google authentication has been completed
 func (g *GoogleController) OauthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	oauthState, err := r.Cookie("oauthstate")
 	if err != nil {
-		log.Printf("GoogleController: error fetching OAuth state cookie: %s", err)
+		log.Printf("GoogleController: Error fetching OAuth state cookie: %s", err)
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
+	// The state value in the URL when Google redirects back to us, and in the `oauthState` cookie, must match.
 	if r.FormValue("state") != oauthState.Value {
-		log.Println("invalid oauth google state")
+		log.Println("GoogleController: Invalid oauth google state")
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
 	googleUser, err := getUserDataFromGoogle(r.FormValue("code"))
 	if err != nil {
-		log.Printf("GoogleController: error fetching user info from Google: %s", err)
+		log.Printf("GoogleController: Error fetching user info from Google: %s", err)
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
 	log.Printf("User %s completed Google authentication step", googleUser.Email)
+
+	g.afterFirstAuthStep(googleUser.Email, w, r)
+
+}
+
+func (g *GoogleController) afterFirstAuthStep(email string, w http.ResponseWriter, r *http.Request) {
 	userManager := userManager.New(g.db, g.config)
-	user, err := userManager.CheckOrCreate(googleUser.Email)
+	user, err := userManager.CheckOrCreate(email)
 	if err != nil {
 		log.Print(err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	if g.createSession(user.Email, g.config.OTP, w) != nil {
-		log.Printf("GoogleController: error creating user session: %s", err)
+	if userManager.CreateSession(user.Email, false, w) != nil {
+		log.Printf("GoogleController: Error creating user oauth2-only session for %s: %s", user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-
 	sourceIP := utils.New(g.config).GetClientIP(r)
-	if g.config.OTP {
-		// Check if user has a valid session with OTP
-		allowed, err := userManager.CheckVpnSession(user.Email, sourceIP, true)
-		if err != nil {
-			log.Printf("Error checking existing VPN sessions: ", err.Error())
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
+	if !g.config.EnforceMFA {
+		// If no additional 2FA required, the user has now been created and authenticated.
+		// ensure they have an oauth2 MFAUser
+		var requestedMFA *models.UserMFA
+		if user.MFAs != nil {
+			for i := range user.MFAs {
+				if user.MFAs[i].Type == "oauth2" {
+					requestedMFA = &user.MFAs[i]
+					break
+				}
+			}
 		}
-		if allowed && user.TotpValidated {
-			http.Redirect(w, r, "/success", http.StatusTemporaryRedirect)
-		} else if user.TotpValidated {
-			log.Printf("GoogleController: User %s already has MFA setup, asking TOTP code.", user.Email)
-			http.Redirect(w, r, "/enter2fa", http.StatusTemporaryRedirect)
-		} else {
-			log.Printf("GoogleController: User %s hasn't setup authenticator app, redirecting to registration.", googleUser.Email)
-			http.Redirect(w, r, "/register2fa", http.StatusTemporaryRedirect)
+		if requestedMFA == nil {
+			if requestedMFA, err = userManager.AddMFA(user, "oauth2", "", r.Header.Get("User-Agent")); err != nil {
+				log.Printf("GoogleController: Error creating UserMFA for %s: %s", user.Email, err)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
 		}
-	} else { // If no additional 2FA required, user has now been created and authenticated.
-		err := userManager.CreateVpnSession(*user, sourceIP)
+
+		err := userManager.CreateVpnSession(requestedMFA.ID, user, sourceIP)
 		if err != nil {
 			log.Printf("GoogleController: Error creating VPN session for %s : %s", user.Email, err.Error())
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 		http.Redirect(w, r, "/success", http.StatusTemporaryRedirect)
+		return
 	}
+
+	if user.HasMFA() {
+		options := ""
+		for _, mfa := range user.MFAs {
+			if mfa.IsValid() {
+				options += mfa.Type + ","
+			}
+		}
+		if len(options) > 1 {
+			log.Printf("GoogleController: User %s already has MFA setup, requesting additional authentication.", user.Email)
+			http.Redirect(w, r, fmt.Sprintf("/enter2fa?options=%s", options), http.StatusTemporaryRedirect)
+			return
+		}
+	}
+
+	// If we get there, the User has no MFA configured or validated.
+	options := utils.New(g.config).GetAllowedMFAs()
+	log.Printf("GoogleController: User %s hasn't setup MFA, redirecting to MFA selection.", email)
+	http.Redirect(w, r, fmt.Sprintf("/choose2fa?options=%s", strings.Join(options, ",")), http.StatusTemporaryRedirect)
+}
+
+// Availeble MFA options for registration
+func (g *GoogleController) GetMFaChoosePage(w http.ResponseWriter, r *http.Request) {
+	options := utils.New(g.config).GetAllowedMFAs()
+	http.Redirect(w, r, fmt.Sprintf("/choose2fa?options=%s", strings.Join(options, ",")), http.StatusTemporaryRedirect)
 }
 
 func (g *GoogleController) generateStateCookie(name string, w http.ResponseWriter) string {
-	// Session needs to be valid until user has completed )Auth2 login, which may take longer if
-	// dome for the first time or on a new browser.
+	// Session needs to be valid until user has completed OAuth2 login, which may take longer if
+	// done for the first time or on a new browser.
 	var expiration = time.Now().Add(3 * time.Minute)
 	b := make([]byte, 64) // random ID
 	rand.Read(b)
@@ -142,34 +182,6 @@ func (g *GoogleController) generateStateCookie(name string, w http.ResponseWrite
 	http.SetCookie(w, &cookie)
 
 	return state
-}
-
-func (g *GoogleController) createSession(email string, requiresMFA bool, w http.ResponseWriter) error {
-	jwtKey := []byte(g.config.SigningKey)
-	// Session needs to be valid until user has completed initial 2FA registration if needed
-	// hence the 3 minutes here.
-	expirationTime := time.Now().Add(3 * time.Minute)
-	claims := &Claims{
-		Username: email,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: expirationTime.Unix(),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtKey)
-	if err != nil {
-		return err
-	}
-	cookie := http.Cookie{
-		Name:     "vpnwa_session",
-		Value:    tokenString,
-		Expires:  expirationTime,
-		HttpOnly: true,
-		Path:     "/",
-		Secure:   g.config.SSLMode != "off",
-	}
-	http.SetCookie(w, &cookie)
-	return nil
 }
 
 func getUserDataFromGoogle(code string) (GoogleUser, error) {

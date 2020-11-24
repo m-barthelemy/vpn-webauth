@@ -17,13 +17,16 @@ type Config struct {
 	Host                string   // VPNWA_HOST
 	DbType              string   // VPNWA_DBTYPE
 	DbDSN               string   // VPNWA_DBDSN
+	ExcludedIdentities  []string // VPNWA_EXCLUDEDIDENTITIES
 	RedirectDomain      *url.URL // VPNWA_REDIRECTDOMAIN
 	GoogleClientID      string   // VPNWA_GOOGLECLIENTID
 	GoogleClientSecret  string   // VPNWA_GOOGLECLIENTSECRET
-	SessionValidity     int      // VPNWA_SESSIONVALIDITY
-	OTP                 bool     // VPNWA_OTP
-	OTPIssuer           string   // VPNWA_OTPISSUER
-	OTPValidity         int      // VPNWA_OTPVALIDITY
+	EnforceMFA          bool     // VPNWA_ENFORCEMFA
+	MFAOTP              bool     // VPNWA_MFAOTP
+	MFAIssuer           string   // VPNWA_OTPISSUER
+	MFAValidity         int      // VPNWA_MFAVALIDITY
+	MFATouchID          bool     // VPNWA_MFATOUCHID
+	MFAWebauthn         bool     // MFAWEBAUTHN
 	LogoURL             *url.URL // VPNWA_LOGOURL
 	SigningKey          string   // VPNWA_SIGNINGKEY
 	EncryptionKey       string   // VPNWA_ENCRYPTIONKEY
@@ -33,6 +36,7 @@ type Config struct {
 	SSLAutoCertsDir     string   // VPNWA_SSLAUTOCERTSDIR
 	SSLCustomCertPath   string   // VPNWA_SSLCUSTOMCERTPATH
 	SSLCustomKeyPath    string   // VPNWA_SSLCUSTOMKEYPATH
+	VPNSessionValidity  int      // VPNWA_VPNSESSIONVALIDITY
 }
 
 func (config *Config) New() Config {
@@ -40,11 +44,15 @@ func (config *Config) New() Config {
 		DbType:              "sqlite",
 		DbDSN:               "/tmp/vpnwa.db",
 		Debug:               false,
+		ExcludedIdentities:  []string{},
 		Port:                8080,
 		Host:                "127.0.0.1",
-		SessionValidity:     3600,
-		OTP:                 true,
-		OTPIssuer:           "VPN",
+		VPNSessionValidity:  3600,
+		EnforceMFA:          true,
+		MFAIssuer:           "VPN",
+		MFAOTP:              true,
+		MFATouchID:          true,
+		MFAWebauthn:         true,
 		SSLMode:             "off",
 		SSLAutoCertsDir:     "/tmp",
 		SSLCustomCertPath:   "/ssl/cert.pem",
@@ -53,7 +61,7 @@ func (config *Config) New() Config {
 	}
 	redirDomain, _ := url.Parse(fmt.Sprintf("http://%s:%v", defaultConfig.Host, defaultConfig.Port))
 	defaultConfig.RedirectDomain = redirDomain
-	defaultConfig.OTPValidity = defaultConfig.SessionValidity
+	defaultConfig.MFAValidity = defaultConfig.VPNSessionValidity
 	// We create a default random key for signing session tokens
 	b := make([]byte, 32) // random ID
 	rand.Read(b)
@@ -64,7 +72,7 @@ func (config *Config) New() Config {
 }
 
 func (config *Config) Verify() {
-	log.Printf("Session validity set to %v seconds", config.SessionValidity)
+	log.Printf("Session validity set to %v seconds", config.VPNSessionValidity)
 	log.Printf("Google callback redirect set to %s", config.RedirectDomain)
 	if config.GoogleClientID == "" {
 		log.Fatal("VPNWA_GOOGLECLIENTID is not set")
@@ -72,7 +80,7 @@ func (config *Config) Verify() {
 	if config.GoogleClientSecret == "" {
 		log.Fatal("VPNWA_GOOGLECLIENTSECRET is not set")
 	}
-	if config.OTP {
+	if config.EnforceMFA {
 		if config.EncryptionKey == "" {
 			log.Fatal("VPNWA_ENCRYPTIONKEY is required when VPNWA_OTP is set to true. You can use `openssl rand -hex 16` to generate it")
 		} else if len(config.EncryptionKey) != 32 {

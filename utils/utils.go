@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -31,4 +33,31 @@ func (u *Utils) GetClientIP(r *http.Request) string {
 		sourceIP, _, _ := net.SplitHostPort(r.RemoteAddr)
 		return sourceIP
 	}
+}
+
+func (u *Utils) GetAllowedMFAs() []string {
+	var options []string
+	if u.config.MFATouchID {
+		options = append(options, "touchid")
+	}
+	if u.config.MFAOTP {
+		options = append(options, "otp")
+	}
+	if u.config.MFAWebauthn {
+		options = append(options, "webauthn")
+	}
+	return options
+}
+
+// JsonResponse outputs tobject as a 200 HTTP JSON encoded response
+func JSONResponse(w http.ResponseWriter, d interface{}, c int) {
+	dj, err := json.Marshal(d)
+	if err != nil {
+		log.Printf("WebAuthNController: Error serializing response to JSON: %s", err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(c)
+	fmt.Fprintf(w, "%s", dj)
 }

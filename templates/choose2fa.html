@@ -1,0 +1,60 @@
+{{ define "choose2fa" }}
+<html>
+{{ template "header" . }}
+<body>
+<div class="section"></div>
+<main>
+    <center>
+        <div class="section"></div>
+        <form action="/auth/validateotp" method="POST">
+        <div class="container">
+            <div class="z-depth-1 grey lighten-4 row main-container ">
+                <img src="{{.LogoURL}}" class="logo"/>
+                <br/><br/>
+                <span>Looks like it's the first time you want to use the VPN!</span>
+                <br/><br/>
+                <h4 class="section-title">Choose a strong authentication method</h4>
+                <br/><br/>
+
+                <div class="row" id="touchid-section">
+                    <div class='col s12'>
+                        <a class="btn-large waves-effect blue-grey left mfa-choose-btn" onclick="webAuthNRegisterStart();">
+                            <i id="touchid-icon" class="large material-icons left" style="color: #ff80ab; font-size: 2.2em;">fingerprint</i>&nbsp;Use TouchID, FaceID or Windows Hello
+                        </a>
+                    </div>
+                    <br/>
+                    <br/>
+                    <br/>
+                </div>
+                
+                <div class="row" id="otp-section">
+                    <div class='col s12'>
+                        <a class="btn-large waves-effect blue-grey left mfa-choose-btn" href="/register2faOtp">
+                            <div class="icon">
+                                <i class="fa fa-qrcode fa-3x left"></i>&nbsp;Use an authenticator app (Authy, Google Authenticator...)
+                            </div>
+                        </a>
+                    </div>
+                    <br/><br/>
+                </div>
+
+                <div class="row" id="webauthn-section">
+                    <div class='col s12'>
+                        <a class="btn-large waves-effect blue-grey left mfa-choose-btn" onclick="webAuthNRegisterStart(true);">
+                            <div class="icon">
+                                <i id="webauthn-icon" class="fa fa-usb fa-3x left"></i>&nbsp;Use a security key
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <br/>
+                <div id="error" class="card-panel red lighten-2" style="display: none;"><b>There was an error setting up the additional authentication.</b></div>
+            </div>
+        </div>
+    </form>
+    </center>
+</main>
+</body>
+
+</html>
+{{ end }}

@@ -15,6 +15,9 @@ import (
 
 func startServer(config *models.Config, handler http.Handler) {
 	domain, _, _ := net.SplitHostPort(config.RedirectDomain.Host)
+	if domain == "" {
+		domain = config.RedirectDomain.Host
+	}
 	certManager := autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(domain),
@@ -50,17 +53,12 @@ func startServer(config *models.Config, handler http.Handler) {
 				tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
 				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-				tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-				// No PFS but provides compatibility with older OS
-				// It it also required for enabling HTTP/2
-				tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
 			},
 			GetCertificate: func(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				if config.SSLMode == "auto" {
 					return certManager.GetCertificate(clientHello)
-				} else {
-					return &customCert, nil
 				}
+				return &customCert, nil
 			},
 		}
 	}
@@ -79,16 +77,16 @@ func startServer(config *models.Config, handler http.Handler) {
 	log.Printf("Serving http/https for domains: %+v", domain)
 	if config.SSLMode == "auto" {
 		go func() {
-			// serve HTTP, which will redirect automatically to HTTPS
+			// Serve HTTP, which will redirect automatically to HTTPS
 			h := certManager.HTTPHandler(nil)
 			log.Fatal(http.ListenAndServe(":http", h))
 		}()
 	}
 	if config.SSLMode == "auto" || config.SSLMode == "custom" {
-		// serve HTTPS!
+		// Serve HTTPS
 		log.Fatal(server.ListenAndServeTLS("", ""))
 	} else {
-		server.ListenAndServe()
+		log.Fatal(server.ListenAndServe())
 	}
 }
 

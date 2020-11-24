@@ -8,21 +8,40 @@
         <div class="section"></div>
         <form action="/auth/validateotp" method="POST">
             <div class="container">
-                <div class="z-depth-1 grey lighten-4 row"
-                    style="display: inline-block; padding: 32px 48px 0px 48px; border: 1px solid #EEE;">
+                <div class="z-depth-1 grey lighten-4 row main-container">
                     <img src="{{.LogoURL}}" class="logo"/>
+                    <br/>
                     <h2>Success!</h2>
                     <br/>
-                    <p>You can now connect to the VPN.</p>
-                    <small>You can directly reconnect to the VPN without authenticating here for the next {{.SessionValidity}} seconds.</small>
-                    <br/><br/><br/>
+                    <i class="large material-icons center fadein" style="color: #0c8836; font-size: 5em;">verified_user</i>
+                    <br/><br/>
+                    <p>You can now connect to <b>{{.MFAIssuer}}</b>.</p>
+                    <p>You shouldn't have to come back here until <span id="session-validity">{{.VPNSessionValidity}}</span>, 
+                        <br/>as long as you connect from the same place and network.</p>
+                    <br/>
+                    <div id="success-info" class="card-panel green accent-2" style="display: none;">
+                        <span class="valign-wrapper">
+                            <i class="material-icons fadein">info_outline</i>
+                            &nbsp;<b id="success-info-message"></b>
+                        </span>
+                    </div>
+                    <br/><br/>
                     <div class="row">
                         <div>
-                            <a class="btn col s12 waves-effect" href="/" style="text-transform:none">
-                                Go back to Login page
+                            <a class="btn col s12 waves-effect blue-grey left" href="/" style="text-transform:none">
+                                    <i class="material-icons left">home</i>Go back to Login page
                             </a>
                         </div>
                     </div>
+
+                    <div class="row">
+                        <div>
+                            <a class="btn col s12 waves-effect blue-grey left" href="/addDevice" style="text-transform:none">
+                                <i class="material-icons left">add_circle_outline</i>&nbsp;Add new browser or device
+                            </a>
+                        </div>
+                    </div>
+                    <br/>
                 </div>
             </div>
         </form>
