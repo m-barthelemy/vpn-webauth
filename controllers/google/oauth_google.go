@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
@@ -122,7 +123,7 @@ func (g *GoogleController) afterFirstAuthStep(email string, w http.ResponseWrite
 			}
 		}
 		if requestedMFA == nil {
-			if requestedMFA, err = userManager.AddMFA(user, "oauth2", ""); err != nil {
+			if requestedMFA, err = userManager.AddMFA(user, "oauth2", "", r.Header.Get("User-Agent")); err != nil {
 				log.Printf("GoogleController: Error creating UserMFA for %s: %s", user.Email, err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
@@ -141,7 +142,7 @@ func (g *GoogleController) afterFirstAuthStep(email string, w http.ResponseWrite
 	if user.HasMFA() {
 		options := ""
 		for _, mfa := range user.MFAs {
-			if mfa.Validated {
+			if mfa.IsValid() {
 				options += mfa.Type + ","
 			}
 		}
@@ -153,18 +154,15 @@ func (g *GoogleController) afterFirstAuthStep(email string, w http.ResponseWrite
 	}
 
 	// If we get there, the User has no MFA configured or validated.
-	options := ""
-	if g.config.MFATouchID {
-		options += "touchid,"
-	}
-	if g.config.MFAOTP {
-		options += "otp,"
-	}
-	if g.config.MFAWebauthn {
-		options += "webauthn,"
-	}
+	options := utils.New(g.config).GetAllowedMFAs()
 	log.Printf("GoogleController: User %s hasn't setup MFA, redirecting to MFA selection.", email)
-	http.Redirect(w, r, fmt.Sprintf("/choose2fa?options=%s", options), http.StatusTemporaryRedirect)
+	http.Redirect(w, r, fmt.Sprintf("/choose2fa?options=%s", strings.Join(options, ",")), http.StatusTemporaryRedirect)
+}
+
+// Availeble MFA options for registration
+func (g *GoogleController) GetMFaChoosePage(w http.ResponseWriter, r *http.Request) {
+	options := utils.New(g.config).GetAllowedMFAs()
+	http.Redirect(w, r, fmt.Sprintf("/choose2fa?options=%s", strings.Join(options, ",")), http.StatusTemporaryRedirect)
 }
 
 func (g *GoogleController) generateStateCookie(name string, w http.ResponseWriter) string {

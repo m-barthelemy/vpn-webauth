@@ -1,9 +1,15 @@
 'use strict';
 
 // Inspired by https://github.com/hbolimovsky/webauthn-example/blob/master/index.html
+
 async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
-    $("#touchid-icon").addClass("fadein-animated");
-    const response = await fetch("/auth/webauthn/beginregister?type=touchid", {
+    let provider = "webauthn";
+    if (!allowCrossPlatformDevice) {
+        provider = "touchid";
+    }
+    $(`#${provider}-icon`).addClass("fadein-animated");
+
+    const response = await fetch(`/auth/webauthn/beginregister?type=${provider}`, {
         method: 'POST',
         headers: {
             'Accept': 'application/json',
@@ -34,7 +40,16 @@ async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
         ];
     }
     
-    let newCredentialInfo = await navigator.credentials.create(optionsData);
+    let newCredentialInfo;
+    try{
+        newCredentialInfo = await navigator.credentials.create(optionsData);
+    }
+    catch (e) {
+        $(`#${provider}-icon`).removeClass("fadein-animated");
+        $("#error").html(`<b>Unable to register your security device. </b>`);
+        $("#error").show();
+        return;
+    }
 
     let attestationObject = newCredentialInfo.response.attestationObject;
     let clientDataJSON = newCredentialInfo.response.clientDataJSON;
@@ -48,7 +63,7 @@ async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
             clientDataJSON: bufferEncode(clientDataJSON),
         },
     };
-    const registerResponse = await fetch("/auth/webauthn/finishregister?type=touchid", {
+    const registerResponse = await fetch(`/auth/webauthn/finishregister?type=${provider}`, {
         method: "POST",
         body: JSON.stringify(regoResponse),
         headers: {
@@ -62,13 +77,17 @@ async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
         return;
     }
     else {
-        window.location.href = "/success?source=register&provider=webauthn";
+        window.location.href = `/success?source=register&provider=${provider}`;
     }
 }
 
 async function webAuthNLogin(allowCrossPlatformDevice = false) {
     $("#touchid-icon").addClass("fadein-animated");
-    const response = await fetch("/auth/webauthn/beginlogin?type=touchid", {
+    let provider = "webauthn";
+    if (!allowCrossPlatformDevice) {
+        provider = "touchid";
+    }
+    const response = await fetch(`/auth/webauthn/beginlogin?type=${provider}`, {
         method: 'POST',
         headers: {
             'Accept': 'application/json',
@@ -99,8 +118,8 @@ async function webAuthNLogin(allowCrossPlatformDevice = false) {
         $("#touchid-icon").removeClass("fadein-animated");
         $("#error").html(`<b>You may be trying to authenticate from a new device or browser. <br/>
             Sign in using your allowed device or browser, and click 'Add new browser or device'.<br/>
-            Then follow the instructions.<br/>
-            <a href="/enter2fa?options=code">I got a temporary code</a>
+            This will allow you to generate a one time code.<br/>
+            Click <a href="/enter2fa?options=code">here</a> to enter a one time code.
             </b>`);
         $("#error").show();
         return;
@@ -123,7 +142,7 @@ async function webAuthNLogin(allowCrossPlatformDevice = false) {
             userHandle: bufferEncode(userHandle),
         },
     };
-    const loginResponse = await fetch("/auth/webauthn/finishlogin?type=touchid", {
+    const loginResponse = await fetch(`/auth/webauthn/finishlogin?type=${provider}`, {
         method: "POST",
         body: JSON.stringify(loginResponseData),
         headers: {
@@ -180,27 +199,31 @@ $(document).ready(async function(){
             console.log("OTP is not allowed");
             $("#otp-section").hide();
         }
+        if(!allOptions.includes("touchid")) {
+            console.log("TouchID is not allowed");
+            $("#touchid-section").hide();
+        }
         // This one is very specific, so hidden by default
         if(allOptions.includes("code")) {
             console.log("Single usage code is allowed");
             $("#code-section").show();
         }
-        if (!window.PublicKeyCredential) { // Browser without any Webauthn support
+    }
+
+    if (!window.PublicKeyCredential) { // Browser without any Webauthn support
+        $("#touchid-section").hide();
+    }
+    else {
+        const tpmAuthAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        if(tpmAuthAvailable){
+            console.log("TouchID/FaceID/Windows Hello is available.");
+        } else {
+            console.log(`TouchID/FaceID/Windows Hello available: ${tpmAuthAvailable}`);
             $("#touchid-section").hide();
         }
-        else { 
-            const tpmAuthAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-            const touchIdAllowed = allOptions.includes("touchid");
-            if(tpmAuthAvailable && touchIdAllowed){
-                console.log("TouchID/FaceID/Windows Hello is allowed and available.");
-            } else {
-                console.log(`TouchID/FaceID/Windows Hello allowed: ${touchIdAllowed}, available: ${tpmAuthAvailable}`);
-                $("#touchid-section").hide();
-            }
-        }
     }
+
     let sessionValidity = $("#session-validity").text();
-    console.log(`Session valid until ${sessionValidity}`);
     if (sessionValidity != "") {
         let expiry = new Date();
         expiry.setSeconds(expiry.getSeconds() + parseInt($("#session-validity").text()));
@@ -211,15 +234,13 @@ $(document).ready(async function(){
     if (searchParams.has('source')) {
         const source = searchParams.get('source');
         const provider = searchParams.get('provider');
-        if (source == "register" && provider == "webauthn") {
+        if (source == "register" && (provider == "webauthn" || provider == "touchid")) {
             $("#success-info-message").html(`The next times you sign in, you will need to use the same browser, <br/>
             or any other browser added using the "Add new browser or device" option.`);
             $("#success-info").show();
         }
-
     }
 
-    //$("input[type='number']").keyup( function() {
     $("#otp").keyup( function() {
         const dataLength = $(this).val().length;
         
@@ -238,6 +259,7 @@ $(document).ready(async function(){
             $("#error").hide();
         }
         if (dataLength == 6) {
+            // TODO: Move to function
             const codeResponse = await fetch("/auth/code/validate", {
                 method: "POST",
                 body: JSON.stringify(
@@ -250,12 +272,14 @@ $(document).ready(async function(){
             });
             if (!codeResponse.ok) {
                 console.error(codeResponse);
-                $("#error").text(codeResponse.statusText);
+                if(codeResponse.statusText != "") {
+                    $("#error").text(codeResponse.statusText);
+                }
                 $("#error").show();
                 return;
             }
             else {
-                window.location.href = "/choose2fa";
+                window.location.href = "/auth/getmfachoice";
             }
         }
     }).change();

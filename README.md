@@ -136,8 +136,8 @@ All the configuration parameters have to passed as environment variables.
 
   - `VPNWA_LOGOURL`: Add your organization logo on top of the webapp pages. Optional.
   - `VPNWA_SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
-    > These tokens have a very short duration since they are only required during the sign in process, so regenerating a new key every time the application starts shouldn't be too much of a problem even if that means that every existing session will be invalidated. 
-    > If you plan to run multiple instances of this app behind a load-balancer, you should probably consider defining your own key, identical on all nodes, or use some form of session persistence.
+    > Regenerating a new key every time the application starts means that all your users web sessions will be invalid and they will have to sign in again if they need a new VPN "session".
+    > It is recommended that you create and pass your own key.
   - `VPNWA_ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. If running this app behind Nginx for example, you will need to configure Nginx to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-For` is used for this purpose. Default: empty.
   - `VPNWA_ORIGINALPROTOHEADER`: the header to use to fetch the real protocol (http, https) used between the clients and the proxy. Default: `X-Forwarded-Proto`.
   - `VPNWA_SSLMODE`: whether and how SSL is enabled. Default: `off`. Can be `auto`, `custom`, `proxy`, `off`.

@@ -73,7 +73,7 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 
-		otpMFA, err = userManager.AddMFA(user, "otp", otp.Secret())
+		otpMFA, err = userManager.AddMFA(user, "otp", otp.Secret(), r.Header.Get("User-Agent"))
 		if err != nil {
 			log.Printf("OTPController: Error creating user TOTP MFA provider for %s: %s", user.Email, err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

@@ -44,6 +44,7 @@ main {
 }
 
 .fadein-animated {
+    color: #ff80ab;
     animation: fadeIn 1s infinite alternate;
 }
 

@@ -97,7 +97,7 @@ func (m *UserManager) CreateVpnSession(mfaID uuid.UUID, user *models.User, ip st
 }
 
 // AddMFA Creates a new `UserMFA`, and encrypts the `data` field
-func (m *UserManager) AddMFA(user *models.User, mfaType string, data string) (*models.UserMFA, error) {
+func (m *UserManager) AddMFA(user *models.User, mfaType string, data string, userAgent string) (*models.UserMFA, error) {
 	// Cleanup any expired, non validated UserMFA
 	_ = m.db.Delete(&models.UserMFA{}, "id = ? AND validated = ? AND expires_at < ?", user.ID, false, time.Now())
 
@@ -106,6 +106,7 @@ func (m *UserManager) AddMFA(user *models.User, mfaType string, data string) (*m
 		Validated: false,
 		ExpiresAt: time.Now().Add(time.Minute * 5),
 		Type:      mfaType,
+		UserAgent: userAgent,
 	}
 
 	if data != "" {
@@ -155,6 +156,8 @@ func (m *UserManager) ValidateMFA(mfa *models.UserMFA, data string) (*models.Use
 	}
 
 	userMFA.Validated = true
+	userMFA.ExpiresAt = time.Now().AddDate(10, 0, 0)
+
 	if data != "" {
 		dp := NewDataProtector(m.config)
 		encryptedData, err := dp.Encrypt(data)

@@ -16,7 +16,8 @@ type UserMFA struct {
 	Validated bool
 	CreatedAt time.Time
 	ExpiresAt time.Time // Expiration date when validation is pending
-	User      User      `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	UserAgent string
+	User      User `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 // BeforeCreate ensures the model has an ID before saving it
@@ -27,4 +28,8 @@ func (userMFA *UserMFA) BeforeCreate(scope *gorm.DB) error {
 	}
 	userMFA.ID = uuid
 	return nil
+}
+
+func (userMFA *UserMFA) IsValid() bool {
+	return userMFA.Validated && time.Now().Before(userMFA.ExpiresAt)
 }

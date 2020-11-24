@@ -77,16 +77,18 @@ func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *
 		Code:           strconv.FormatUint(randomCode.Uint64(), 10),
 		RemainingTries: 3,
 	}
-	serialized, _ := json.Marshal(code)
-	otcMFA, err := userManager.AddMFA(user, "code", string(serialized[:]))
+
+	otcMFA, err := userManager.AddMFA(user, "code", "", r.Header.Get("User-Agent"))
 	if err != nil {
-		log.Printf("SingleUseCodeController: Error saving random numeric code for user %s: %s", user.Email, err.Error())
+		log.Printf("SingleUseCodeController: Error saving OTC for user %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	_, err = userManager.ValidateMFA(otcMFA, "")
-	if err != nil {
-		log.Printf("SingleUseCodeController: Error updating random numeric code for user %s: %s", user.Email, err.Error())
+	serialized, _ := json.Marshal(code)
+	otcMFA.Data = string(serialized[:])
+	otcMFA.Validated = true
+	if _, err := userManager.UpdateMFA(*otcMFA); err != nil {
+		log.Printf("SingleUseCodeController: Error updating OTC for user %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -146,6 +148,7 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 	var codeToValidate OneTimeCode
 	err = json.NewDecoder(r.Body).Decode(&codeToValidate)
 	if err != nil {
+		log.Printf("SingleUseCodeController: Unable to unmarshal %s single-use code: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}

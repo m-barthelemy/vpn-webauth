@@ -35,6 +35,20 @@ func (u *Utils) GetClientIP(r *http.Request) string {
 	}
 }
 
+func (u *Utils) GetAllowedMFAs() []string {
+	var options []string
+	if u.config.MFATouchID {
+		options = append(options, "touchid")
+	}
+	if u.config.MFAOTP {
+		options = append(options, "otp")
+	}
+	if u.config.MFAWebauthn {
+		options = append(options, "webauthn")
+	}
+	return options
+}
+
 // JsonResponse outputs tobject as a 200 HTTP JSON encoded response
 func JSONResponse(w http.ResponseWriter, d interface{}, c int) {
 	dj, err := json.Marshal(d)

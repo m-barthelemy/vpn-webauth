@@ -49,6 +49,13 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		),
 	)
 
+	mux.Handle("/auth/getmfachoice",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessionMiddleware(tokenSigningKey, googleC.GetMFaChoosePage, true)),
+		),
+	)
+
 	otpC := otpController.New(db, config)
 	// This creates the OTP provider (and secret) for the User
 	mux.Handle("/auth/otp/qrcode",

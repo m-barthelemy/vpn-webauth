@@ -72,7 +72,7 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 		log.Printf("WebAuthNController: failed to create WebAuthn from config: %s", err)
 	}
 
-	_, err = userManager.AddMFA(user, webAuthnType, "")
+	_, err = userManager.AddMFA(user, webAuthnType, "", r.Header.Get("User-Agent"))
 	newWebAuthNUser := models.NewWebAuthNUser(user.ID, user.Email, user.Email)
 
 	registerOptions := func(credCreationOpts *protocol.PublicKeyCredentialCreationOptions) {
