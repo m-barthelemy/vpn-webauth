@@ -58,7 +58,7 @@ Successful sign-in:
 - Since the web authentication has to happen before connecting to the VPN, is probably needs to be hosted in a less protected part of your environment.
 - There is currently no way to reset a user account if they have lost or changed their 2FA device. However, all you need to do is manually delete the User record in the database (`DELETE FROM users WHERE email='user@domain.tld'`).
 - Strongswan blocks during the call to the `ext-auth` plugin. Since checking the user web authentication against this app is fast, this shouldn't be an issue, unless you have a high number of users connecting almost simultaneously.
-- There is currently no limit on how many attempts a user can make at entering a 2FA code.
+- There is currently no limit on how many attempts a user can make at entering a 2FA OTP code or using a Webauthn device.
 
  ## Setup
  ### Build
@@ -127,6 +127,7 @@ All the configuration parameters have to passed as environment variables.
 
     > NOTE: Your VPN's own authentication process still fully applies.
   - `VPNWA_REDIRECTDOMAIN`: the base URL that oAuth2/Google will redirect to after signing in. Default: http://`VPNWA_HOST`:`VPNWA_PORT`
+    > You need to set it to the user-facing endpoint for this application, for example https://vpn.myconpany.com.
   - `VPNWA_GOOGLECLIENTID`: Google Client ID. **Mandatory**.
   - `VPNWA_GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
   - `VPNWA_ENCRYPTIONKEY`: Key used to encrypt the users OTP secrets in the database. Must be 32 characters. **Mandatory** if `VPNWA_ENFORCEMFA` is set to `true`.
