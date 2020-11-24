@@ -25,26 +25,28 @@ It can also help achieve compliance with some security standards requiring MFA t
 
 ## What does it look like?
 Home/welcome screen:
+
 <img width="742" alt="Screen Shot 2020-11-24 at 8 37 32 AM" src="https://user-images.githubusercontent.com/2519084/100031318-4d974800-2e30-11eb-95f9-73a143b05b09.png">
 
 
 Signing in for the first time? 
+
 <img width="749" alt="Screen Shot 2020-11-24 at 8 38 25 AM" src="https://user-images.githubusercontent.com/2519084/100031359-6d2e7080-2e30-11eb-94c4-3fa2f3ef1792.png">
 
 
 OTP registration screen:
+
 <img width="623" alt="Screen Shot 2020-11-24 at 8 40 48 AM" src="https://user-images.githubusercontent.com/2519084/100031508-c4344580-2e30-11eb-9c38-1979c9957505.png">
 
 
 Normal user sign-in once they have setup their additional authentication step; in this example the user configured TouchID and a physical security key:
+
 <img width="609" alt="Screen Shot 2020-11-24 at 8 44 00 AM" src="https://user-images.githubusercontent.com/2519084/100031692-37d65280-2e31-11eb-81f8-2a1c01758ff7.png">
 
 
 Successful sign-in:
+
 <img width="571" alt="Screen Shot 2020-11-24 at 8 38 49 AM" src="https://user-images.githubusercontent.com/2519084/100031381-7b7c8c80-2e30-11eb-8188-4ff8bf32d564.png">
-
-
-
 
 
 
