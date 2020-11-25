@@ -31,6 +31,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	mux.HandleFunc("/assets/", tplHandler.HandleStaticAsset)
 	mux.HandleFunc("/fonts/", tplHandler.HandleStaticAsset)
 	mux.HandleFunc("/font/", tplHandler.HandleStaticAsset)
+	mux.HandleFunc("/favicon.ico", tplHandler.HandleStaticAsset) // Avoid it being treated like a template throwing errors in logs
 
 	mux.HandleFunc("/", tplHandler.HandleEmbeddedTemplate)
 

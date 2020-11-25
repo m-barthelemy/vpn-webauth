@@ -201,7 +201,6 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Ensure User exists
 	userManager := userManager.New(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
