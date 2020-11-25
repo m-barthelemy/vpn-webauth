@@ -77,7 +77,7 @@ Alternatively, you can use the provided Dockerfile.
  ```
  proxy_set_header X-Forwarded-For $remote_addr;
  ```
- and then set `VPNWA_ORIGINALIPHEADER` to `X-Forwarded-For`.
+ and then set `ORIGINALIPHEADER` to `X-Forwarded-For`.
  
  You should also set a proper database configuration to store your sessions. By default, the app will store them into a Sqlite database in the `/tmp` directory. For a real setup, you can use Mysql or Postgres.
 
@@ -98,7 +98,7 @@ plugins {
 	...
 	ext-auth {
 		load = yes
-		script = /path/to/webauth-check.sh https://this_webapp_host/vpn/check
+		script = /path/to/webauth-check.sh https://this_webapp_host/vpn/check VPNCHECKPASSWORD
 	}
 	...
 }
@@ -115,54 +115,58 @@ It expect the following JSON encoded body data:
 
  ## Configuration options
 All the configuration parameters have to passed as environment variables.
-  - `VPNWA_HOST`: the IP address to listen on. Default: `127.0.0.1`
-  - `VPNWA_PORT`: the port to listen to. Default: `8080`
-  - `VPNWA_DBTYPE`: the database engine where the sessions will be stored. Default: `sqlite`. Can be `sqlite`, `postgres`, `mysql`.
-  - `VPNWA_DBDSN`: the database connection string. Default: `tmp/vpnwa.db`. Check https://gorm.io/docs/connecting_to_the_database.html for examples.
+  - `HOST`: the IP address to listen on. Default: `127.0.0.1`
+  - `PORT`: the port to listen to. Default: `8080`
+  - `DBTYPE`: the database engine where the sessions will be stored. Default: `sqlite`. Can be `sqlite`, `postgres`, `mysql`.
+  - `DBDSN`: the database connection string. Default: `tmp/vpnwa.db`. Check https://gorm.io/docs/connecting_to_the_database.html for examples.
     > By default a Sqlite database is created. You probably want to at least change its path. Sqlite is only suitable for testing purposes or for a small number of concurrent users, and will only work with with a single instance of the app. It is recommended to use MySQL or Postgres instead.
 
     > NOTE: the app will automatically create the tables and thus needs to have the privileges to do so.
-  - `VPNWA_EXCLUDEDIDENTITIES`: list of VPN accounts (identities) that do not require any additional authentication by this app, separated by comma. Optional.
+  - `EXCLUDEDIDENTITIES`: list of VPN accounts (identities) that do not require any additional authentication by this app, separated by comma. Optional.
     > The VPN server will still query the application when these accounts try to connect, but will always get a positive response.
 
     > NOTE: Your VPN's own authentication process still fully applies.
-  - `VPNWA_REDIRECTDOMAIN`: the base URL that oAuth2/Google will redirect to after signing in. Default: http://`VPNWA_HOST`:`VPNWA_PORT`
+  - `REDIRECTDOMAIN`: the base URL that oAuth2/Google will redirect to after signing in. Default: http://`HOST`:`PORT`
     > You need to set it to the user-facing endpoint for this application, for example https://vpn.myconpany.com.
-  - `VPNWA_GOOGLECLIENTID`: Google Client ID. **Mandatory**.
-  - `VPNWA_GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
-  - `VPNWA_ENCRYPTIONKEY`: Key used to encrypt the users OTP secrets in the database. Must be 32 characters. **Mandatory** if `VPNWA_ENFORCEMFA` is set to `true`.
-  - `VPNWA_VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication, in seconds. Default: `3600` (1h).
+  - `GOOGLECLIENTID`: Google Client ID. **Mandatory**.
+  - `GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
+  - `ENCRYPTIONKEY`: Key used to encrypt the users OTP secrets in the database. Must be 32 characters. **Mandatory** if `ENFORCEMFA` is set to `true`.
+  - `VPNCHECKPASSWORD`: Shared password between the app and the Strongswan `ext-auth` script to protect the endpoint checking for valid user "sessions. Optional.
+    > If the `/vpn/check` endpoint is publicly available, it is a good idea to set a password to ensure that only your VPN server is allowed to query the app for user sessions. Make sure you also set it in your `ext-auth` configuration.
+  - `VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication, in seconds. Default: `3600` (1h).
     > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
 
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
-  - `VPNWA_ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`.
+  - `ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`.
     > NOTE: if MFA is not enforced, related options are not shown to the users; however, they can still enable it by visiting the registration page.
-  - `VPNWA_MFAVALIDITY`: How long a web authentication is valid. during this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `VPNWA_VPNSESSIONVALIDITY`. 
-  - `VPNWA_MFAISSUER`: Name that appears on the users authenticator app or TouchID/Physical key prompt. Default: `VPN`.
-  - `VPNWA_MFAOTP`: Whether to enable OTP token authrntication after OAuth2 login. Default: `true`. 
+  - `MFAVALIDITY`: How long a web authentication is valid. during this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `VPNSESSIONVALIDITY`. 
+  - `MFAISSUER`: Name that appears on the users authenticator app or TouchID/Physical key prompt. Default: `VPN`.
+  - `MFAOTP`: Whether to enable OTP token authrntication after OAuth2 login. Default: `true`. 
     > NOTE: This is not related to Google 2FA. By default Google will only require 2FA if your organization enforces it, and it will remember a device/browser for a very long time. This option adds a mandatory 2FA verifications upon each login, independently from your Google settings. Your users will have to register a new 2FA entry in their favorite authenticator app when using this web authentication for the first time.
-  - `VPNWA_MFATOUCHID`: Whether to enable Apple TouchID/FaceID and Windows Hello biometrics authentication after OAuth2 login, if a compatible device is detected. Default: `true`.
+  - `MFATOUCHID`: Whether to enable Apple TouchID/FaceID and Windows Hello biometrics authentication after OAuth2 login, if a compatible device is detected. Default: `true`.
     > With compatible devices and operating systems, this is certainly the fastest, most convenient and most secure additional authentication. 
     > This feature complies with the definiton of "Something you are" of the common three authentication factors.
     > NOTE: TouchID/FaceID feature is available in MacOS >= 11.x and iOS >= 14.x. The option will only be shown to the user if a compatible OS is detected.
-  - `VPNWA_MFAWEBAUTHN`: Whether to enable strong authentication using security devices such as Fido keys after OAuth2 login. Default: `true`.
+  - `MFAWEBAUTHN`: Whether to enable strong authentication using security devices such as Fido keys after OAuth2 login. Default: `true`.
 
-  - `VPNWA_LOGOURL`: Add your organization logo on top of the webapp pages. Optional.
-  - `VPNWA_SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
+  - `LOGOURL`: Add your organization logo on top of the webapp pages. Optional.
+  - `SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
     > Regenerating a new key every time the application starts means that all your users web sessions will be invalid and they will have to sign in again if they need a new VPN "session".
     > It is recommended that you create and pass your own key.
-  - `VPNWA_ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. If running this app behind Nginx for example, you will need to configure Nginx to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-For` is used for this purpose. Default: empty.
-  - `VPNWA_ORIGINALPROTOHEADER`: the header to use to fetch the real protocol (http, https) used between the clients and the proxy. Default: `X-Forwarded-Proto`.
-  - `VPNWA_SSLMODE`: whether and how SSL is enabled. Default: `off`. Can be `auto`, `custom`, `proxy`, `off`.
-    > `off` doesn't enforce SSL at all at the application level. In that case you can still place the app behind an HTTPS proxy.
+  - `ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. If running this app behind Nginx for example, you will need to configure Nginx to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-For` is used for this purpose. Default: empty.
+  - `ORIGINALPROTOHEADER`: the header to use to fetch the real protocol (http, https) used between the clients and the proxy. Default: `X-Forwarded-Proto`.
+  - `CONNECTIONSRETENTION`: how long to keep VPN connections log, in days. Default: 30.
+    > NOTE: The connections audit log cleanup task is only run during the application startup.
+  - `SSLMODE`: whether and how SSL is enabled. Default: `off`. Can be `auto`, `custom`, `proxy`, `off`.
+    > `off` doesn't enforce SSL at all at the application level. It is only recommended for local testing.
 
-    > `auto` automatically generates a private key and a Let'sEncrypt SSL certificate for the domain specified in `VPNWA_REDIRECTDOMAIN`. The generated key and certificates are stored into `VPNWA_SSLAUTOCERTSDIR` and reused during future application restarts.
+    > `auto` automatically generates a private key and a Let'sEncrypt SSL certificate for the domain specified in `REDIRECTDOMAIN`. The generated key and certificates are stored into `SSLAUTOCERTSDIR` and reused during future application restarts.
 
-    > NOTE: `auto` will force the application to also listen on port 80 in order to generate the LetsEncrypt certificate. This port is privileged, meaning that you will need to start the application as root using `sudo`, or executing `chmod u+s vpn-webauth` to grant the binary admin permissions. Any user request to port 80 will redirect to the `VPNWA_PORT` HTTPS port.
+    > NOTE: `auto` will force the application to also listen on port 80 in order to generate the LetsEncrypt certificate. This port is privileged, meaning that you will need to start the application as root using `sudo`, or executing `chmod u+s vpn-webauth` to grant the binary admin permissions. Any user request to port 80 will redirect to the `PORT` HTTPS port.
 
-    > `custom` will let you specify a custom certificate and key using `VPNWA_SSLCUSTOMCERTPATH` and `VPNWA_SSLCUSTOMKEYPATH`.
+    > `custom` will let you specify a custom certificate and key using `SSLCUSTOMCERTPATH` and `SSLCUSTOMKEYPATH`.
 
-    > `proxy` delegates the responsibility of providing SSL termination to an external component or proxy. However, unlike `off`, it sets the `Secure` flag for the cookies generated by the application and add an HSTS HTTP header.
-  - `VPNWA_SSLCUSTOMCERTPATH`: path to the SSL certificate. Optional. Default: `/ssl/key.pem`. If needed, this file can contain any additional certificate required to build the full chain, _after_ the leaf certificate.
-  - `VPNWA_SSLCUSTOMKEYPATH`: path to the SSL certificate private key. Optional. Default: `/ssl/cert.pem`.
-  - `VPNWA_SSLAUTOCERTSDIR`: used to store automatically manage certificates when `VPNWA_SSLMODE` is set to `auto`. Default: `/tmp`. Should be changed to a more persistent path. Path must be writeable.
+    > `proxy` delegates the responsibility of providing SSL termination to an external component or proxy. However, unlike `off`, it sets the `Secure` flag for the cookies generated by the application and adds an HSTS HTTP header.
+  - `SSLCUSTOMCERTPATH`: path to the SSL certificate. Optional. Default: `/ssl/key.pem`. If needed, this file can contain any additional certificate required to build the full chain, _after_ the leaf certificate.
+  - `SSLCUSTOMKEYPATH`: path to the SSL certificate private key. Optional. Default: `/ssl/cert.pem`.
+  - `SSLAUTOCERTSDIR`: used to store automatically manage certificates when `SSLMODE` is set to `auto`. Default: `/tmp`. Should be changed to a more persistent path. The directory must be writeable.

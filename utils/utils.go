@@ -25,14 +25,14 @@ func (u *Utils) GetClientIP(r *http.Request) string {
 			forwardedIps := strings.Split(proxyHeader, ",")
 			// Last value, if multiple found, is supposed to be the "trusted" one because added by a reverse proxy we control.
 			return strings.TrimSpace(forwardedIps[len(forwardedIps)-1])
+
 		} else {
 			log.Printf("Utils: Configured to get client IP from `%s` but header is absent or empty", u.config.OriginalIPHeader)
-			return ""
 		}
-	} else {
-		sourceIP, _, _ := net.SplitHostPort(r.RemoteAddr)
-		return sourceIP
 	}
+
+	sourceIP, _, _ := net.SplitHostPort(r.RemoteAddr)
+	return sourceIP
 }
 
 func (u *Utils) GetAllowedMFAs() []string {

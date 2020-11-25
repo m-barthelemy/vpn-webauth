@@ -8,6 +8,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"github.com/m-barthelemy/vpn-webauth/routes"
+	userManager "github.com/m-barthelemy/vpn-webauth/services"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
@@ -18,7 +19,7 @@ func main() {
 	var config models.Config
 	config = config.New()
 
-	err := envconfig.Process("VPNWA", &config)
+	err := envconfig.Process("", &config)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -51,6 +52,16 @@ func main() {
 	if err := db.AutoMigrate(&models.UserMFA{}); err != nil {
 		log.Fatalf("Failed to run database migrations for UserMFA model: %s", err)
 	}
+	if err := db.AutoMigrate(&models.VPNConnection{}); err != nil {
+		log.Fatalf("Failed to run database migrations for VPNConnection model: %s", err)
+	}
+
+	// Delete old VPN connections log entries
+	userManager := userManager.New(db, &config)
+	if err := userManager.CleanupConnections(); err != nil {
+		log.Printf("Could not delete old VPN connections log entries: %s", err.Error())
+	}
+
 	startServer(&config, routes.New(&config, db))
 
 }

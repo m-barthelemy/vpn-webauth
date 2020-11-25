@@ -57,8 +57,10 @@ func (m *UserManager) CheckOrCreate(email string) (*models.User, error) {
 	return &user, nil
 }
 
-func (m *UserManager) CheckVpnSession(identity string, ip string, otpValid bool) (bool, error) {
+func (m *UserManager) CheckVpnSession(identity string, ip string, otpValid bool) (*models.User, *models.VpnSession, bool, error) {
 	var session models.VpnSession
+	var user models.User
+
 	var duration int
 	if otpValid {
 		duration = m.config.MFAValidity
@@ -66,16 +68,25 @@ func (m *UserManager) CheckVpnSession(identity string, ip string, otpValid bool)
 		duration = m.config.VPNSessionValidity
 	}
 	minDate := time.Now().Add(time.Second * time.Duration(-duration))
-	result := m.db.Where("email = ? AND source_ip = ? AND created_at > ?", identity, ip, minDate).First(&session)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return false, nil
+	userResult := m.db.Where("email = ?", identity).First(&user)
+	if userResult.Error != nil {
+		if errors.Is(userResult.Error, gorm.ErrRecordNotFound) {
+			return nil, nil, false, nil
 		} else {
-			return false, result.Error
+			return nil, nil, false, userResult.Error
 		}
 	}
 
-	return true, nil
+	sessionResult := m.db.Where("email = ? AND source_ip = ? AND created_at > ?", identity, ip, minDate).First(&session)
+	if sessionResult.Error != nil {
+		if errors.Is(sessionResult.Error, gorm.ErrRecordNotFound) {
+			return &user, nil, false, nil
+		} else {
+			return &user, nil, false, sessionResult.Error
+		}
+	}
+
+	return &user, &session, true, nil
 }
 
 // CreateVpnSession Creates a new VPN "Session" for the `User` from the specified IP address.
@@ -207,4 +218,11 @@ func (m *UserManager) CreateSession(email string, hasMFA bool, w http.ResponseWr
 	}
 	http.SetCookie(w, &cookie)
 	return nil
+}
+
+// CleanupConnections deletes connection entries older than configured value
+func (m *UserManager) CleanupConnections() error {
+	expireDate := time.Now().AddDate(0, 0, -m.config.ConnectionsRetention)
+	result := m.db.Delete(&models.VPNConnection{}, "created_at < ?", expireDate)
+	return result.Error
 }

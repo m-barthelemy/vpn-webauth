@@ -6,8 +6,8 @@ import (
 	"os"
 
 	"github.com/gorilla/handlers"
-	otcController "github.com/m-barthelemy/vpn-webauth/controllers/code"
 	googlecontroller "github.com/m-barthelemy/vpn-webauth/controllers/google"
+	otcController "github.com/m-barthelemy/vpn-webauth/controllers/otc"
 	otpController "github.com/m-barthelemy/vpn-webauth/controllers/otp"
 	vpnController "github.com/m-barthelemy/vpn-webauth/controllers/vpn"
 	webauthNController "github.com/m-barthelemy/vpn-webauth/controllers/webauthn"

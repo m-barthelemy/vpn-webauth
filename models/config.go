@@ -12,52 +12,55 @@ import (
 // Config holds all the application config values.
 // Not really a classical model since not saved into DB.
 type Config struct {
-	Debug               bool     // VPNWA_DEBUG
-	Port                int      // VPNWA_PORT
-	Host                string   // VPNWA_HOST
-	DbType              string   // VPNWA_DBTYPE
-	DbDSN               string   // VPNWA_DBDSN
-	ExcludedIdentities  []string // VPNWA_EXCLUDEDIDENTITIES
-	RedirectDomain      *url.URL // VPNWA_REDIRECTDOMAIN
-	GoogleClientID      string   // VPNWA_GOOGLECLIENTID
-	GoogleClientSecret  string   // VPNWA_GOOGLECLIENTSECRET
-	EnforceMFA          bool     // VPNWA_ENFORCEMFA
-	MFAOTP              bool     // VPNWA_MFAOTP
-	MFAIssuer           string   // VPNWA_OTPISSUER
-	MFAValidity         int      // VPNWA_MFAVALIDITY
-	MFATouchID          bool     // VPNWA_MFATOUCHID
-	MFAWebauthn         bool     // MFAWEBAUTHN
-	LogoURL             *url.URL // VPNWA_LOGOURL
-	SigningKey          string   // VPNWA_SIGNINGKEY
-	EncryptionKey       string   // VPNWA_ENCRYPTIONKEY
-	OriginalIPHeader    string   // VPNWA_ORIGINALIPHEADER
-	OriginalProtoHeader string   // VPNWA_ORIGINALPROTOHEADER
-	SSLMode             string   // VPNWA_SSLMODE
-	SSLAutoCertsDir     string   // VPNWA_SSLAUTOCERTSDIR
-	SSLCustomCertPath   string   // VPNWA_SSLCUSTOMCERTPATH
-	SSLCustomKeyPath    string   // VPNWA_SSLCUSTOMKEYPATH
-	VPNSessionValidity  int      // VPNWA_VPNSESSIONVALIDITY
+	ConnectionsRetention int      // CONNECTIONSRETENTION
+	Debug                bool     // DEBUG
+	Port                 int      // PORT
+	Host                 string   // HOST
+	DbType               string   // DBTYPE
+	DbDSN                string   // DBDSN
+	ExcludedIdentities   []string // EXCLUDEDIDENTITIES
+	RedirectDomain       *url.URL // REDIRECTDOMAIN
+	GoogleClientID       string   // GOOGLECLIENTID
+	GoogleClientSecret   string   // GOOGLECLIENTSECRET
+	EnforceMFA           bool     // ENFORCEMFA
+	MFAOTP               bool     // MFAOTP
+	MFAIssuer            string   // OTPISSUER
+	MFAValidity          int      // MFAVALIDITY
+	MFATouchID           bool     // MFATOUCHID
+	MFAWebauthn          bool     // MFAWEBAUTHN
+	LogoURL              *url.URL // LOGOURL
+	SigningKey           string   // SIGNINGKEY
+	EncryptionKey        string   // ENCRYPTIONKEY
+	OriginalIPHeader     string   // ORIGINALIPHEADER
+	OriginalProtoHeader  string   // ORIGINALPROTOHEADER
+	SSLMode              string   // SSLMODE
+	SSLAutoCertsDir      string   // SSLAUTOCERTSDIR
+	SSLCustomCertPath    string   // SSLCUSTOMCERTPATH
+	SSLCustomKeyPath     string   // SSLCUSTOMKEYPATH
+	VPNCheckPassword     string   // VPNCHECKPASSWORD
+	VPNSessionValidity   int      // VPNSESSIONVALIDITY
 }
 
 func (config *Config) New() Config {
 	var defaultConfig = Config{
-		DbType:              "sqlite",
-		DbDSN:               "/tmp/vpnwa.db",
-		Debug:               false,
-		ExcludedIdentities:  []string{},
-		Port:                8080,
-		Host:                "127.0.0.1",
-		VPNSessionValidity:  3600,
-		EnforceMFA:          true,
-		MFAIssuer:           "VPN",
-		MFAOTP:              true,
-		MFATouchID:          true,
-		MFAWebauthn:         true,
-		SSLMode:             "off",
-		SSLAutoCertsDir:     "/tmp",
-		SSLCustomCertPath:   "/ssl/cert.pem",
-		SSLCustomKeyPath:    "/ssl/kep.pem",
-		OriginalProtoHeader: "X-Forwarded-Proto",
+		ConnectionsRetention: 30,
+		DbType:               "sqlite",
+		DbDSN:                "/tmp/vpnwa.db",
+		Debug:                false,
+		ExcludedIdentities:   []string{},
+		Port:                 8080,
+		Host:                 "127.0.0.1",
+		VPNSessionValidity:   3600,
+		EnforceMFA:           true,
+		MFAIssuer:            "VPN",
+		MFAOTP:               true,
+		MFATouchID:           true,
+		MFAWebauthn:          true,
+		SSLMode:              "off",
+		SSLAutoCertsDir:      "/tmp",
+		SSLCustomCertPath:    "/ssl/cert.pem",
+		SSLCustomKeyPath:     "/ssl/kep.pem",
+		OriginalProtoHeader:  "X-Forwarded-Proto",
 	}
 	redirDomain, _ := url.Parse(fmt.Sprintf("http://%s:%v", defaultConfig.Host, defaultConfig.Port))
 	defaultConfig.RedirectDomain = redirDomain
@@ -75,21 +78,21 @@ func (config *Config) Verify() {
 	log.Printf("Session validity set to %v seconds", config.VPNSessionValidity)
 	log.Printf("Google callback redirect set to %s", config.RedirectDomain)
 	if config.GoogleClientID == "" {
-		log.Fatal("VPNWA_GOOGLECLIENTID is not set")
+		log.Fatal("GOOGLECLIENTID is not set")
 	}
 	if config.GoogleClientSecret == "" {
-		log.Fatal("VPNWA_GOOGLECLIENTSECRET is not set")
+		log.Fatal("GOOGLECLIENTSECRET is not set")
 	}
 	if config.EnforceMFA {
 		if config.EncryptionKey == "" {
-			log.Fatal("VPNWA_ENCRYPTIONKEY is required when VPNWA_OTP is set to true. You can use `openssl rand -hex 16` to generate it")
+			log.Fatal("ENCRYPTIONKEY is required when OTP is set to true. You can use `openssl rand -hex 16` to generate it")
 		} else if len(config.EncryptionKey) != 32 {
-			log.Fatal("VPNWA_ENCRYPTIONKEY must be 32 characters")
+			log.Fatal("ENCRYPTIONKEY must be 32 characters")
 		}
 	}
 	config.SSLMode = strings.ToLower(config.SSLMode)
 	if config.SSLMode != "off" && config.SSLMode != "auto" && config.SSLMode != "custom" && config.SSLMode != "proxy" {
-		log.Fatal("VPNWA_SSLMODE must be one of off, auto, custom, proxy")
+		log.Fatal("SSLMODE must be one of off, auto, custom, proxy")
 	}
 
 }

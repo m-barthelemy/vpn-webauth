@@ -7,17 +7,23 @@ import (
 
 	"github.com/m-barthelemy/vpn-webauth/models"
 	userManager "github.com/m-barthelemy/vpn-webauth/services"
+	"github.com/m-barthelemy/vpn-webauth/utils"
 	"gorm.io/gorm"
 )
 
 type VpnController struct {
 	db     *gorm.DB
 	config *models.Config
+	utils  *utils.Utils
 }
 
 // New creates an instance of the controller and sets its DB handle
 func New(db *gorm.DB, config *models.Config) *VpnController {
-	return &VpnController{db: db, config: config}
+	return &VpnController{
+		db:     db,
+		config: config,
+		utils:  utils.New(config),
+	}
 }
 
 // VpnConnectionRequest is what is received from the Stringswan `ext-auth` script request
@@ -27,6 +33,13 @@ type VpnConnectionRequest struct {
 }
 
 func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
+	_, password, _ := r.BasicAuth()
+	if password != v.config.VPNCheckPassword {
+		log.Print("VpnController: password does not match VPNCHECKPASSWORD")
+		http.Error(w, "Invalid VPNCHECKPASSWORD", http.StatusUnauthorized)
+		return
+	}
+
 	var connRequest VpnConnectionRequest
 	err := json.NewDecoder(r.Body).Decode(&connRequest)
 	if err != nil {
@@ -41,14 +54,33 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userManager := userManager.New(v.db, v.config)
-	allowed, err := userManager.CheckVpnSession(connRequest.Identity, connRequest.SourceIP, false)
+	user, session, allowed, err := userManager.CheckVpnSession(connRequest.Identity, connRequest.SourceIP, false)
 	if err != nil {
 		log.Printf("VpnController: %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
+	vpnConnection := models.VPNConnection{
+		Identity:    connRequest.Identity,
+		SourceIP:    connRequest.SourceIP,
+		VPNSourceIP: v.utils.GetClientIP(r),
+	}
+	if user != nil {
+		vpnConnection.UserID = &user.ID
+	}
 	if !allowed {
-		log.Printf("VpnController: Session not found for user %s", connRequest.Identity)
+		vpnConnection.Allowed = false
+
+	} else {
+		vpnConnection.Allowed = true
+		vpnConnection.VPNSessionID = &session.ID
+	}
+
+	v.db.Save(&vpnConnection)
+
+	if !allowed {
+		log.Printf("VpnController: No valid session found for user %s", connRequest.Identity)
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	} else {
