@@ -178,6 +178,7 @@ async function getSingleUseCode() {
         const code = await codeResponse.json();
         $("#temp-code-value").text(code.code);
         $("#temp-code-value").show();
+        $("#temp-code-expiry").text(`This code is valid until ${new Date(code.expires_at).toLocaleString()}`);
 
     }
 }

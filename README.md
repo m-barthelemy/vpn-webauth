@@ -130,7 +130,7 @@ All the configuration parameters have to passed as environment variables.
     > You need to set it to the user-facing endpoint for this application, for example https://vpn.myconpany.com.
   - `GOOGLECLIENTID`: Google Client ID. **Mandatory**.
   - `GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
-  - `ENCRYPTIONKEY`: Key used to encrypt the users OTP secrets in the database. Must be 32 characters. **Mandatory** if `ENFORCEMFA` is set to `true`.
+  - `ENCRYPTIONKEY`: Key used to encrypt sensitive information in the database. Must be 32 characters. **Mandatory** if `ENFORCEMFA` is set to `true`.
   - `LOGOURL`: Add your organization logo on top of the webapp pages. Optional.
   - `SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
     > Regenerating a new key every time the application starts means that all your users web sessions will be invalid and they will have to sign in again if they need a new VPN "session".
@@ -146,6 +146,7 @@ All the configuration parameters have to passed as environment variables.
     > NOTE: if MFA is not enforced, related options are not shown to the users; however, they can still enable it by visiting the registration page.
   - `MFAVALIDITY`: How long a web authentication is valid. during this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `VPNSESSIONVALIDITY`. 
   - `MFAISSUER`: Name that appears on the users authenticator app or TouchID/Physical key prompt. Default: `VPN`.
+    > It is recommended that you set it to the name of your VPN connection as it appears on your users devices.
   - `MFAOTP`: Whether to enable OTP token authrntication after OAuth2 login. Default: `true`. 
     > NOTE: This is not related to Google 2FA. By default Google will only require 2FA if your organization enforces it, and it will remember a device/browser for a very long time. This option adds a mandatory 2FA verifications upon each login, independently from your Google settings. Your users will have to register a new 2FA entry in their favorite authenticator app when using this web authentication for the first time.
   - `MFATOUCHID`: Whether to enable Apple TouchID/FaceID and Windows Hello biometrics authentication after OAuth2 login, if a compatible device is detected. Default: `true`.
@@ -160,7 +161,7 @@ In case a user wants to be able to sign in from multiple browsers or devices, th
 It is also possible to sign in from different browsers and devices by using the OTP (authenticator app) authentication feature.
 
 ### VPN
-  - `VPNCHECKPASSWORD`: Shared password between the app and the Strongswan `ext-auth` script to protect the endpoint checking for valid user "sessions. Optional.
+  - `VPNCHECKPASSWORD`: Shared password between the app and the Strongswan `ext-auth` script to protect the endpoint checking for valid user "sessions". Optional.
     > If the `/vpn/check` endpoint is publicly available, it is a good idea to set a password to ensure that only your VPN server is allowed to query the app for user sessions. Make sure you also set it in your `ext-auth` configuration.
   - `VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication, in seconds. Default: `3600` (1h).
     > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
