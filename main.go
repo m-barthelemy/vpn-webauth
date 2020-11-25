@@ -63,5 +63,4 @@ func main() {
 	}
 
 	startServer(&config, routes.New(&config, db))
-
 }
