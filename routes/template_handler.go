@@ -46,6 +46,10 @@ func (g *TemplateHandler) HandleEmbeddedTemplate(response http.ResponseWriter, r
 func (g *TemplateHandler) HandleStaticAsset(response http.ResponseWriter, request *http.Request) {
 	fileName := request.URL.Path
 	if content, exists := assets[fileName]; exists == true {
+		// Send proper content-type for JS as this is required for the service worker
+		if strings.HasSuffix(fileName, ".js") {
+			response.Header().Set("Content-Type", "text/javascript")
+		}
 		response.Write([]byte(content))
 	} else {
 		http.Error(response, http.StatusText(http.StatusNotFound), http.StatusNotFound)

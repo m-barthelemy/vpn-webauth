@@ -18,7 +18,7 @@
 
                 <div class="row" id="touchid-section">
                     <div class='col s12'>
-                        <a class="btn-large waves-effect blue-grey left mfa-choose-btn" onclick="webAuthNRegisterStart();">
+                        <a id="register-touchid" class="btn-large waves-effect blue-grey left mfa-choose-btn">
                             <i id="touchid-icon" class="large material-icons left" style="color: #ff80ab; font-size: 2.2em;">fingerprint</i>&nbsp;Use TouchID, FaceID or Windows Hello
                         </a>
                     </div>
@@ -40,7 +40,7 @@
 
                 <div class="row" id="webauthn-section">
                     <div class='col s12'>
-                        <a class="btn-large waves-effect blue-grey left mfa-choose-btn" onclick="webAuthNRegisterStart(true);">
+                        <a id="register-webauthn" class="btn-large waves-effect blue-grey left mfa-choose-btn">
                             <div class="icon">
                                 <i id="webauthn-icon" class="fa fa-usb fa-3x left"></i>&nbsp;Use a security key
                             </div>

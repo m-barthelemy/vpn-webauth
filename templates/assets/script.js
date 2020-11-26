@@ -1,5 +1,6 @@
 'use strict';
 
+
 // Inspired by https://github.com/hbolimovsky/webauthn-example/blob/master/index.html
 
 async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
@@ -241,6 +242,23 @@ $(document).ready(async function(){
             $("#success-info").show();
         }
     }
+
+    $("#login-touchid").click(function() {
+        webAuthNLogin(false);
+    });
+    $("#login-webauthn").click(function() {
+        webAuthNLogin(true);
+    });
+    $("#register-touchid").click(function() {
+        webAuthNRegisterStart(false);
+    });
+    $("#register-webauthn").click(function() {
+        webAuthNRegisterStart(true);
+    });
+    $("#register-otc").click(function() {
+        getSingleUseCode();
+    });
+
 
     $("#otp").keyup( function() {
         const dataLength = $(this).val().length;
