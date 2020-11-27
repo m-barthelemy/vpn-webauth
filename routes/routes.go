@@ -4,11 +4,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gorilla/handlers"
 	googlecontroller "github.com/m-barthelemy/vpn-webauth/controllers/google"
 	otcController "github.com/m-barthelemy/vpn-webauth/controllers/otc"
 	otpController "github.com/m-barthelemy/vpn-webauth/controllers/otp"
+	sseController "github.com/m-barthelemy/vpn-webauth/controllers/sse"
 	vpnController "github.com/m-barthelemy/vpn-webauth/controllers/vpn"
 	webauthNController "github.com/m-barthelemy/vpn-webauth/controllers/webauthn"
 	"github.com/m-barthelemy/vpn-webauth/models"
@@ -120,5 +122,23 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		),
 	)
 
+	// Make a new Broker instance
+	sseC := sseController.New(db, config)
+	sseC.Start()
+	mux.Handle("/events",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessionMiddleware(tokenSigningKey, sseC.HandleEvents, false)),
+		),
+	)
+
 	return mux
+}
+
+func noTimeoutHandler(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var timeoutHandler http.Handler
+		timeoutHandler = http.TimeoutHandler(h, 3600*time.Second, "")
+		timeoutHandler.ServeHTTP(w, r)
+	}
 }

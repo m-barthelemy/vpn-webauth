@@ -1,5 +1,69 @@
 'use strict';
 
+function askForApproval() {
+    if(Notification.permission === "granted") {
+        //createNotification('Wow! This is great', 'created by @study.tonight', 'https://www.studytonight.com/css/resource.v2/icons/studytonight/st-icon-dark.png');
+    }
+    else {
+        Notification.requestPermission(permission => {
+            if(permission === 'granted') {
+                //createNotification('Wow! This is great', 'created by @study.tonight', 'https://www.studytonight.com/css/resource.v2/icons/studytonight/st-icon-dark.png');
+            }
+        });
+    }
+}
+
+function createNotification(title, text, icon) {
+    const notif = new Notification(title, {
+        body: text,
+        ison: icon
+    });
+    notif.onclick = function(event) {
+        event.preventDefault(); // prevent the browser from focusing the Notification's tab
+        window.open('https://vpn.massdm.cloud');
+    }
+}
+
+const checkWorkerPush = () => {
+    if (!('serviceWorker' in navigator)) {
+      throw new Error('No Service Worker support!');
+    }
+    if (!('PushManager' in window)) {
+      console.warn('No Push API Support!');
+    }
+    
+  }
+
+const registerServiceWorker = async () => {
+    const swRegistration = await navigator.serviceWorker.register('/assets/service.js');
+    console.log("Registered service worker");
+    return swRegistration;
+}
+
+askForApproval();
+checkWorkerPush();
+registerServiceWorker();
+console.log("Going to create a notification");
+// 'https://www.ascendaloyalty.com/wp-content/uploads/2018/10/logo_footer.png');
+
+navigator.serviceWorker.addEventListener('message', (event) => {
+    console.log('Received a message from service worker: ', event.data);
+    createNotification('Ascenda VPN',  "Click to authenticate", 'https://www.ascendaloyalty.com/wp-content/uploads/2018/10/logo_footer.png');
+});
+
+// Force service worker reload during dev
+if (new URLSearchParams(window.location.search).has('sw')) {
+    console.log("Going to reload SW");
+    navigator.serviceWorker.getRegistration("/assets/service.js").then(function(reg) {
+        if (reg) {
+            console.log("Reloading Service Worker");
+            reg.unregister().then(function() {
+                window.location.href = "/";
+            });
+        } 
+    });
+}
+
 
 // Inspired by https://github.com/hbolimovsky/webauthn-example/blob/master/index.html
 

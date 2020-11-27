@@ -41,20 +41,20 @@ func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
+	// Deny if the user has enabled MFA but hasn't logged in fully
+	// TODO: in the future we may want to force a re-auth before emitting a single use token
+	// given that it grants full session "powers" if validated
+	if c.config.EnforceMFA && !sessionHasMFA {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
+
 	var user *models.User
 	userManager := userManager.New(c.db, c.config)
 	user, err := userManager.Get(email)
 	if err != nil {
 		log.Printf("SingleUseCodeController: Error fetching user %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	// Deny if the user has enabled MFA but hasn't logged in fully
-	// TODO: in the future we may want to force a re-auth before emitting a single use token
-	// given that it grants full session "powers" if validated
-	if user.HasMFA() && !sessionHasMFA {
-		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
 
