@@ -71,9 +71,9 @@ func startServer(config *models.Config, handler http.Handler) {
 		ReadTimeout:       5 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      8 * time.Second,
-		IdleTimeout:       60 * time.Second, // slightly highler than the SSE periodic "ping" interval
-		MaxHeaderBytes:    8 * 1024,         // 8KB
-		Handler:           handler,
+		IdleTimeout:       30 * time.Second,
+		MaxHeaderBytes:    8 * 1024, // 8KB
+		Handler:           http.TimeoutHandler(handler, 5*time.Second, "Request took too long"),
 	}
 
 	log.Printf("Serving http/https for domains: %+v", domain)
