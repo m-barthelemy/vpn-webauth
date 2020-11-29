@@ -15,7 +15,7 @@ async function hasApprovedNotifications() {
     return false;
 }
 
-function createNotification(title, text, icon) {
+/*function createNotification(title, text, icon) {
     const notif = new Notification(title, {
         body: text,
         ison: icon
@@ -24,7 +24,7 @@ function createNotification(title, text, icon) {
         event.preventDefault(); // prevent the browser from focusing the Notification's tab
         window.open('https://vpn.massdm.cloud');
     }
-}
+}*/
 
 const checkWorkerPush = () => {
     if (!('serviceWorker' in navigator)) {
@@ -105,13 +105,8 @@ const registerServiceWorker = async () => {
 }
 
 
-
-console.log("Going to create a notification");
-// 'https://www.ascendaloyalty.com/wp-content/uploads/2018/10/logo_footer.png');
-
 navigator.serviceWorker.addEventListener('message', (event) => {
     console.log('Received a message from service worker: ', event.data);
-    createNotification('Ascenda VPN',  "Click to authenticate", 'https://www.ascendaloyalty.com/wp-content/uploads/2018/10/logo_footer.png');
 });
 
 // Force service worker reload during dev

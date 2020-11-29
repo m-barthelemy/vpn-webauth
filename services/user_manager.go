@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -239,11 +240,11 @@ func (m *UserManager) NotifyUser(user *models.User, requiresReauth bool) error {
 		if err := json.Unmarshal([]byte(pushSubscriptionRaw), &pushSubscription); err != nil {
 			return err
 		}
-		resp, err := webpush.SendNotification([]byte("Test push notif frpm vpn-weauth backend"), pushSubscription, &webpush.Options{
+		resp, err := webpush.SendNotification([]byte(fmt.Sprintf("{ \"RequiresReauth\": %t}", requiresReauth)), pushSubscription, &webpush.Options{
 			Subscriber:      m.config.AdminEmail,
 			VAPIDPublicKey:  m.config.VapidPublicKey,
 			VAPIDPrivateKey: m.config.VapidPrivateKey,
-			TTL:             30,
+			TTL:             120,
 		})
 		defer resp.Body.Close()
 

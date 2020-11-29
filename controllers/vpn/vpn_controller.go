@@ -67,6 +67,9 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	}
 	if session == nil {
 		log.Printf("VpnController: no VPN session found for user %s, required reauth", connRequest.Identity)
+		if err := userManager.NotifyUser(user, true); err != nil {
+			log.Printf("VpnController: error notifying %s: %s", user.Email, err.Error())
+		}
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}

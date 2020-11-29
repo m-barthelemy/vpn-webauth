@@ -25,6 +25,7 @@ type Config struct {
 	RedirectDomain       *url.URL // REDIRECTDOMAIN
 	GoogleClientID       string   // GOOGLECLIENTID
 	GoogleClientSecret   string   // GOOGLECLIENTSECRET
+	EnableNotifications  bool     // ENABLENOTIFICATIONS
 	EnforceMFA           bool     // ENFORCEMFA
 	MFAOTP               bool     // MFAOTP
 	MFAIssuer            string   // OTPISSUER
@@ -56,6 +57,7 @@ func (config *Config) New() Config {
 		Port:                 8080,
 		Host:                 "127.0.0.1",
 		VPNSessionValidity:   3600,
+		EnableNotifications:  true,
 		EnforceMFA:           true,
 		MFAIssuer:            "VPN",
 		MFAOTP:               true,
@@ -95,8 +97,8 @@ func (config *Config) Verify() {
 			log.Fatal("ENCRYPTIONKEY must be 32 characters")
 		}
 	}
-	if config.VapidPrivateKey == "" || config.VapidPublicKey == "" {
-		log.Printf("FATAL: VAPIDPRIVATEKEY and VAPIDPUBLICKEY must be defined and valid")
+	if config.EnableNotifications && (config.VapidPrivateKey == "" || config.VapidPublicKey == "") {
+		log.Printf("FATAL: ENABLENOTIFICATIONS is true, so VAPIDPRIVATEKEY and VAPIDPUBLICKEY must be defined and valid")
 		log.Printf("If you have never defined them, here are some fresh values generated just for you.")
 		if privateKey, publicKey, err := webpush.GenerateVAPIDKeys(); err == nil {
 			log.Printf("VAPIDPUBLICKEY=\"%s\"", publicKey)
