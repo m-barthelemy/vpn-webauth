@@ -27,6 +27,7 @@ type Config struct {
 	GoogleClientSecret   string   // GOOGLECLIENTSECRET
 	EnableNotifications  bool     // ENABLENOTIFICATIONS
 	EnforceMFA           bool     // ENFORCEMFA
+	MaxBodySize          int64
 	MFAOTP               bool     // MFAOTP
 	MFAIssuer            string   // OTPISSUER
 	MFAValidity          int      // MFAVALIDITY
@@ -59,6 +60,7 @@ func (config *Config) New() Config {
 		VPNSessionValidity:   3600,
 		EnableNotifications:  true,
 		EnforceMFA:           true,
+		MaxBodySize:          2048, // 2KB
 		MFAIssuer:            "VPN",
 		MFAOTP:               true,
 		MFATouchID:           true,
@@ -101,14 +103,15 @@ func (config *Config) Verify() {
 		if config.AdminEmail == "" {
 			log.Fatal("FATAL: ENABLENOTIFICATIONS is true, so ADMINEMAIL must be set to a valid email address.")
 		}
-		if config.VapidPrivateKey == "" || config.VapidPublicKey == "") {
-		log.Printf("FATAL: ENABLENOTIFICATIONS is true, so VAPIDPRIVATEKEY and VAPIDPUBLICKEY must be defined and valid")
-		log.Printf("If you have never defined them, here are some fresh values generated just for you.")
-		if privateKey, publicKey, err := webpush.GenerateVAPIDKeys(); err == nil {
-			log.Printf("VAPIDPUBLICKEY=\"%s\"", publicKey)
-			log.Printf("VAPIDPRIVATEKEY=\"%s\"", privateKey)
+		if config.VapidPrivateKey == "" || config.VapidPublicKey == "" {
+			log.Printf("FATAL: ENABLENOTIFICATIONS is true, so VAPIDPRIVATEKEY and VAPIDPUBLICKEY must be defined and valid")
+			log.Printf("If you have never defined them, here are some fresh values generated just for you.")
+			if privateKey, publicKey, err := webpush.GenerateVAPIDKeys(); err == nil {
+				log.Printf("VAPIDPUBLICKEY=\"%s\"", publicKey)
+				log.Printf("VAPIDPRIVATEKEY=\"%s\"", privateKey)
+			}
+			log.Fatal("Add them to the environment variables. VAPIDPRIVATEKEY is sensitive, keep it secret.")
 		}
-		log.Fatal("Add them to the environment variables. VAPIDPRIVATEKEY is sensitive, keep it secret.")
 	}
 	config.SSLMode = strings.ToLower(config.SSLMode)
 	if config.SSLMode != "off" && config.SSLMode != "auto" && config.SSLMode != "custom" && config.SSLMode != "proxy" {

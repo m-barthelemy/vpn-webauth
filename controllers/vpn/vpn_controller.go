@@ -45,6 +45,8 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, v.config.MaxBodySize) // Refuse request with big body
+
 	var connRequest VpnConnectionRequest
 	err := json.NewDecoder(r.Body).Decode(&connRequest)
 	if err != nil {

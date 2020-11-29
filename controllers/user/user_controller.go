@@ -62,6 +62,8 @@ func (u *UserController) RegisterPushSubscription(w http.ResponseWriter, r *http
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
+	r.Body = http.MaxBytesReader(w, r.Body, u.config.MaxBodySize) // Refuse request with big body
+
 	userManager := userManager.New(u.db, u.config)
 	user, err := userManager.Get(email)
 	if err != nil {

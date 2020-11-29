@@ -102,6 +102,8 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
+	r.Body = http.MaxBytesReader(w, r.Body, c.config.MaxBodySize) // Refuse request with big body
+
 	var user *models.User
 	userManager := userManager.New(c.db, c.config)
 	user, err := userManager.Get(email)
