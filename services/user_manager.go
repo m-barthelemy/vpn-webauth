@@ -3,7 +3,6 @@ package services
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -61,17 +60,12 @@ func (m *UserManager) CheckOrCreate(email string) (*models.User, error) {
 	return &user, nil
 }
 
-func (m *UserManager) CheckVpnSession(identity string, ip string, otpValid bool) (*models.User, *models.VpnSession, bool, error) {
+func (m *UserManager) CheckVpnSession(identity string, ip string) (*models.User, *models.VpnSession, bool, error) {
 	var session models.VpnSession
 	var user models.User
 
-	var duration int
-	if otpValid {
-		duration = m.config.MFAValidity
-	} else {
-		duration = m.config.VPNSessionValidity
-	}
-	minDate := time.Now().Add(time.Second * time.Duration(-duration))
+	duration := m.config.VPNSessionValidity
+	minDate := time.Now().Add(-duration)
 	userResult := m.db.Where("email = ?", identity).First(&user)
 	if userResult.Error != nil {
 		if errors.Is(userResult.Error, gorm.ErrRecordNotFound) {
@@ -94,7 +88,7 @@ func (m *UserManager) CheckVpnSession(identity string, ip string, otpValid bool)
 }
 
 // CreateVpnSession Creates a new VPN "Session" for the `User` from the specified IP address.
-func (m *UserManager) CreateVpnSession(mfaID uuid.UUID, user *models.User, ip string) error {
+func (m *UserManager) CreateVpnSession(user *models.User, ip string) error {
 	// First delete any existing session for the same user
 	oldSession := models.VpnSession{Email: user.Email}
 	deleteResult := m.db.Delete(&oldSession)
@@ -102,7 +96,7 @@ func (m *UserManager) CreateVpnSession(mfaID uuid.UUID, user *models.User, ip st
 		return deleteResult.Error
 	}
 	// Then create the new "session"
-	var vpnSession = models.VpnSession{MFAID: mfaID, Email: user.Email, SourceIP: ip}
+	var vpnSession = models.VpnSession{Email: user.Email, SourceIP: ip}
 	result := m.db.Create(&vpnSession)
 	if result.Error != nil {
 		return result.Error
@@ -222,7 +216,7 @@ func (m *UserManager) DeleteUserSubscription(subscription *models.UserSubscripti
 	return result.Error
 }
 
-func (m *UserManager) NotifyUser(user *models.User, requiresReauth bool) error {
+func (m *UserManager) NotifyUser(user *models.User, notifId uuid.UUID) error {
 	var subscriptions []models.UserSubscription
 	minUsedAt := time.Now().AddDate(0, -3, 0)
 	if result := m.db.Where("user_id = ? AND last_used_at > ?", user.ID.String(), minUsedAt).Find(&subscriptions); result.Error != nil {
@@ -231,6 +225,13 @@ func (m *UserManager) NotifyUser(user *models.User, requiresReauth bool) error {
 
 	dp := NewDataProtector(m.config)
 	deletedCount := 0
+	var nonce struct{ ID uuid.UUID }
+	nonce.ID = notifId
+	jsonNonce, err := json.Marshal(nonce)
+	if err != nil {
+		return err
+	}
+
 	for i, subscription := range subscriptions {
 		pushSubscriptionRaw, err := dp.Decrypt(subscription.Data)
 		if err != nil {
@@ -240,7 +241,8 @@ func (m *UserManager) NotifyUser(user *models.User, requiresReauth bool) error {
 		if err := json.Unmarshal([]byte(pushSubscriptionRaw), &pushSubscription); err != nil {
 			return err
 		}
-		resp, err := webpush.SendNotification([]byte(fmt.Sprintf("{ \"RequiresReauth\": %t}", requiresReauth)), pushSubscription, &webpush.Options{
+
+		resp, err := webpush.SendNotification(jsonNonce, pushSubscription, &webpush.Options{
 			Subscriber:      m.config.AdminEmail,
 			VAPIDPublicKey:  m.config.VapidPublicKey,
 			VAPIDPrivateKey: m.config.VapidPrivateKey,
@@ -277,7 +279,7 @@ func (m *UserManager) CreateSession(user *models.User, hasMFA bool, w http.Respo
 	if m.config.SSLMode != "off" {
 		cookieName = "__Host-" + cookieName
 	}
-	expirationTime := time.Now().Add(time.Duration(m.config.MFAValidity) * time.Second)
+	expirationTime := time.Now().Add(m.config.MFAValidity)
 	claims := &Claims{
 		Username: user.Email,
 		HasMFA:   hasMFA,

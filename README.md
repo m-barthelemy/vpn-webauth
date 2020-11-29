@@ -144,7 +144,7 @@ All the configuration parameters have to passed as environment variables.
 ### Multi-Factor Authentication
   - `ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`.
     > NOTE: if MFA is not enforced, related options are not shown to the users; however, they can still enable it by visiting the registration page.
-  - `MFAVALIDITY`: How long a web authentication is valid. during this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `VPNSESSIONVALIDITY`. 
+  - `MFAVALIDITY`: How long a web authentication is valid. during this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `12h`. Specify custom value as a number and a time unit, for example `48h30m`. 
   - `MFAISSUER`: Name that appears on the users authenticator app or TouchID/Physical key prompt. Default: `VPN`.
     > It is recommended that you set it to the name of your VPN connection as it appears on your users devices.
   - `MFAOTP`: Whether to enable OTP token authrntication after OAuth2 login. Default: `true`. 
@@ -163,7 +163,7 @@ It is also possible to sign in from different browsers and devices by using the 
 ### VPN
   - `VPNCHECKPASSWORD`: Shared password between the app and the Strongswan `ext-auth` script to protect the endpoint checking for valid user "sessions". Optional.
     > If the `/vpn/check` endpoint is publicly available, it is a good idea to set a password to ensure that only your VPN server is allowed to query the app for user sessions. Make sure you also set it in your `ext-auth` configuration.
-  - `VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication, in seconds. Default: `3600` (1h).
+  - `VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication. Default: `1h`. Specify custom value as a number and a time unit, for example `1h30m`
     > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
 

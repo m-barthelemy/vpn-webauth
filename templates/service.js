@@ -1,10 +1,5 @@
 
-
-
-
 self.addEventListener('activate', async () => {
-    console.log('Launching service worker');
-
     console.log('service worker activated');
     /*self.clients.matchAll({includeUncontrolled: true}).then(clients => {
         clients.forEach(client => client.postMessage({msg: 'Hello from SW'}));
@@ -33,21 +28,27 @@ self.addEventListener('activate', async () => {
 });*/
 
 self.addEventListener('push', async function(event) {
-    console.log(`Received push notification: ${event.data}`);
+    var data = {};
+    if (event.data) {
+        data = event.data.json();
+    }
+    console.log(`Received push notification: ${JSON.stringify(data)}`);
     const updateAuthResponse = await fetch(`/user/auth/refresh?source=workerpush`, {
         method: "POST",
         headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         },
+        body: JSON.stringify(data)
     });
     if (updateAuthResponse.status == 401) {
         await self.registration.showNotification(`VPN: authentication required`, {
             body: "Click to authenticate",
-            requireInteraction: true,
+            //requireInteraction: true,
         });
         const notifications = await self.registration.getNotifications();
         notifications.forEach(function(notification) {
+            console.log("found notification when iterating over Service Worker notifications");
             notification.onclick = async function(){
                 await self.clients.openWindow("/");
             }

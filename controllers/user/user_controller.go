@@ -11,6 +11,7 @@ import (
 
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/asaskevich/EventBus"
+	"github.com/gofrs/uuid"
 	"github.com/m-barthelemy/vpn-webauth/models"
 	userManager "github.com/m-barthelemy/vpn-webauth/services"
 	"github.com/m-barthelemy/vpn-webauth/utils"
@@ -115,18 +116,27 @@ func (u *UserController) RefreshAuth(w http.ResponseWriter, r *http.Request) {
 	sourceIP := utils.New(u.config).GetClientIP(r)
 	eventBus := *u.bus
 
+	r.Body = http.MaxBytesReader(w, r.Body, u.config.MaxBodySize) // Refuse request with big body
+
 	var email, userOk = r.Context().Value("identity").(string)
 	if !userOk {
-		eventBus.Publish(fmt.Sprintf("%s:%s", email, sourceIP), false)
+		eventBus.Publish(fmt.Sprintf("%s:%s", email, sourceIP), nil)
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 	var sessionHasMFA, mfaOk = r.Context().Value("hasMfa").(bool)
 	if u.config.EnforceMFA && (!mfaOk || !sessionHasMFA) {
-		eventBus.Publish(fmt.Sprintf("%s:%s", email, sourceIP), false)
+		eventBus.Publish(fmt.Sprintf("%s:%s", email, sourceIP), nil)
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
+
+	var nonce struct{ ID uuid.UUID }
+	if err := json.NewDecoder(r.Body).Decode(&nonce); err != nil {
+		log.Printf("UserController: Data could not be deserialized for %s nonce: %s", email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 	log.Printf("UserController: User %s requesting new VPN session still has a valid web session, notifying VPNController", email)
-	eventBus.Publish(fmt.Sprintf("%s:%s", email, sourceIP), true)
+	eventBus.Publish(fmt.Sprintf("%s:%s", email, sourceIP), nonce.ID)
 }

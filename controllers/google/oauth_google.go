@@ -130,7 +130,7 @@ func (g *GoogleController) afterFirstAuthStep(email string, w http.ResponseWrite
 			}
 		}
 
-		err := userManager.CreateVpnSession(requestedMFA.ID, user, sourceIP)
+		err := userManager.CreateVpnSession(user, sourceIP)
 		if err != nil {
 			log.Printf("GoogleController: Error creating VPN session for %s : %s", user.Email, err.Error())
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/asaskevich/EventBus"
+	"github.com/gofrs/uuid"
 	"github.com/m-barthelemy/vpn-webauth/models"
 	userManager "github.com/m-barthelemy/vpn-webauth/services"
 	"github.com/m-barthelemy/vpn-webauth/utils"
@@ -41,7 +42,7 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	_, password, _ := r.BasicAuth()
 	if password != v.config.VPNCheckPassword {
 		log.Print("VpnController: password does not match VPNCHECKPASSWORD")
-		http.Error(w, "Invalid VPNCHECKPASSWORD", http.StatusUnauthorized)
+		http.Error(w, "Invalid VPNCHECKPASSWORD", http.StatusForbidden)
 		return
 	}
 
@@ -61,18 +62,10 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userManager := userManager.New(v.db, v.config)
-	user, session, allowed, err := userManager.CheckVpnSession(connRequest.Identity, connRequest.SourceIP, false)
+	user, session, allowed, err := userManager.CheckVpnSession(connRequest.Identity, connRequest.SourceIP)
 	if err != nil {
 		log.Printf("VpnController: %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-	if session == nil {
-		log.Printf("VpnController: no VPN session found for user %s, required reauth", connRequest.Identity)
-		if err := userManager.NotifyUser(user, true); err != nil {
-			log.Printf("VpnController: error notifying %s: %s", user.Email, err.Error())
-		}
-		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 
@@ -91,8 +84,9 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		vpnConnection.Allowed = true
 		vpnConnection.VPNSessionID = &session.ID
 	}
-
-	v.db.Save(&vpnConnection)
+	if tx := v.db.Save(&vpnConnection); tx.Error != nil {
+		log.Printf("VpnController: error saving Vpnconnection audit entry for %s: %s", user.Email, tx.Error.Error())
+	}
 
 	if allowed {
 		http.Error(w, "Ok", http.StatusOK)
@@ -100,17 +94,19 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ask any active user browser to send a request to confirm web session and source IP
-	if err := userManager.NotifyUser(user, false); err != nil {
+	notifUniqueID, _ := uuid.NewV4() // unique id that must be present in browser request, for additional security
+	if err := userManager.NotifyUser(user, notifUniqueID); err != nil {
 		log.Printf("VpnController: error notifying %s: %s", user.Email, err.Error())
 	}
 
 	channel := make(chan bool, 1)
 	eventBus := *v.bus
 
-	checkWebSessions := func(validSession bool) {
-		if validSession {
+	checkWebSessions := func(nonce uuid.UUID) {
+		if nonce == notifUniqueID {
 			channel <- true
 		} else {
+			log.Printf("VpnController: invalid browser response for %s: nonce doesn't match expected value", user.Email)
 			channel <- false
 		}
 	}
@@ -142,7 +138,7 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create a new VPNSession reusing the previous expired session MFA.
-	userManager.CreateVpnSession(session.MFAID, user, connRequest.SourceIP)
+	userManager.CreateVpnSession(user, connRequest.SourceIP)
 	log.Printf("VpnController: user %s session extended from valid browser session.", user.Email)
 }
 

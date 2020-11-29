@@ -170,8 +170,7 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 	}
 
 	serializedCredential, _ := json.Marshal(credential)
-	validatedMFA, err := userManager.ValidateMFA(usedMFA, string(serializedCredential[:]))
-	if err != nil {
+	if _, err := userManager.ValidateMFA(usedMFA, string(serializedCredential[:])); err != nil {
 		log.Printf("WebAuthNController: failed to save %s registration validation for %s: %s", webAuthnType, user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -179,7 +178,7 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 	_ = m.deleteWebauthNCookie("webauthn_register", w)
 
 	sourceIP := utils.New(m.config).GetClientIP(r)
-	if err := userManager.CreateVpnSession(validatedMFA.ID, user, sourceIP); err != nil {
+	if err := userManager.CreateVpnSession(user, sourceIP); err != nil {
 		log.Printf("WebAuthNController: Error creating VPN session for %s : %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -314,7 +313,7 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 	}
 
 	sourceIP := utils.New(m.config).GetClientIP(r)
-	if err := userManager.CreateVpnSession(*usedMFAID, user, sourceIP); err != nil {
+	if err := userManager.CreateVpnSession(user, sourceIP); err != nil {
 		log.Printf("WebAuthNController: Error creating VPN session for %s : %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
