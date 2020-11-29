@@ -356,18 +356,13 @@ $(document).ready(async function(){
         $("#session-validity").text(expiry.toLocaleString());
     }
 
-    // Success page: check if it was a registration or a login
-    if (searchParams.has('source')) {
-        const source = searchParams.get('source');
-        const provider = searchParams.get('provider');
-        if (source == "register") {  //&& (provider == "webauthn" || provider == "touchid")) {
-            //$("#success-info-message").html(`The next times you sign in, you will need to use the same browser, <br/>
-            //or any other browser added using the "Add new browser or device" option.`);
-            if (checkWorkerPush()) {
-                $("#success-info").show();
-            }
-        }
+    if (checkWorkerPush() && Notification.permission === "default") {
+        $("#notification-info").show();
     }
+    else if (Notification.permission === "denied") {
+        $("#notification-warning").show();
+    }
+
 
     $("#login-touchid").click(function() {
         webAuthNLogin(false);

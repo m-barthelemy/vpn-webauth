@@ -70,6 +70,7 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vpnConnection := models.VPNConnection{
+		Allowed:     allowed,
 		Identity:    connRequest.Identity,
 		SourceIP:    connRequest.SourceIP,
 		VPNSourceIP: v.utils.GetClientIP(r),
@@ -77,18 +78,14 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	if user != nil {
 		vpnConnection.UserID = &user.ID
 	}
-	if !allowed {
-		vpnConnection.Allowed = false
-
-	} else {
-		vpnConnection.Allowed = true
+	if allowed {
 		vpnConnection.VPNSessionID = &session.ID
-	}
-	if tx := v.db.Save(&vpnConnection); tx.Error != nil {
-		log.Printf("VpnController: error saving Vpnconnection audit entry for %s: %s", user.Email, tx.Error.Error())
 	}
 
 	if allowed {
+		if tx := v.db.Save(&vpnConnection); tx.Error != nil {
+			log.Printf("VpnController: error saving Vpnconnection audit entry for %s: %s", user.Email, tx.Error.Error())
+		}
 		http.Error(w, "Ok", http.StatusOK)
 		return
 	}
@@ -130,6 +127,11 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	}
 	close(channel)
 	eventBus.Unsubscribe(fmt.Sprintf("%s:%s", connRequest.Identity, connRequest.SourceIP), checkWebSessions)
+
+	vpnConnection.Allowed = hasValidBrowserSession
+	if tx := v.db.Save(&vpnConnection); tx.Error != nil {
+		log.Printf("VpnController: error saving Vpnconnection audit entry for %s: %s", user.Email, tx.Error.Error())
+	}
 
 	if !hasValidBrowserSession {
 		log.Printf("VpnController: No valid session found for user %s", connRequest.Identity)

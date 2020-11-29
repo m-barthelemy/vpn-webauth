@@ -16,12 +16,14 @@ It can also help achieve compliance with some security standards requiring MFA t
 
 ## How does it work?
 
- - The user goes to the webapp _before_ connecting to the VPN
+ - The user registers to the webapp (_before_ connecting to the VPN)
  - They authenticate using OAuth2 (for now, only Google is supported)
  - Optionally, they are required to complete additional authentication, using an OTP token (independent from any Google/OAuth2 2FA), TouchID/FaceID or a physical security key.
  - A "session" is created with the user email, their source IP address and the time when they completed the web authentication
- - They now connect to the VPN
- - After the normal VPN authentication, the `ext-auth` plugin calls this webapp to check if the user has successfully completed a web authentication recently and from the same source IP address. If not, the connection is rejected.
+ - They now connect to the VPN. Strongswan's `ext-auth` plugin calls this webapp to check if the user has successfully completed a web authentication recently and from the same source IP address. If not, the connection is rejected.
+
+ If a user enables this app to send them notifications, they will generally be transparently allowed automatically to connect to the VPN once their VPN session expires, or if they connect from a different location/source IP, as long as their web authentication through this app is valid.
+ If they need to sign in again, they will receive a clickable notification taking them to the app, as long as their browser is running. Without a running browser or if they refused to allow notifications from the app, they can still sign in _before_ connecting to the VPN.
 
 ## What does it look like?
 Home/welcome screen:
@@ -51,7 +53,6 @@ Successful sign-in:
 
 
 ## Limitations
-- The web auth has to happen **before** connecting to the VPN, since the VPN will verify the existence of a web "session" when the user connects.
 - The user identity reported by Strongswan **must** match the email reported by the web authentication. However, if the Strongswan identity is the first part of the email address (without @domain.tld), you can modify the `webauth-check.sh` script to add the domain.
 - If a user successfully authenticates using this app, someone else on the same local network would be able to reuse the web session, provided they have the user's Strongswan credentials. This by design, since the app matches a web auth with a Strongswan connection only using the Strongswan identity and the source IP address.
 - Only Google is currently supported for the web authentication.

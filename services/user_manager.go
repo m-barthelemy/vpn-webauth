@@ -259,9 +259,9 @@ func (m *UserManager) NotifyUser(user *models.User, notifId uuid.UUID) error {
 		} else if err != nil {
 			return err
 		}
-		if deletedCount > 0 {
-			log.Printf("UserManager: Deleted %d inactive push subscriptions for %s", deletedCount, user.Email)
-		}
+	}
+	if deletedCount > 0 {
+		log.Printf("UserManager: Deleted %d inactive push subscriptions for %s", deletedCount, user.Email)
 	}
 	return nil
 }
