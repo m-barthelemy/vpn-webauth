@@ -72,6 +72,7 @@ func startServer(config *models.Config, handler http.Handler) {
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      8 * time.Second,
 		IdleTimeout:       60 * time.Second, // slightly highler than the SSE periodic "ping" interval
+		MaxHeaderBytes:    8 * 1024,         // 8KB
 		Handler:           handler,
 	}
 
