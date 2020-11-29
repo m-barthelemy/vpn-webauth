@@ -180,3 +180,26 @@ It is also possible to sign in from different browsers and devices by using the 
   - `SSLCUSTOMCERTPATH`: path to the SSL certificate. Optional. Default: `/ssl/key.pem`. If needed, this file can contain any additional certificate required to build the full chain, _after_ the leaf certificate.
   - `SSLCUSTOMKEYPATH`: path to the SSL certificate private key. Optional. Default: `/ssl/cert.pem`.
   - `SSLAUTOCERTSDIR`: used to store automatically manage certificates when `SSLMODE` is set to `auto`. Default: `/tmp`. Should be changed to a more persistent path. The directory must be writeable.
+
+
+### Notifications & Session continuity
+- `ENABLENOTIFICATIONS`: whether to enable desktop notifications and session continuity. Default: `true`.
+   > This enables 2 features that can improve the users experience. After registering or signing in, users will be shown a message inviting them to enable notifications for the app. 
+
+   > If they allow notifications, when they attempt to connect to the VPN without a valid web session, they will receive a notification letting them know that they need to sign in for the VPN connection to be authorized.
+
+   > Additionally, if their VPN session is expired (`VPNSESSIONVALIDITY`) but they still have a valid web session (`MFAVALIDITY`), their next attempt to connect to the VPN will try to transparently ask the browser used to sign in to prove that it still holds a valid session and has the same source IP as the VPN connection attempt. If so, the VPN connection will be automatically allowed and a new VPN "session" created without any intervention.
+
+   > NOTE: automatic VPN sessions renewal is a best effort feature; the browser must be running, even without this app opened, and must reply with a "proof of session and IP" quickly enough.
+- `VAPIDPUBLICKEY` and `VAPIDPRIVATEKEY`: a key pair to authenticate and authorize browser desktop notifications. Mandatory if `ENABLENOTIFICATIONS` is set to `true`. If they are not set, a new key pair will be dynamically generated and suggested before the app startup fails. If you use the suggested key pair, ensure the suggested `VAPIDPRIVATEKEY` is kept secret and has not been shared or logged. Once set, the keys must not change otherwise all existing users subscriptions to notifications will be invalid.
+
+   > NOTE: you can generate your own set of keys using the following commands:
+   ```
+   # Generate private key
+   openssl ecparam -name prime256v1 -genkey -noout -out vapid_private.pem
+   # Output private key in a format suitable for VAPIDPRIVATEKEY:
+   openssl ec -in vapid_private.pem -outform DER|tail -c +8|head -c 32|base64|tr -d '=' |tr '/+' '_-'
+   # Output public key in a format suitable for VAPIDPUBLICKEY:
+   openssl ec -in vapid_private.pem -pubout -outform DER|tail -c 65|base64|tr -d '=' |tr '/+' '_-' 
+   ```
+   > Currently Google Chrome, Firefox and Edge support notifications and automated VPN session renewal. Safari does not.

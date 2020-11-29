@@ -14,7 +14,7 @@ import (
 // Config holds all the application config values.
 // Not really a classical model since not saved into DB.
 type Config struct {
-	AdminEmail           string
+	AdminEmail           string   // ADMINEMAIL
 	ConnectionsRetention int      // CONNECTIONSRETENTION
 	Debug                bool     // DEBUG
 	Port                 int      // PORT
@@ -41,10 +41,10 @@ type Config struct {
 	SSLAutoCertsDir      string   // SSLAUTOCERTSDIR
 	SSLCustomCertPath    string   // SSLCUSTOMCERTPATH
 	SSLCustomKeyPath     string   // SSLCUSTOMKEYPATH
-	VapidPublicKey       string
-	VapidPrivateKey      string
-	VPNCheckPassword     string // VPNCHECKPASSWORD
-	VPNSessionValidity   int    // VPNSESSIONVALIDITY
+	VapidPublicKey       string   // VAPIDPUBLICKEY
+	VapidPrivateKey      string   // VAPIDPRIVATEKEY
+	VPNCheckPassword     string   // VPNCHECKPASSWORD
+	VPNSessionValidity   int      // VPNSESSIONVALIDITY
 }
 
 func (config *Config) New() Config {
@@ -97,7 +97,11 @@ func (config *Config) Verify() {
 			log.Fatal("ENCRYPTIONKEY must be 32 characters")
 		}
 	}
-	if config.EnableNotifications && (config.VapidPrivateKey == "" || config.VapidPublicKey == "") {
+	if config.EnableNotifications {
+		if config.AdminEmail == "" {
+			log.Fatal("FATAL: ENABLENOTIFICATIONS is true, so ADMINEMAIL must be set to a valid email address.")
+		}
+		if config.VapidPrivateKey == "" || config.VapidPublicKey == "") {
 		log.Printf("FATAL: ENABLENOTIFICATIONS is true, so VAPIDPRIVATEKEY and VAPIDPUBLICKEY must be defined and valid")
 		log.Printf("If you have never defined them, here are some fresh values generated just for you.")
 		if privateKey, publicKey, err := webpush.GenerateVAPIDKeys(); err == nil {
