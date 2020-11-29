@@ -10,7 +10,6 @@ import (
 	googlecontroller "github.com/m-barthelemy/vpn-webauth/controllers/google"
 	otcController "github.com/m-barthelemy/vpn-webauth/controllers/otc"
 	otpController "github.com/m-barthelemy/vpn-webauth/controllers/otp"
-	sseController "github.com/m-barthelemy/vpn-webauth/controllers/sse"
 	userController "github.com/m-barthelemy/vpn-webauth/controllers/user"
 	vpnController "github.com/m-barthelemy/vpn-webauth/controllers/vpn"
 	webauthNController "github.com/m-barthelemy/vpn-webauth/controllers/webauthn"
@@ -153,17 +152,6 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.RefreshAuth, true)),
-		),
-	)
-
-	// SSE for tracking client IP changes for session conti nuity,
-	// and online status for desktop notifications
-	sseC := sseController.New(db, config)
-	sseC.Start()
-	mux.Handle("/events",
-		handlers.LoggingHandler(
-			os.Stdout,
-			http.HandlerFunc(sessHandler.IdentificationMiddleware(tokenSigningKey, sseC.HandleEvents)),
 		),
 	)
 
