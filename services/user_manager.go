@@ -216,11 +216,11 @@ func (m *UserManager) DeleteUserSubscription(subscription *models.UserSubscripti
 	return result.Error
 }
 
-func (m *UserManager) NotifyUser(user *models.User, notifId uuid.UUID) error {
+func (m *UserManager) NotifyUser(user *models.User, notifId uuid.UUID) (bool, error) {
 	var subscriptions []models.UserSubscription
 	minUsedAt := time.Now().AddDate(0, -3, 0)
 	if result := m.db.Where("user_id = ? AND last_used_at > ?", user.ID.String(), minUsedAt).Find(&subscriptions); result.Error != nil {
-		return result.Error
+		return false, result.Error
 	}
 
 	dp := NewDataProtector(m.config)
@@ -229,17 +229,18 @@ func (m *UserManager) NotifyUser(user *models.User, notifId uuid.UUID) error {
 	nonce.ID = notifId
 	jsonNonce, err := json.Marshal(nonce)
 	if err != nil {
-		return err
+		return false, err
 	}
 
+	notified := false
 	for i, subscription := range subscriptions {
 		pushSubscriptionRaw, err := dp.Decrypt(subscription.Data)
 		if err != nil {
-			return err
+			return false, err
 		}
 		pushSubscription := &webpush.Subscription{}
 		if err := json.Unmarshal([]byte(pushSubscriptionRaw), &pushSubscription); err != nil {
-			return err
+			return false, err
 		}
 
 		resp, err := webpush.SendNotification(jsonNonce, pushSubscription, &webpush.Options{
@@ -253,17 +254,18 @@ func (m *UserManager) NotifyUser(user *models.User, notifId uuid.UUID) error {
 		// The push provider signals that the subscription is no longer active, so delete it.
 		if resp.StatusCode >= 400 && resp.StatusCode <= 500 {
 			if err := m.DeleteUserSubscription(&subscriptions[i]); err != nil {
-				return err
+				return false, err
 			}
 			deletedCount++
 		} else if err != nil {
-			return err
+			return false, err
 		}
+		notified = true
 	}
 	if deletedCount > 0 {
 		log.Printf("UserManager: Deleted %d inactive push subscriptions for %s", deletedCount, user.Email)
 	}
-	return nil
+	return notified, nil
 }
 
 // Claims is used Used for the session cookie
@@ -279,7 +281,7 @@ func (m *UserManager) CreateSession(user *models.User, hasMFA bool, w http.Respo
 	if m.config.SSLMode != "off" {
 		cookieName = "__Host-" + cookieName
 	}
-	expirationTime := time.Now().Add(m.config.MFAValidity)
+	expirationTime := time.Now().Add(m.config.WebSessionValidity)
 	claims := &Claims{
 		Username: user.Email,
 		HasMFA:   hasMFA,

@@ -29,6 +29,7 @@ self.addEventListener('activate', async () => {
 
 self.addEventListener('push', async function(event) {
     var data = {};
+    // nonce
     if (event.data) {
         data = event.data.json();
     }

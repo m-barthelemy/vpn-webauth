@@ -90,47 +90,49 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	hasValidBrowserSession := false
 	// Ask any active user browser to send a request to confirm web session and source IP
 	notifUniqueID, _ := uuid.NewV4() // unique id that must be present in browser request, for additional security
-	if err := userManager.NotifyUser(user, notifUniqueID); err != nil {
+	notified, err := userManager.NotifyUser(user, notifUniqueID)
+	if err != nil {
 		log.Printf("VpnController: error notifying %s: %s", user.Email, err.Error())
 	}
 
-	channel := make(chan bool, 1)
-	eventBus := *v.bus
+	if notified {
+		channel := make(chan bool, 1)
+		eventBus := *v.bus
 
-	checkWebSessions := func(nonce uuid.UUID) {
-		if nonce == notifUniqueID {
-			channel <- true
-		} else {
-			log.Printf("VpnController: invalid browser response for %s: nonce doesn't match expected value", user.Email)
-			channel <- false
+		checkWebSessions := func(nonce uuid.UUID) {
+			if nonce == notifUniqueID {
+				channel <- true
+			} else {
+				log.Printf("VpnController: invalid browser response for %s: nonce doesn't match expected value", user.Email)
+				channel <- false
+			}
 		}
-	}
 
-	hasValidBrowserSession := false
+		// Background work so that we can kill it after some time
+		go func() {
+			eventBus.Subscribe(fmt.Sprintf("%s:%s", connRequest.Identity, connRequest.SourceIP), checkWebSessions)
+			eventBus.WaitAsync()
+		}()
+		select {
+		case res := <-channel:
+			hasValidBrowserSession = res
+			if hasValidBrowserSession {
+				break
+			} // otherwise there can still be a browser having a valid session that has not yet replied.
+		// Wait for a short interval to not clog the VPN server that waiting for a reply in blocking mode
+		case <-time.After(500 * time.Millisecond):
+			log.Printf("VpnController: No active web session replied on time for user %s", connRequest.Identity)
+		}
+		close(channel)
+		eventBus.Unsubscribe(fmt.Sprintf("%s:%s", connRequest.Identity, connRequest.SourceIP), checkWebSessions)
 
-	// Background work so that we can kill it after some time
-	go func() {
-		eventBus.Subscribe(fmt.Sprintf("%s:%s", connRequest.Identity, connRequest.SourceIP), checkWebSessions)
-		eventBus.WaitAsync()
-	}()
-	select {
-	case res := <-channel:
-		hasValidBrowserSession = res
-		if hasValidBrowserSession {
-			break
-		} // otherwise there can still be a browser having a valid session that has not yet replied.
-	// Wait for a short interval to not clog the VPN server that waiting for a reply in blocking mode
-	case <-time.After(500 * time.Millisecond):
-		log.Printf("VpnController: No active web session replied on time for user %s", connRequest.Identity)
-	}
-	close(channel)
-	eventBus.Unsubscribe(fmt.Sprintf("%s:%s", connRequest.Identity, connRequest.SourceIP), checkWebSessions)
-
-	vpnConnection.Allowed = hasValidBrowserSession
-	if tx := v.db.Save(&vpnConnection); tx.Error != nil {
-		log.Printf("VpnController: error saving Vpnconnection audit entry for %s: %s", user.Email, tx.Error.Error())
+		vpnConnection.Allowed = hasValidBrowserSession
+		if tx := v.db.Save(&vpnConnection); tx.Error != nil {
+			log.Printf("VpnController: error saving Vpnconnection audit entry for %s: %s", user.Email, tx.Error.Error())
+		}
 	}
 
 	if !hasValidBrowserSession {

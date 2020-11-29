@@ -31,7 +31,6 @@ type Config struct {
 	MaxBodySize          int64         // not documented
 	MFAOTP               bool          // MFAOTP
 	MFAIssuer            string        // OTPISSUER
-	MFAValidity          time.Duration // MFAVALIDITY
 	MFATouchID           bool          // MFATOUCHID
 	MFAWebauthn          bool          // MFAWEBAUTHN
 	LogoURL              *url.URL      // LOGOURL
@@ -47,6 +46,7 @@ type Config struct {
 	VapidPrivateKey      string        // VAPIDPRIVATEKEY
 	VPNCheckPassword     string        // VPNCHECKPASSWORD
 	VPNSessionValidity   time.Duration // VPNSESSIONVALIDITY
+	WebSessionValidity   time.Duration // WEBSESSIONVALIDITY
 }
 
 func (config *Config) New() Config {
@@ -74,7 +74,7 @@ func (config *Config) New() Config {
 	}
 	redirDomain, _ := url.Parse(fmt.Sprintf("http://%s:%v", defaultConfig.Host, defaultConfig.Port))
 	defaultConfig.RedirectDomain = redirDomain
-	defaultConfig.MFAValidity = 12 * time.Hour
+	defaultConfig.WebSessionValidity = 12 * time.Hour
 	// We create a default random key for signing session tokens
 	b := make([]byte, 32) // random ID
 	rand.Read(b)

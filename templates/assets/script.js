@@ -311,6 +311,16 @@ async function getSingleUseCode() {
 $(document).ready(async function(){
     const searchParams = new URLSearchParams(window.location.search);
 
+    // Watch for permissions change if user denies notifications but later enables them
+    if ('permissions' in navigator) {
+        const notificationPerm = await navigator.permissions.query({name:'notifications'});
+        notificationPerm.onchange = function() {
+            if (notificationPerm.state !== "denied") {
+                hasApprovedNotifications() && registerServiceWorker();
+            }
+        };
+    }
+    
     if (searchParams.has('error')) {
         $("#error").show();
     }
