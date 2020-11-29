@@ -3,6 +3,8 @@ module github.com/m-barthelemy/vpn-webauth
 go 1.13
 
 require (
+	github.com/SherClockHolmes/webpush-go v1.1.2
+	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/duo-labs/webauthn v0.0.0-20200714211715-1daaee874e43
 	github.com/duo-labs/webauthn.io v0.0.0-20200929144140-c031a3e0f95d // indirect

@@ -70,10 +70,9 @@ func startServer(config *models.Config, handler http.Handler) {
 		// Needed to avoid some resources exhaustion, especially if the service is publicly exposed.
 		ReadTimeout:       5 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
-		// We need longer response timeouts for the Events persistent connection with the clients
-		WriteTimeout: 3600 * time.Second,
-		IdleTimeout:  60 * time.Second, // slightly highler than the SSE periodic "ping" interval
-		Handler:      handler,
+		WriteTimeout:      8 * time.Second,
+		IdleTimeout:       60 * time.Second, // slightly highler than the SSE periodic "ping" interval
+		Handler:           handler,
 	}
 
 	log.Printf("Serving http/https for domains: %+v", domain)

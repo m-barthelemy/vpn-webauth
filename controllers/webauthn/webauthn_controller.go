@@ -184,7 +184,7 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 	}
 	log.Printf("WebAuthNController: User %s created VPN session from %s", user.Email, sourceIP)
 
-	if userManager.CreateSession(user.Email, true, w) != nil {
+	if userManager.CreateSession(user, true, w) != nil {
 		log.Printf("WebAuthNController: Error creating user MFA session for %s: %s", user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -317,7 +317,7 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 	}
 	log.Printf("WebAuthNController: User %s created VPN session from %s", user.Email, sourceIP)
 
-	if userManager.CreateSession(user.Email, true, w) != nil {
+	if userManager.CreateSession(user, true, w) != nil {
 		log.Printf("GoogleController: Error creating user MFA session for %s: %s", user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

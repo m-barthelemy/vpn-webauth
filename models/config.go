@@ -7,11 +7,14 @@ import (
 	"log"
 	"net/url"
 	"strings"
+
+	"github.com/SherClockHolmes/webpush-go"
 )
 
 // Config holds all the application config values.
 // Not really a classical model since not saved into DB.
 type Config struct {
+	AdminEmail           string
 	ConnectionsRetention int      // CONNECTIONSRETENTION
 	Debug                bool     // DEBUG
 	Port                 int      // PORT
@@ -37,8 +40,10 @@ type Config struct {
 	SSLAutoCertsDir      string   // SSLAUTOCERTSDIR
 	SSLCustomCertPath    string   // SSLCUSTOMCERTPATH
 	SSLCustomKeyPath     string   // SSLCUSTOMKEYPATH
-	VPNCheckPassword     string   // VPNCHECKPASSWORD
-	VPNSessionValidity   int      // VPNSESSIONVALIDITY
+	VapidPublicKey       string
+	VapidPrivateKey      string
+	VPNCheckPassword     string // VPNCHECKPASSWORD
+	VPNSessionValidity   int    // VPNSESSIONVALIDITY
 }
 
 func (config *Config) New() Config {
@@ -89,6 +94,15 @@ func (config *Config) Verify() {
 		} else if len(config.EncryptionKey) != 32 {
 			log.Fatal("ENCRYPTIONKEY must be 32 characters")
 		}
+	}
+	if config.VapidPrivateKey == "" || config.VapidPublicKey == "" {
+		log.Printf("FATAL: VAPIDPRIVATEKEY and VAPIDPUBLICKEY must be defined and valid")
+		log.Printf("If you have never defined them, here are some fresh values generated just for you.")
+		if privateKey, publicKey, err := webpush.GenerateVAPIDKeys(); err == nil {
+			log.Printf("VAPIDPUBLICKEY=\"%s\"", publicKey)
+			log.Printf("VAPIDPRIVATEKEY=\"%s\"", privateKey)
+		}
+		log.Fatal("Add them to the environment variables. VAPIDPRIVATEKEY is sensitive, keep it secret.")
 	}
 	config.SSLMode = strings.ToLower(config.SSLMode)
 	if config.SSLMode != "off" && config.SSLMode != "auto" && config.SSLMode != "custom" && config.SSLMode != "proxy" {

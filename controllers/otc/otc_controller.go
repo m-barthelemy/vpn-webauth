@@ -185,7 +185,7 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 	}
 
 	// Create fully MFA-authenticated session
-	if userManager.CreateSession(user.Email, true, w) != nil {
+	if userManager.CreateSession(user, true, w) != nil {
 		log.Printf("GoogleController: Error creating user MFA session for %s: %s", user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

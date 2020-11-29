@@ -192,7 +192,7 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("OTPController: User %s created VPN session from %s", email, sourceIP)
 
-	if userManager.CreateSession(user.Email, true, w) != nil {
+	if userManager.CreateSession(user, true, w) != nil {
 		log.Printf("WebAuthNController: Error creating user MFA session for %s: %s", user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
@@ -12,6 +13,7 @@ import (
 )
 
 // Inspired by https://github.com/kljensen/golang-html5-sse-example/blob/master/server.go
+//  and https://gist.github.com/maestre3d/4a42e8fa552694f7c97c4811ce913e23
 
 // This creates a permanent connection between the authenticated client browsers and the app.
 // They would reconnect automatically if they get disconnected, change network or IP.
@@ -24,8 +26,15 @@ import (
 // VPN connection attempt => /vpn/check fails and no user session detected => client browser IP matches VPN connection attempt source IP
 //   ==> send desktop notification to user that they need to authenticate before connecting to VPN.
 
+type ClientAuthorizationStatus struct {
+	userID     string
+	sourceIP   string
+	hasSession bool      // whether the User is authorized or only has an identity cookie for notifications
+	expires    time.Time // Expiry of the session or identification cookie
+}
+
 // Broker keeps track of the connected clients
-type SSEBroker struct {
+/*type SSEBroker struct {
 	clients map[chan string]bool
 
 	// Channel into which new clients can be pushed
@@ -38,8 +47,14 @@ type SSEBroker struct {
 	// to attahed clients.
 	messages chan string
 
-	// email, sourceIP list of authenticated and connected users
-	identities map[string][]string
+	// ID, sourceIP list of authenticated and connected users
+	//identities map[string][]string
+	identities chan map[string][]ClientAuthorizationStatus
+}*/
+
+type SSEBroker struct {
+	clientsChannels map[chan string]ClientAuthorizationStatus
+	clientsMutex    *sync.Mutex
 }
 
 type SSEController struct {
@@ -50,94 +65,91 @@ type SSEController struct {
 
 // New creates an instance of the controller and sets its DB handle
 func New(db *gorm.DB, config *models.Config) *SSEController {
-
 	return &SSEController{
 		db:     db,
 		config: config,
 		broker: &SSEBroker{
-			make(map[chan string]bool),
-			make(chan (chan string)),
-			make(chan (chan string)),
-			make(chan string),
-			make(map[string][]string),
+			clientsChannels: make(map[chan string]ClientAuthorizationStatus),
+			clientsMutex:    new(sync.Mutex),
 		},
 	}
 }
 
-// Start manages addition and removal of clients, and broadcasts messages to them.
+func (b *SSEBroker) Subscribe(clientStatus ClientAuthorizationStatus) chan string {
+	b.clientsMutex.Lock()
+	defer b.clientsMutex.Unlock()
+
+	channel := make(chan string)
+	b.clientsChannels[channel] = clientStatus
+
+	return channel
+}
+
+// Unsubscribe removes a client from the broker pool
+func (b *SSEBroker) Unsubscribe(channel chan string) {
+	b.clientsMutex.Lock()
+	defer b.clientsMutex.Unlock()
+
+	//id := b.clientsChannels[channel]
+	close(channel)
+	delete(b.clientsChannels, channel)
+}
+
+func (b *SSEBroker) Publish(clientId string, message string, all bool) {
+	b.clientsMutex.Lock()
+	defer b.clientsMutex.Unlock()
+
+	for s, clientStatus := range b.clientsChannels {
+		if !all {
+			// Push to specific client
+			if clientStatus.userID == clientId {
+				s <- message
+				break
+			}
+		} else { // Push to every client
+			s <- message
+		}
+	}
+}
+
+// Start ensures each client receives a periodic ping to maintain the connection
+// This signals the app that the connection shouldn't be closes
+// Also aims at signalling potential corporate proxies that they should not close the connection.
 func (s *SSEController) Start() {
 	go func() {
+		pingMsg := fmt.Sprintf("%v", time.Now())
 		for {
-			// Block until we receive from one of the three following channels.
-			select {
-
-			case evt := <-s.broker.newClients:
-
-				// There is a new client attached and we want to start sending them messages.
-				s.broker.clients[evt] = true
-				log.Println("Added new client")
-
-			case evt := <-s.broker.defunctClients:
-
-				// A client has detached and we want to stop sending them messages.
-				delete(s.broker.clients, evt)
-				close(evt)
-
-				log.Println("Removed client")
-
-			case msg := <-s.broker.messages:
-
-				// There is a new message to send.  For each attached client, push the new message
-				// into the client's message channel.
-				for s := range s.broker.clients {
-					s <- msg
-				}
-				log.Printf("Broadcast message to %d active clients, %d defuncts, %d identities", len(s.broker.clients), len(s.broker.defunctClients), len(s.broker.identities))
-			}
-		}
-	}()
-
-	go func() {
-		for i := 0; ; i++ {
 			// Try keeping the connection alive by sending a periodic message
-			s.broker.messages <- fmt.Sprintf("%v", time.Now())
-			time.Sleep(55e9) // 55s
+			s.broker.Publish("", pingMsg, true)
+			time.Sleep(28e9) // 28s
 		}
 	}()
 }
 
 func (s *SSEController) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	var identity = r.Context().Value("identity").(string)
-	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
+	/*var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
-	// Ensure user is fully logged in
-	if s.config.EnforceMFA && !sessionHasMFA {
+	// Check if user is fully logged in
+	/f s.config.EnforceMFA && !sessionHasMFA {
+		// Notify user to re-authenticate
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
-	}
+	}*/
 
 	// Make sure that the writer supports flushing.
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		log.Println("SSEController: HTTP streaming unsupported")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	// Create a new channel, over which the broker can send this client messages.
-	messageChan := make(chan string)
-
-	// Add this client to the map of those that should receive updates
-	s.broker.newClients <- messageChan
-
-	// Listen to the closing of the http connection via the CloseNotifier
-	notify := w.(http.CloseNotifier).CloseNotify()
-	go func() {
-		<-notify
-		// Remove this client from the map of attached clients
-		// when `EventHandler` exits.
-		s.broker.defunctClients <- messageChan
-		log.Println("HTTP connection just closed.")
-	}()
+	sourceIP := utils.New(s.config).GetClientIP(r)
+	clientStatus := ClientAuthorizationStatus{userID: identity, sourceIP: sourceIP, hasSession: true, expires: time.Now()}
+	channel := s.broker.Subscribe(clientStatus)
+	defer s.broker.Unsubscribe(channel)
+	log.Printf("Added new SSE client %s connecting from from %s", identity, sourceIP)
 
 	// Set the headers related to event streaming.
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -145,37 +157,15 @@ func (s *SSEController) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Transfer-Encoding", "chunked")
 
-	sourceIP := utils.New(s.config).GetClientIP(r)
-	if s.broker.identities[identity] == nil {
-		s.broker.identities[identity] = []string{}
-	}
-	exists := false
-	for _, ip := range s.broker.identities[identity] {
-		if ip == sourceIP {
-			exists = true
-			break
-		}
-	}
-	if !exists {
-		s.broker.identities[identity] = append(s.broker.identities[identity], sourceIP)
-	}
-
-	// Don't close the connection, instead loop endlessly.
 	for {
-		// Read from the messageChan.
-		msg, open := <-messageChan
-
-		if !open {
-			// If the messageChan was closed, the client has disconnected.
-			break
+		select {
+		case msg := <-channel:
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", msg)
+			flusher.Flush()
+		case <-r.Context().Done():
+			return
 		}
-
-		fmt.Fprintf(w, "data: Message: %s\n\n", msg)
-
-		// Immediately send data to client
-		flusher.Flush()
 	}
 
-	// Done or client disconnected
-	delete(s.broker.identities, identity)
+	log.Printf("Removed SSE client %s connecting from from %s", identity, sourceIP)
 }

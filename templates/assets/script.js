@@ -1,16 +1,18 @@
 'use strict';
 
-function askForApproval() {
+async function hasApprovedNotifications() {
     if(Notification.permission === "granted") {
         //createNotification('Wow! This is great', 'created by @study.tonight', 'https://www.studytonight.com/css/resource.v2/icons/studytonight/st-icon-dark.png');
+        return true;
     }
     else {
-        Notification.requestPermission(permission => {
-            if(permission === 'granted') {
-                //createNotification('Wow! This is great', 'created by @study.tonight', 'https://www.studytonight.com/css/resource.v2/icons/studytonight/st-icon-dark.png');
-            }
-        });
+        const permission = await Notification.requestPermission();
+        if(permission === 'granted') {
+            //createNotification('Wow! This is great', 'created by @study.tonight', 'https://www.studytonight.com/css/resource.v2/icons/studytonight/st-icon-dark.png');
+            return true;
+        }
     }
+    return false;
 }
 
 function createNotification(title, text, icon) {
@@ -26,23 +28,84 @@ function createNotification(title, text, icon) {
 
 const checkWorkerPush = () => {
     if (!('serviceWorker' in navigator)) {
-      throw new Error('No Service Worker support!');
+        console.warn('No Service Worker support!');
+        return false;
     }
     if (!('PushManager' in window)) {
       console.warn('No Push API Support!');
+      return false;
     }
-    
+    return true;
+}
+
+const getSubscriptionKey = async subscription => {
+    const response = await fetch("/user/push_subscriptions/begin", {
+      method: 'post',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(subscription),
+    });
+    return response.json();
+  }
+
+function urlBase64ToUint8Array(base64String) {
+    var padding = '='.repeat((4 - base64String.length % 4) % 4);
+    var base64 = (base64String + padding)
+        .replace(/\-/g, '+')
+        .replace(/_/g, '/');
+
+    var rawData = atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+
+    for (var i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+const saveSubscription = async subscription => {
+    const response = await fetch("/user/push_subscriptions/finish", {
+      method: 'post',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(subscription),
+    });
+    return response;
   }
 
 const registerServiceWorker = async () => {
-    const swRegistration = await navigator.serviceWorker.register('/assets/service.js');
+    if (!('PushManager' in window)) {
+        console.warn("pushManager not available");
+        return;
+    }
+    let swRegistration = await navigator.serviceWorker.register('/service.js');
+    swRegistration = await navigator.serviceWorker.ready;
     console.log("Registered service worker");
-    return swRegistration;
+    const existingSubscription = await swRegistration.pushManager.getSubscription();
+    if (existingSubscription){
+        console.log("Already subscribed to push notifications");
+        return swRegistration;
+    }
+
+    try {
+        var vapid = await getSubscriptionKey();
+        const applicationServerKey = urlBase64ToUint8Array(vapid.public_key);
+        const options = { applicationServerKey: applicationServerKey, userVisibleOnly: true};
+        const subscription = await swRegistration.pushManager.subscribe(options);
+        const response = await saveSubscription(subscription);
+        console.log(response);
+        //console.log(JSON.stringify(subscription));
+    } catch (err) {
+        console.log('Error', err);
+    }
 }
 
-askForApproval();
-checkWorkerPush();
-registerServiceWorker();
+
+
 console.log("Going to create a notification");
 // 'https://www.ascendaloyalty.com/wp-content/uploads/2018/10/logo_footer.png');
 
@@ -248,6 +311,8 @@ async function getSingleUseCode() {
     }
 }
 
+
+// main
 $(document).ready(async function(){
     const searchParams = new URLSearchParams(window.location.search);
 
@@ -300,10 +365,12 @@ $(document).ready(async function(){
     if (searchParams.has('source')) {
         const source = searchParams.get('source');
         const provider = searchParams.get('provider');
-        if (source == "register" && (provider == "webauthn" || provider == "touchid")) {
-            $("#success-info-message").html(`The next times you sign in, you will need to use the same browser, <br/>
-            or any other browser added using the "Add new browser or device" option.`);
-            $("#success-info").show();
+        if (source == "register") {  //&& (provider == "webauthn" || provider == "touchid")) {
+            //$("#success-info-message").html(`The next times you sign in, you will need to use the same browser, <br/>
+            //or any other browser added using the "Add new browser or device" option.`);
+            if (checkWorkerPush()) {
+                $("#success-info").show();
+            }
         }
     }
 
@@ -322,7 +389,13 @@ $(document).ready(async function(){
     $("#register-otc").click(function() {
         getSingleUseCode();
     });
-
+    $("#allow-notifications").click(function() {
+        if (hasApprovedNotifications()) {
+            registerServiceWorker();
+            $("#allow-notifications").addClass("disabled");
+            $("#allow-notifications-icon").text("check_circle");
+        }
+    });
 
     $("#otp").keyup( function() {
         const dataLength = $(this).val().length;

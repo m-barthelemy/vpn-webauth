@@ -50,14 +50,14 @@ func (u *Utils) GetAllowedMFAs() []string {
 }
 
 // JsonResponse outputs tobject as a 200 HTTP JSON encoded response
-func JSONResponse(w http.ResponseWriter, d interface{}, c int) {
-	dj, err := json.Marshal(d)
+func JSONResponse(w http.ResponseWriter, d interface{}, statusCode int) {
+	json, err := json.Marshal(d)
 	if err != nil {
 		log.Printf("WebAuthNController: Error serializing response to JSON: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(c)
-	fmt.Fprintf(w, "%s", dj)
+	w.WriteHeader(statusCode)
+	fmt.Fprintf(w, "%s", json)
 }

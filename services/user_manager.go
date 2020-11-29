@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -10,7 +11,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/m-barthelemy/vpn-webauth/models"
 
+	"github.com/SherClockHolmes/webpush-go"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type UserManager struct {
@@ -18,7 +21,7 @@ type UserManager struct {
 	config *models.Config
 }
 
-// New creates an instance of the controller and sets its DB handle
+// New creates an instance of UserManager and sets its DB handle
 func New(db *gorm.DB, config *models.Config) *UserManager {
 	return &UserManager{db: db, config: config}
 }
@@ -77,16 +80,16 @@ func (m *UserManager) CheckVpnSession(identity string, ip string, otpValid bool)
 		}
 	}
 
-	sessionResult := m.db.Where("email = ? AND source_ip = ? AND created_at > ?", identity, ip, minDate).First(&session)
+	sessionResult := m.db.Order("created_at desc").Where("email = ? AND source_ip = ?", identity, ip).First(&session)
 	if sessionResult.Error != nil {
 		if errors.Is(sessionResult.Error, gorm.ErrRecordNotFound) {
 			return &user, nil, false, nil
 		} else {
-			return &user, nil, false, sessionResult.Error
+			return &user, &session, false, sessionResult.Error
 		}
 	}
-
-	return &user, &session, true, nil
+	isValid := (session.CreatedAt.After(minDate))
+	return &user, &session, isValid, nil
 }
 
 // CreateVpnSession Creates a new VPN "Session" for the `User` from the specified IP address.
@@ -186,6 +189,80 @@ func (m *UserManager) ValidateMFA(mfa *models.UserMFA, data string) (*models.Use
 	return &userMFA, nil
 }
 
+func (m *UserManager) AddUserSubscription(user *models.User, subscription *models.UserSubscription) (*models.UserSubscription, error) {
+	subscription.LastUsedAt = time.Now()
+	if subscription.Data != "" {
+		dp := NewDataProtector(m.config)
+		encryptedData, err := dp.Encrypt(subscription.Data)
+		if err != nil {
+			return nil, err
+		}
+		subscription.Data = encryptedData
+	}
+
+	// Every time a Service worker is activated, we will try to register a subscription
+	// so duplicates are expected
+	// In that case we want to update the CreatedAt field to be able to detect
+	// old => inactive subscriptions
+	result := m.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "hash"}},
+		DoUpdates: clause.AssignmentColumns([]string{"last_used_at"}),
+	}).Create(&subscription)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	log.Printf("UserManager: Created Web push subscription for %s", user.Email)
+
+	return subscription, nil
+}
+
+func (m *UserManager) DeleteUserSubscription(subscription *models.UserSubscription) error {
+	result := m.db.Delete(&models.UserSubscription{}, "hash = ?", subscription.Hash)
+	return result.Error
+}
+
+func (m *UserManager) NotifyUser(user *models.User, requiresReauth bool) error {
+	var subscriptions []models.UserSubscription
+	minUsedAt := time.Now().AddDate(0, -3, 0)
+	if result := m.db.Where("user_id = ? AND last_used_at > ?", user.ID.String(), minUsedAt).Find(&subscriptions); result.Error != nil {
+		return result.Error
+	}
+
+	dp := NewDataProtector(m.config)
+	deletedCount := 0
+	for i, subscription := range subscriptions {
+		pushSubscriptionRaw, err := dp.Decrypt(subscription.Data)
+		if err != nil {
+			return err
+		}
+		pushSubscription := &webpush.Subscription{}
+		if err := json.Unmarshal([]byte(pushSubscriptionRaw), &pushSubscription); err != nil {
+			return err
+		}
+		resp, err := webpush.SendNotification([]byte("Test push notif frpm vpn-weauth backend"), pushSubscription, &webpush.Options{
+			Subscriber:      m.config.AdminEmail,
+			VAPIDPublicKey:  m.config.VapidPublicKey,
+			VAPIDPrivateKey: m.config.VapidPrivateKey,
+			TTL:             30,
+		})
+		defer resp.Body.Close()
+
+		// The push provider signals that the subscription is no longer active, so delete it.
+		if resp.StatusCode >= 400 && resp.StatusCode <= 500 {
+			if err := m.DeleteUserSubscription(&subscriptions[i]); err != nil {
+				return err
+			}
+			deletedCount++
+		} else if err != nil {
+			return err
+		}
+		if deletedCount > 0 {
+			log.Printf("UserManager: Deleted %d inactive push subscriptions for %s", deletedCount, user.Email)
+		}
+	}
+	return nil
+}
+
 // Claims is used Used for the session cookie
 type Claims struct {
 	Username string `json:"username"`
@@ -193,11 +270,15 @@ type Claims struct {
 	jwt.StandardClaims
 }
 
-func (m *UserManager) CreateSession(email string, hasMFA bool, w http.ResponseWriter) error {
+func (m *UserManager) CreateSession(user *models.User, hasMFA bool, w http.ResponseWriter) error {
 	jwtKey := []byte(m.config.SigningKey)
+	cookieName := "vpnwa_session"
+	if m.config.SSLMode != "off" {
+		cookieName = "__Host-" + cookieName
+	}
 	expirationTime := time.Now().Add(time.Duration(m.config.MFAValidity) * time.Second)
 	claims := &Claims{
-		Username: email,
+		Username: user.Email,
 		HasMFA:   hasMFA,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime.Unix(),
@@ -209,12 +290,46 @@ func (m *UserManager) CreateSession(email string, hasMFA bool, w http.ResponseWr
 		return err
 	}
 	cookie := http.Cookie{
-		Name:     "vpnwa_session",
+		Name:     cookieName,
 		Value:    tokenString,
 		Expires:  expirationTime,
 		HttpOnly: true,
 		Path:     "/",
 		Secure:   m.config.SSLMode != "off",
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, &cookie)
+	return m.createIdentifierCookie(user, w)
+}
+
+// CreateIdentifierCookie creates a long-term, non-authorizing cookie identifying the user
+//  for desktop notifications.
+func (m *UserManager) createIdentifierCookie(user *models.User, w http.ResponseWriter) error {
+	jwtKey := []byte(m.config.SigningKey)
+	cookieName := "vpnwa_identified_user"
+	if m.config.SSLMode != "off" {
+		cookieName = "__Host-" + cookieName
+	}
+	expirationTime := time.Now().AddDate(0, 3, 0) // In 3 months
+	claims := &Claims{
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: expirationTime.Unix(),
+			Subject:   user.ID.String(),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtKey)
+	if err != nil {
+		return err
+	}
+	cookie := http.Cookie{
+		Name:     cookieName,
+		Value:    tokenString,
+		Expires:  expirationTime,
+		HttpOnly: true,
+		Path:     "/",
+		Secure:   m.config.SSLMode != "off",
+		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, &cookie)
 	return nil

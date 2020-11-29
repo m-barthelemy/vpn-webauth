@@ -84,8 +84,8 @@ func (g *TemplateHandler) CompileTemplates(dir string) error {
 
 func loadStaticAssets(dir string) error {
 	err := pkger.Walk(dir, func(path string, info os.FileInfo, _ error) error {
-		// Skip non-templates.
-		if info.IsDir() || (!strings.Contains(path, "/assets/") && !strings.Contains(path, "/fonts/")) {
+		// Skip non-assets.
+		if info.IsDir() || (!strings.Contains(path, "/service.js") && !strings.Contains(path, "/assets/") && !strings.Contains(path, "/fonts/")) {
 			return nil
 		}
 		// Load file from pkpger virtual file, or real file if pkged.go has not

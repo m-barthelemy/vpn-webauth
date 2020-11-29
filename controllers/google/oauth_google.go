@@ -104,7 +104,7 @@ func (g *GoogleController) afterFirstAuthStep(email string, w http.ResponseWrite
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	if userManager.CreateSession(user.Email, false, w) != nil {
+	if userManager.CreateSession(user, false, w) != nil {
 		log.Printf("GoogleController: Error creating user oauth2-only session for %s: %s", user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
