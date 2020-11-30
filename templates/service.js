@@ -30,6 +30,7 @@ self.addEventListener('push', async function(event) {
     if (updateAuthResponse.status == 401) {
         await self.registration.showNotification(`${data.Issuer}: authentication required`, {
             body: "Click to authenticate",
+            icon: data.IconURL,
             //requireInteraction: true,
         });
     }
