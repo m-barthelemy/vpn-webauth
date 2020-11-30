@@ -2,13 +2,11 @@
 
 async function tryGetNotificationsApproval() {
     if(Notification.permission === "granted") {
-        //createNotification('Wow! This is great', 'created by @study.tonight', 'https://www.studytonight.com/css/resource.v2/icons/studytonight/st-icon-dark.png');
         return true;
     }
     else {
         const permission = await Notification.requestPermission();
         if(permission === 'granted') {
-            //createNotification('Wow! This is great', 'created by @study.tonight', 'https://www.studytonight.com/css/resource.v2/icons/studytonight/st-icon-dark.png');
             return true;
         }
     }
@@ -105,10 +103,6 @@ const registerServiceWorker = async () => {
         console.log('Error', err);
     }
 }
-
-navigator.serviceWorker.addEventListener('message', (event) => {
-    console.log('Received a message from service worker: ', event.data);
-});
 
 // Force service worker reload during dev
 if (new URLSearchParams(window.location.search).has('sw')) {
@@ -214,8 +208,7 @@ async function webAuthNLogin(allowCrossPlatformDevice = false) {
     const response = await fetch(`/auth/webauthn/beginlogin?type=${provider}`, {
         method: 'POST',
         headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            'Accept': 'application/json'
         },
     });
     if (response.status == 401) {
@@ -247,7 +240,6 @@ async function webAuthNLogin(allowCrossPlatformDevice = false) {
         $("#error").show();
         return;
     }
-    
     let authData = assertion.response.authenticatorData;
     let clientDataJSON = assertion.response.clientDataJSON;
     let rawId = assertion.rawId;
@@ -287,8 +279,7 @@ async function getSingleUseCode() {
     const codeResponse = await fetch("/auth/code/generate", {
         method: "POST",
         headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            'Accept': 'application/json'
         },
     });
     if (!codeResponse.ok) {
@@ -301,7 +292,7 @@ async function getSingleUseCode() {
         const code = await codeResponse.json();
         $("#temp-code-value").text(code.code);
         $("#temp-code-value").show();
-        $("#temp-code-expiry").text(`This code is valid until ${new Date(code.expires_at).toLocaleString()}`);
+        $("#temp-code-expiry").text(`This code is valid until ${new Date(code.ExpiresAt).toLocaleString()}`);
     }
 }
 
@@ -310,7 +301,7 @@ function bufferEncode(value) {
     return btoa(String.fromCharCode.apply(null, new Uint8Array(value)))
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
-      .replace(/=/g, "");;
+      .replace(/=/g, "");
 }
 
 // Base64 to ArrayBuffer
@@ -322,27 +313,6 @@ function bufferDecode(value) {
 
 // main
 $(document).ready(async function(){
-    var userInfo = {};
-    const userResponse = await fetch("/user/info", {
-        method: "GET",
-        headers: {
-            'Accept': 'application/json',
-        },
-    });
-    if (!userResponse.ok) {
-        if(userResponse.statusText != "") {
-            $("#error").text(userResponse.statusText);
-        }
-        $("#error").show();
-        return;
-    }
-    else {
-        userInfo = await userResponse.json();
-        console.log(`userInfo: ${JSON.stringify(userInfo)}`);
-    }
-    $("#data-issuer").text(userInfo.Issuer);
-    $("#data-session-validity").text(new Date(userInfo.SessionExpiry * 1000).toLocaleString());
-
     if ('permissions' in navigator) {
         const notificationPerm = await navigator.permissions.query({name:'notifications'});
         console.log(`Notifications are ${notificationPerm.state}`);
@@ -385,6 +355,7 @@ $(document).ready(async function(){
 
     if (!window.PublicKeyCredential) { // Browser without any Webauthn support
         $("#touchid-section").hide();
+        $("#webauthn-section").hide();
     }
     else {
         const tpmAuthAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
@@ -395,6 +366,28 @@ $(document).ready(async function(){
             $("#touchid-section").hide();
         }
     }
+
+    // Fetch and display user and session info.
+    var userInfo = {};
+    const userResponse = await fetch("/user/info", {
+        method: "GET",
+        headers: {
+            'Accept': 'application/json',
+        },
+    });
+    if (!userResponse.ok) {
+        if(userResponse.statusText != "") {
+            $("#error").text(userResponse.statusText);
+        }
+        $("#error").show();
+        return;
+    }
+    else {
+        userInfo = await userResponse.json();
+        console.log(`userInfo: ${JSON.stringify(userInfo)}`);
+    }
+    $("#data-issuer").text(userInfo.Issuer);
+    $("#data-session-validity").text(new Date(userInfo.SessionExpiry * 1000).toLocaleString());
 
     if (userInfo.EnableNotifications) {
         if (checkWorkerPush() && Notification.permission === "default") {
@@ -425,6 +418,9 @@ $(document).ready(async function(){
             registerServiceWorker();
             $("#allow-notifications").addClass("disabled");
             $("#allow-notifications-icon").text("check_circle");
+            // Reload is apparently needed to ensure the Service Worker is linked to the page, despite calling claim()
+            // TODO: FIXME.
+            setTimeout(location.reload.bind(location), 3000);
         }
     });
 
@@ -450,7 +446,7 @@ $(document).ready(async function(){
             const codeResponse = await fetch("/auth/code/validate", {
                 method: "POST",
                 body: JSON.stringify(
-                    { code: $(this).val() }
+                    { Code: $(this).val() }
                 ),
                 headers: {
                     'Accept': 'application/json',

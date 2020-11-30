@@ -225,8 +225,12 @@ func (m *UserManager) NotifyUser(user *models.User, notifId uuid.UUID) (bool, er
 
 	dp := NewDataProtector(m.config)
 	deletedCount := 0
-	var nonce struct{ ID uuid.UUID }
+	var nonce struct {
+		ID     uuid.UUID
+		Issuer string
+	}
 	nonce.ID = notifId
+	nonce.Issuer = m.config.MFAIssuer
 	jsonNonce, err := json.Marshal(nonce)
 	if err != nil {
 		return false, err

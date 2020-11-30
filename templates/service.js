@@ -1,25 +1,10 @@
 
-self.addEventListener('activate', async () => {
+self.addEventListener('activate', async (event) => {
     console.log('service worker activated');
+    event.waitUntil(clients.claim());
     /*self.clients.matchAll({includeUncontrolled: true}).then(clients => {
         clients.forEach(client => client.postMessage({msg: 'Hello from SW'}));
     });*/
-    
-
-    // Worker activation can happen when the user starts their browser after a reboot or 
-    // at the begining or their work day.
-    // If we still have a valid session, notify the backend so that VPN connection is seamlessly accepted.
-    const authResponse = await fetch(`/user/auth/refresh?source=workerstart`, {
-        method: "POST",
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        },
-    });
-    if (authResponse.status !== 200) {
-        console.warn(authResponse);
-        return;
-    }
 });
 
 /*self.addEventListener('message', async event => {
@@ -43,7 +28,7 @@ self.addEventListener('push', async function(event) {
         body: JSON.stringify(data)
     });
     if (updateAuthResponse.status == 401) {
-        await self.registration.showNotification(`VPN: authentication required`, {
+        await self.registration.showNotification(`${data.Issuer}: authentication required`, {
             body: "Click to authenticate",
             //requireInteraction: true,
         });
@@ -56,7 +41,6 @@ self.addEventListener('notificationclick', function (e) {
     e.waitUntil(
         clients.matchAll({includeUncontrolled: true, type: 'window'}).then(function(clients) {
             if (clients && clients.length > 0) {
-                // Scope url is the part of main url
                 clients[0].navigate(redirectUrl);
                 clients[0].focus();
             }

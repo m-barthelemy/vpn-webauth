@@ -28,9 +28,9 @@ func New(db *gorm.DB, config *models.Config) *OneTimeCodeController {
 
 // SingleUseCode is what is received from the Stringswan `ext-auth` script request
 type OneTimeCode struct {
-	Code           string    `json:"code"`
-	RemainingTries int       `json:"remaining_tries"`
-	ExpiresAt      time.Time `json:"expires_at"`
+	Code           string
+	RemainingTries int
+	ExpiresAt      time.Time
 }
 
 // GenerateSingleUseCode Create a single-usage 6 digits temporary code
