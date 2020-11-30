@@ -64,7 +64,7 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	userManager := userManager.New(v.db, v.config)
 	user, session, allowed, err := userManager.CheckVpnSession(connRequest.Identity, connRequest.SourceIP)
 	if err != nil {
-		log.Printf("VpnController: %s", err)
+		log.Printf("VpnController: Error checking user session: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -93,11 +93,13 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	hasValidBrowserSession := false
 	// Ask any active user browser to send a request to confirm web session and source IP
 	notifUniqueID, _ := uuid.NewV4() // unique id that must be present in browser request, for additional security
-	notified, err := userManager.NotifyUser(user, notifUniqueID)
-	if err != nil {
-		log.Printf("VpnController: error notifying %s: %s", user.Email, err.Error())
+	notified := false
+	if v.config.EnableNotifications {
+		notified, err = userManager.NotifyUser(user, notifUniqueID)
+		if err != nil {
+			log.Printf("VpnController: error notifying %s: %s", user.Email, err.Error())
+		}
 	}
-
 	if notified {
 		channel := make(chan bool, 1)
 		eventBus := *v.bus
@@ -141,8 +143,12 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create a new VPNSession reusing the previous expired session MFA.
-	userManager.CreateVpnSession(user, connRequest.SourceIP)
+	// Create a new VPNSession
+	if err := userManager.CreateVpnSession(user, connRequest.SourceIP); err != nil {
+		log.Printf("VpnController: error creating VPN session: %s", err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 	log.Printf("VpnController: user %s session extended from valid browser session.", user.Email)
 }
 
