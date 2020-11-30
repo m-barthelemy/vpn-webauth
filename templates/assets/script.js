@@ -1,6 +1,6 @@
 'use strict';
 
-async function hasApprovedNotifications() {
+async function tryGetNotificationsApproval() {
     if(Notification.permission === "granted") {
         //createNotification('Wow! This is great', 'created by @study.tonight', 'https://www.studytonight.com/css/resource.v2/icons/studytonight/st-icon-dark.png');
         return true;
@@ -82,6 +82,10 @@ const registerServiceWorker = async () => {
         console.warn("pushManager not available");
         return;
     }
+    if (!('serviceWorker' in navigator)) {
+        console.warn("Service Worker not available");
+        return;
+    }
     let swRegistration = await navigator.serviceWorker.register('/service.js');
     swRegistration = await navigator.serviceWorker.ready;
     console.log("Registered service worker");
@@ -97,13 +101,10 @@ const registerServiceWorker = async () => {
         const options = { applicationServerKey: applicationServerKey, userVisibleOnly: true};
         const subscription = await swRegistration.pushManager.subscribe(options);
         const response = await saveSubscription(subscription);
-        console.log(response);
-        //console.log(JSON.stringify(subscription));
     } catch (err) {
         console.log('Error', err);
     }
 }
-
 
 navigator.serviceWorker.addEventListener('message', (event) => {
     console.log('Received a message from service worker: ', event.data);
@@ -226,7 +227,6 @@ async function webAuthNLogin(allowCrossPlatformDevice = false) {
         return;
     }
     let credentialRequestOptions = await response.json();
-    console.log(credentialRequestOptions)
     credentialRequestOptions.publicKey.challenge = bufferDecode(credentialRequestOptions.publicKey.challenge);
     credentialRequestOptions.publicKey.allowCredentials.forEach(function (listItem) {
         listItem.id = bufferDecode(listItem.id)
@@ -302,25 +302,41 @@ async function getSingleUseCode() {
         $("#temp-code-value").text(code.code);
         $("#temp-code-value").show();
         $("#temp-code-expiry").text(`This code is valid until ${new Date(code.expires_at).toLocaleString()}`);
-
     }
 }
+
+// ArrayBuffer to URLBase64
+function bufferEncode(value) {
+    return btoa(String.fromCharCode.apply(null, new Uint8Array(value)))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=/g, "");;
+}
+
+// Base64 to ArrayBuffer
+function bufferDecode(value) {
+    return Uint8Array.from(atob(value), c => c.charCodeAt(0));
+}
+
 
 
 // main
 $(document).ready(async function(){
-    const searchParams = new URLSearchParams(window.location.search);
-
-    // Watch for permissions change if user denies notifications but later enables them
     if ('permissions' in navigator) {
         const notificationPerm = await navigator.permissions.query({name:'notifications'});
+        console.log(`Notifications are ${notificationPerm.state}`);
+        if (notificationPerm.state === "granted") {
+            registerServiceWorker();
+        }
+        // Watch for permissions change if user denies notifications but later enables them
         notificationPerm.onchange = function() {
             if (notificationPerm.state !== "denied") {
-                hasApprovedNotifications() && registerServiceWorker();
+                tryGetNotificationsApproval() && registerServiceWorker();
             }
         };
     }
-    
+
+    const searchParams = new URLSearchParams(window.location.search);
     if (searchParams.has('error')) {
         $("#error").show();
     }
@@ -390,7 +406,7 @@ $(document).ready(async function(){
         getSingleUseCode();
     });
     $("#allow-notifications").click(function() {
-        if (hasApprovedNotifications()) {
+        if (tryGetNotificationsApproval()) {
             registerServiceWorker();
             $("#allow-notifications").addClass("disabled");
             $("#allow-notifications-icon").text("check_circle");
@@ -440,18 +456,3 @@ $(document).ready(async function(){
         }
     }).change();
 });
-
-
-// ArrayBuffer to URLBase64
-function bufferEncode(value) {
-    return btoa(String.fromCharCode.apply(null, new Uint8Array(value)))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=/g, "");;
-}
-
-// Base64 to ArrayBuffer
-function bufferDecode(value) {
-    return Uint8Array.from(atob(value), c => c.charCodeAt(0));
-}
-
