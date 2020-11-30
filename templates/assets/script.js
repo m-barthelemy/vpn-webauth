@@ -97,7 +97,7 @@ const registerServiceWorker = async () => {
 
     try {
         var vapid = await getSubscriptionKey();
-        const applicationServerKey = urlBase64ToUint8Array(vapid.public_key);
+        const applicationServerKey = urlBase64ToUint8Array(vapid.PublicKey);
         const options = { applicationServerKey: applicationServerKey, userVisibleOnly: true};
         const subscription = await swRegistration.pushManager.subscribe(options);
         const response = await saveSubscription(subscription);
@@ -322,6 +322,27 @@ function bufferDecode(value) {
 
 // main
 $(document).ready(async function(){
+    var userInfo = {};
+    const userResponse = await fetch("/user/info", {
+        method: "GET",
+        headers: {
+            'Accept': 'application/json',
+        },
+    });
+    if (!userResponse.ok) {
+        if(userResponse.statusText != "") {
+            $("#error").text(userResponse.statusText);
+        }
+        $("#error").show();
+        return;
+    }
+    else {
+        userInfo = await userResponse.json();
+        console.log(`userInfo: ${JSON.stringify(userInfo)}`);
+    }
+    $("#data-issuer").text(userInfo.Issuer);
+    $("#data-session-validity").text(new Date(userInfo.SessionExpiry * 1000).toLocaleString());
+
     if ('permissions' in navigator) {
         const notificationPerm = await navigator.permissions.query({name:'notifications'});
         console.log(`Notifications are ${notificationPerm.state}`);
@@ -375,20 +396,14 @@ $(document).ready(async function(){
         }
     }
 
-    let sessionValidity = $("#session-validity").text();
-    if (sessionValidity != "") {
-        let expiry = new Date();
-        expiry.setSeconds(expiry.getSeconds() + parseInt($("#session-validity").text()));
-        $("#session-validity").text(expiry.toLocaleString());
+    if (userInfo.EnableNotifications) {
+        if (checkWorkerPush() && Notification.permission === "default") {
+            $("#notification-info").show();
+        }
+        else if (Notification.permission === "denied") {
+            $("#notification-warning").show();
+        }
     }
-
-    if (checkWorkerPush() && Notification.permission === "default") {
-        $("#notification-info").show();
-    }
-    else if (Notification.permission === "denied") {
-        $("#notification-warning").show();
-    }
-
 
     $("#login-touchid").click(function() {
         webAuthNLogin(false);

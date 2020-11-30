@@ -15,10 +15,11 @@
                     <br/>
                     <i class="large material-icons center fadein" style="color: #0c8836; font-size: 5em;">verified_user</i>
                     <br/><br/>
-                    <p>You can now connect to <b>{{.MFAIssuer}}</b>.</p>
-                    <p>You shouldn't have to come back here until <span id="session-validity">{{.VPNSessionValidity}}</span>, 
+                    <p>You can now connect to <b id="data-issuer"/>.</p>
+                    <p>You shouldn't have to come back here until <span id="data-session-validity"/>, 
                         <br/>as long as you connect from the same place and network.</p>
                     <br/>
+
                     <div id="notification-info" class="card-panel green accent-2 fadein" style="display: none;">
                         <div class="valign-wrapper left-align">
                         <i class="material-icons fadein">new_releases</i>&nbsp;
@@ -31,6 +32,7 @@
                         </a>
                         <br/><br/>
                     </div>
+
                     <div id="notification-warning" class="card-panel amber lighten-2 fadein" style="display: none;">
                         <div class="valign-wrapper left-align">
                         <i class="material-icons fadein">new_releases</i>&nbsp;
@@ -43,6 +45,7 @@
                         <br/>
                     </div>
                     <br/><br/>
+                    
                     <div class="row">
                         <div>
                             <a class="btn col s12 waves-effect blue-grey left" href="/" style="text-transform:none">

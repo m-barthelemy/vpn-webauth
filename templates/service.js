@@ -47,28 +47,22 @@ self.addEventListener('push', async function(event) {
             body: "Click to authenticate",
             //requireInteraction: true,
         });
-        const notifications = await self.registration.getNotifications();
-        console.log(`found ${notifications.length} notifications from Service Worker`);
-        /*notifications.forEach(function(notification) {
-            notification.onclick = async function(){
-                await self.clients.openWindow("/");
-            }
-        });*/
     }
 });
 
-self.addEventListener('notificationclick', function(event) {
-    console.log('Notification clicked: ', event);
-    event.notification.close();
-    // Get all the Window clients
-    event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true })).then(function(existingTabs) {
-        console.log(`existingTabs: ${JSON.stringify(existingTabs)}`);
-        if (existingTabs.length > 0 && 'focus' in existingTabs[0]){
-            existingTabs[0].focus();
-            existingTabs[0].postMessage("login");
-        }
-        else {
-            self.clients.openWindow("/");
-        }
-    });
+self.addEventListener('notificationclick', function (e) {
+    e.notification.close();
+    var redirectUrl = "/";
+    e.waitUntil(
+        clients.matchAll({includeUncontrolled: true, type: 'window'}).then(function(clients) {
+            if (clients && clients.length > 0) {
+                // Scope url is the part of main url
+                clients[0].navigate(redirectUrl);
+                clients[0].focus();
+            }
+            else {
+                self.clients.openWindow("/");
+            }
+        })
+    );
 });

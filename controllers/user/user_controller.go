@@ -26,9 +26,18 @@ type UserController struct {
 }
 
 type VapidKeys struct {
-	PublicKey  string `json:"public_key"`
+	PublicKey  string
 	privateKey string
 	subscriber string
+}
+
+type SessionInfo struct {
+	Identity            string // user identity (email)
+	Issuer              string // Name of the connection
+	EnableNotifications bool
+	FullyAuthenticated  bool   // Whether authentication fully complies with requirement (ie MFA)
+	SessionExpiry       int64  // Unix timestamp
+	IconURL             string // LOGOURL
 }
 
 // New creates an instance of the controller and sets its DB handle
@@ -139,4 +148,34 @@ func (u *UserController) RefreshAuth(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("UserController: User %s requesting new VPN session still has a valid web session, notifying VPNController", email)
 	eventBus.Publish(fmt.Sprintf("%s:%s", email, sourceIP), nonce.ID)
+}
+
+func (u *UserController) GetSessionInfo(w http.ResponseWriter, r *http.Request) {
+	var email string
+	var sessionHasMFA bool
+	var sessionExpiresAt int64
+	if value := r.Context().Value("identity"); value != nil {
+		email = value.(string)
+	}
+	if value := r.Context().Value("hasMfa"); value != nil {
+		sessionHasMFA = value.(bool)
+	}
+	if value := r.Context().Value("sessionExpiresAt"); value != nil {
+		sessionExpiresAt = value.(int64)
+	}
+
+	userInfo := SessionInfo{
+		Identity:            email,
+		Issuer:              u.config.MFAIssuer,
+		EnableNotifications: u.config.EnableNotifications,
+		IconURL:             u.config.LogoURL.String(),
+		SessionExpiry:       sessionExpiresAt,
+	}
+	if u.config.EnforceMFA && !sessionHasMFA {
+		userInfo.FullyAuthenticated = false
+	} else {
+		userInfo.FullyAuthenticated = true
+	}
+
+	utils.JSONResponse(w, userInfo, http.StatusOK)
 }

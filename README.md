@@ -132,7 +132,7 @@ All the configuration parameters have to passed as environment variables.
   - `GOOGLECLIENTID`: Google Client ID. **Mandatory**.
   - `GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
   - `ENCRYPTIONKEY`: Key used to encrypt sensitive information in the database. Must be 32 characters. **Mandatory** if `ENFORCEMFA` is set to `true`.
-  - `LOGOURL`: Add your organization logo on top of the webapp pages. Optional.
+  - `LOGOURL`: Add your organization logo on top of the webapp pages. Optional. If the app is served over HTTPS (and it should), `LOGOURL` must also be a HTTPS URL.
   - `SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
     > Regenerating a new key every time the application starts means that all your users web sessions will be invalid and they will have to sign in again if they need a new VPN "session".
     > It is recommended that you create and pass your own key.

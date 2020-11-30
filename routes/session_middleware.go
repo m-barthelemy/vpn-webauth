@@ -65,6 +65,7 @@ func (s *SessionHandler) SessionMiddleware(jwtKey []byte, h http.HandlerFunc, al
 
 		if token.Valid {
 			ctx := context.WithValue(r.Context(), "identity", claims.Username)
+			ctx = context.WithValue(ctx, "sessionExpiresAt", claims.ExpiresAt)
 			ctx = context.WithValue(ctx, "hasMfa", claims.HasMFA)
 			r = r.WithContext(ctx)
 		}

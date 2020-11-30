@@ -155,5 +155,12 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		),
 	)
 
+	mux.Handle("/user/info",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.GetSessionInfo, true)),
+		),
+	)
+
 	return mux
 }
