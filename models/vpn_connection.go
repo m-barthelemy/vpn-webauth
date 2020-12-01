@@ -17,8 +17,8 @@ type VPNConnection struct {
 	Allowed      bool
 	VPNSessionID *uuid.UUID `gorm:"type:uuid"`
 	CreatedAt    time.Time  `gorm:"index"`
-	User         User       `gorm:"primaryKey;foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:id"`
-	VpnSession   VpnSession `gorm:"primaryKey;foreignKey:VPNSessionID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:id"`
+	User         User       `gorm:"primaryKey;foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;references:id"`
+	VpnSession   VpnSession `gorm:"primaryKey;foreignKey:VPNSessionID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;references:id"`
 }
 
 // BeforeCreate ensures the model has an ID before saving it

@@ -185,14 +185,14 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sourceIP := utils.New(u.config).GetClientIP(r)
-	if err := userManager.CreateVpnSession(otpMFA.ID, user, sourceIP); err != nil {
+	if err := userManager.CreateVpnSession(user, sourceIP); err != nil {
 		log.Printf("OTPController: Error creating VPN session for %s : %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	log.Printf("OTPController: User %s created VPN session from %s", email, sourceIP)
 
-	if userManager.CreateSession(user.Email, true, w) != nil {
+	if userManager.CreateSession(user, true, w) != nil {
 		log.Printf("WebAuthNController: Error creating user MFA session for %s: %s", user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

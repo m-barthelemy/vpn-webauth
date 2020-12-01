@@ -68,10 +68,12 @@ func startServer(config *models.Config, handler http.Handler) {
 		Addr:      fmt.Sprintf("%s:%v", config.Host, config.Port),
 		TLSConfig: &tlsConfig,
 		// Needed to avoid some resources exhaustion, especially if the service is publicly exposed.
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 8 * time.Second,
-		IdleTimeout:  60 * time.Second,
-		Handler:      handler,
+		ReadTimeout:       5 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      8 * time.Second,
+		IdleTimeout:       30 * time.Second,
+		MaxHeaderBytes:    8 * 1024, // 8KB
+		Handler:           http.TimeoutHandler(handler, 5*time.Second, "Request took too long"),
 	}
 
 	log.Printf("Serving http/https for domains: %+v", domain)

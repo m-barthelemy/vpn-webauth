@@ -55,6 +55,9 @@ func main() {
 	if err := db.AutoMigrate(&models.VPNConnection{}); err != nil {
 		log.Fatalf("Failed to run database migrations for VPNConnection model: %s", err)
 	}
+	if err := db.AutoMigrate(&models.UserSubscription{}); err != nil {
+		log.Fatalf("Failed to run database migrations for UserSubscription model: %s", err)
+	}
 
 	// Delete old VPN connections log entries
 	userManager := userManager.New(db, &config)

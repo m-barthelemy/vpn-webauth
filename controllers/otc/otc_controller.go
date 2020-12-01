@@ -28,9 +28,9 @@ func New(db *gorm.DB, config *models.Config) *OneTimeCodeController {
 
 // SingleUseCode is what is received from the Stringswan `ext-auth` script request
 type OneTimeCode struct {
-	Code           string    `json:"code"`
-	RemainingTries int       `json:"remaining_tries"`
-	ExpiresAt      time.Time `json:"expires_at"`
+	Code           string
+	RemainingTries int
+	ExpiresAt      time.Time
 }
 
 // GenerateSingleUseCode Create a single-usage 6 digits temporary code
@@ -41,20 +41,20 @@ func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
+	// Deny if the user has enabled MFA but hasn't logged in fully
+	// TODO: in the future we may want to force a re-auth before emitting a single use token
+	// given that it grants full session "powers" if validated
+	if c.config.EnforceMFA && !sessionHasMFA {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
+
 	var user *models.User
 	userManager := userManager.New(c.db, c.config)
 	user, err := userManager.Get(email)
 	if err != nil {
 		log.Printf("SingleUseCodeController: Error fetching user %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	// Deny if the user has enabled MFA but hasn't logged in fully
-	// TODO: in the future we may want to force a re-auth before emitting a single use token
-	// given that it grants full session "powers" if validated
-	if user.HasMFA() && !sessionHasMFA {
-		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
 
@@ -101,6 +101,8 @@ func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *
 func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
+
+	r.Body = http.MaxBytesReader(w, r.Body, c.config.MaxBodySize) // Refuse request with big body
 
 	var user *models.User
 	userManager := userManager.New(c.db, c.config)
@@ -185,7 +187,7 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 	}
 
 	// Create fully MFA-authenticated session
-	if userManager.CreateSession(user.Email, true, w) != nil {
+	if userManager.CreateSession(user, true, w) != nil {
 		log.Printf("GoogleController: Error creating user MFA session for %s: %s", user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

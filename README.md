@@ -16,12 +16,15 @@ It can also help achieve compliance with some security standards requiring MFA t
 
 ## How does it work?
 
- - The user goes to the webapp _before_ connecting to the VPN
+ - The user registers to the webapp (_before_ connecting to the VPN)
  - They authenticate using OAuth2 (for now, only Google is supported)
  - Optionally, they are required to complete additional authentication, using an OTP token (independent from any Google/OAuth2 2FA), TouchID/FaceID or a physical security key.
  - A "session" is created with the user email, their source IP address and the time when they completed the web authentication
- - They now connect to the VPN
- - After the normal VPN authentication, the `ext-auth` plugin calls this webapp to check if the user has successfully completed a web authentication recently and from the same source IP address. If not, the connection is rejected.
+ - They now connect to the VPN. Strongswan's `ext-auth` plugin calls this webapp to check if the user has successfully completed a web authentication recently and from the same source IP address. If not, the connection is rejected.
+
+ If a user enables this app to send them notifications, they will generally be transparently allowed automatically to connect to the VPN once their VPN session expires, or if they connect from a different location/source IP, as long as their web authentication through this app is valid.
+
+ If they need to sign in again, they will receive a clickable notification taking them to the app, as long as their browser is running. Without a running browser or if they refused to allow notifications from the app, they can still sign in _before_ connecting to the VPN.
 
 ## What does it look like?
 Home/welcome screen:
@@ -51,7 +54,6 @@ Successful sign-in:
 
 
 ## Limitations
-- The web auth has to happen **before** connecting to the VPN, since the VPN will verify the existence of a web "session" when the user connects.
 - The user identity reported by Strongswan **must** match the email reported by the web authentication. However, if the Strongswan identity is the first part of the email address (without @domain.tld), you can modify the `webauth-check.sh` script to add the domain.
 - If a user successfully authenticates using this app, someone else on the same local network would be able to reuse the web session, provided they have the user's Strongswan credentials. This by design, since the app matches a web auth with a Strongswan connection only using the Strongswan identity and the source IP address.
 - Only Google is currently supported for the web authentication.
@@ -131,20 +133,20 @@ All the configuration parameters have to passed as environment variables.
   - `GOOGLECLIENTID`: Google Client ID. **Mandatory**.
   - `GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
   - `ENCRYPTIONKEY`: Key used to encrypt sensitive information in the database. Must be 32 characters. **Mandatory** if `ENFORCEMFA` is set to `true`.
-  - `LOGOURL`: Add your organization logo on top of the webapp pages. Optional.
+  - `LOGOURL`: Add your organization logo on top of the webapp pages. Optional. If the app is served over HTTPS (and it should), `LOGOURL` must also be a HTTPS URL.
   - `SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
     > Regenerating a new key every time the application starts means that all your users web sessions will be invalid and they will have to sign in again if they need a new VPN "session".
     > It is recommended that you create and pass your own key.
   - `ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. If running this app behind Nginx for example, you will need to configure Nginx to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-For` is used for this purpose. Default: empty.
   - `ORIGINALPROTOHEADER`: the header to use to fetch the real protocol (http, https) used between the clients and the proxy. Default: `X-Forwarded-Proto`.
   - `CONNECTIONSRETENTION`: how long to keep VPN connections log, in days. Default: 30.
-    > NOTE: The connections audit log cleanup task is only run during the application startup.
+    > NOTE: The connections audit log cleanup task is only run during the application startup. Also, there is currently no way to view this audit log from the app.
 
 
 ### Multi-Factor Authentication
   - `ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`.
     > NOTE: if MFA is not enforced, related options are not shown to the users; however, they can still enable it by visiting the registration page.
-  - `MFAVALIDITY`: How long a web authentication is valid. during this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `VPNSESSIONVALIDITY`. 
+  - `WEBSESSIONVALIDITY`: How long a web authentication is valid. During this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `12h`. Specify custom value as a number and a time unit, for example `48h30m`. 
   - `MFAISSUER`: Name that appears on the users authenticator app or TouchID/Physical key prompt. Default: `VPN`.
     > It is recommended that you set it to the name of your VPN connection as it appears on your users devices.
   - `MFAOTP`: Whether to enable OTP token authrntication after OAuth2 login. Default: `true`. 
@@ -158,12 +160,12 @@ All the configuration parameters have to passed as environment variables.
 Webauthn additional authentications, including TouchID, are tied to a specific device and browser.
 In case a user wants to be able to sign in from multiple browsers or devices, they have the option of generating a one-time 6 digits code to register a new device. This code is valid for 5 minutes and will be disabled after 3 failed attempts. 
 
-It is also possible to sign in from different browsers and devices by using the OTP (authenticator app) authentication feature.
+It is also possible to sign in from different browsers and devices by using the OTP (authenticator app) feature.
 
 ### VPN
   - `VPNCHECKPASSWORD`: Shared password between the app and the Strongswan `ext-auth` script to protect the endpoint checking for valid user "sessions". Optional.
     > If the `/vpn/check` endpoint is publicly available, it is a good idea to set a password to ensure that only your VPN server is allowed to query the app for user sessions. Make sure you also set it in your `ext-auth` configuration.
-  - `VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication, in seconds. Default: `3600` (1h).
+  - `VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication. Default: `1h`. Specify custom value as a number and a time unit, for example `1h30m`
     > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
 
@@ -180,3 +182,29 @@ It is also possible to sign in from different browsers and devices by using the 
   - `SSLCUSTOMCERTPATH`: path to the SSL certificate. Optional. Default: `/ssl/key.pem`. If needed, this file can contain any additional certificate required to build the full chain, _after_ the leaf certificate.
   - `SSLCUSTOMKEYPATH`: path to the SSL certificate private key. Optional. Default: `/ssl/cert.pem`.
   - `SSLAUTOCERTSDIR`: used to store automatically manage certificates when `SSLMODE` is set to `auto`. Default: `/tmp`. Should be changed to a more persistent path. The directory must be writeable.
+
+
+### Notifications & Session continuity
+These 2 features can improve the user experience. After registering or signing in, users will be shown a message inviting them to enable notifications for the app. 
+
+If they accept, when they attempt to connect to the VPN without a valid web session, they will receive a notification letting them know that they need to sign in for the VPN connection to be authorized.
+
+ Additionally, if their VPN session is expired (`VPNSESSIONVALIDITY`) but they still have a valid web session (`WEBSESSIONVALIDITY`), their next attempt to connect to the VPN will try to transparently ask the browser used to sign in to prove that it still holds a valid session and has the same source IP as the VPN connection attempt. If so, the VPN connection will be automatically allowed and a new VPN "session" created without any intervention.
+
+> NOTE: automatic VPN sessions renewal is a best effort feature; the browser must be running, even without this app opened, and must reply with a "proof of session and IP" quickly enough.
+
+
+- `ENABLENOTIFICATIONS`: whether to enable desktop notifications and session continuity. Default: `true`.
+- `VAPIDPUBLICKEY` and `VAPIDPRIVATEKEY`: a key pair to authenticate and authorize browser desktop notifications. Mandatory if `ENABLENOTIFICATIONS` is set to `true`. If they are not set, a new key pair will be dynamically generated and suggested before the app startup fails. If you use the suggested key pair, ensure the suggested `VAPIDPRIVATEKEY` is kept secret and has not been shared or logged. Once set, the keys must not change otherwise all existing users subscriptions to notifications will be invalid.
+
+   > NOTE: you can also generate your own set of keys using the following commands:
+   ```
+   # Generate private key
+   openssl ecparam -name prime256v1 -genkey -noout -out vapid_private.pem
+   # Output private key in a format suitable for VAPIDPRIVATEKEY:
+   openssl ec -in vapid_private.pem -outform DER|tail -c +8|head -c 32|base64|tr -d '=' |tr '/+' '_-'
+   # Output public key in a format suitable for VAPIDPUBLICKEY:
+   openssl ec -in vapid_private.pem -pubout -outform DER|tail -c 65|base64|tr -d '=' |tr '/+' '_-' 
+
+   ```
+Currently Google Chrome, Firefox and Edge support notifications and automated VPN session renewal. Safari does not.
