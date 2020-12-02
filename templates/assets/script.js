@@ -49,12 +49,12 @@ const getSubscriptionKey = async subscription => {
   }
 
 function urlBase64ToUint8Array(base64String) {
-    var padding = '='.repeat((4 - base64String.length % 4) % 4);
-    var base64 = (base64String + padding)
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
         .replace(/\-/g, '+')
         .replace(/_/g, '/');
 
-    var rawData = atob(base64);
+    const rawData = atob(base64);
     var outputArray = new Uint8Array(rawData.length);
 
     for (var i = 0; i < rawData.length; ++i) {
@@ -94,7 +94,7 @@ const registerServiceWorker = async () => {
     }
 
     try {
-        var vapid = await getSubscriptionKey();
+        const vapid = await getSubscriptionKey();
         const applicationServerKey = urlBase64ToUint8Array(vapid.PublicKey);
         const options = { applicationServerKey: applicationServerKey, userVisibleOnly: true};
         const subscription = await swRegistration.pushManager.subscribe(options);
@@ -145,7 +145,6 @@ async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
         return;
     }
     let optionsData = await response.json();
-    
     optionsData.publicKey.user.id = bufferDecode(optionsData.publicKey.user.id);
     optionsData.publicKey.challenge = bufferDecode(optionsData.publicKey.challenge);
 
@@ -171,9 +170,9 @@ async function webAuthNRegisterStart(allowCrossPlatformDevice = false) {
         return;
     }
 
-    let attestationObject = newCredentialInfo.response.attestationObject;
-    let clientDataJSON = newCredentialInfo.response.clientDataJSON;
-    let rawId = newCredentialInfo.rawId;
+    const attestationObject = newCredentialInfo.response.attestationObject;
+    const clientDataJSON = newCredentialInfo.response.clientDataJSON;
+    const rawId = newCredentialInfo.rawId;
     const regoResponse = {
         id: newCredentialInfo.id,
         rawId: bufferEncode(rawId),
@@ -242,11 +241,11 @@ async function webAuthNLogin(allowCrossPlatformDevice = false) {
         $("#error").show();
         return;
     }
-    let authData = assertion.response.authenticatorData;
-    let clientDataJSON = assertion.response.clientDataJSON;
-    let rawId = assertion.rawId;
-    let sig = assertion.response.signature;
-    let userHandle = assertion.response.userHandle;
+    const authData = assertion.response.authenticatorData;
+    const clientDataJSON = assertion.response.clientDataJSON;
+    const rawId = assertion.rawId;
+    const sig = assertion.response.signature;
+    const userHandle = assertion.response.userHandle;
 
     const loginResponseData = {
         id: assertion.id,
@@ -278,21 +277,21 @@ async function webAuthNLogin(allowCrossPlatformDevice = false) {
 }
 
 async function getSingleUseCode() {
-    const codeResponse = await fetch("/auth/code/generate", {
+    const otcResponse = await fetch("/auth/code/generate", {
         method: "POST",
         headers: {
             'Accept': 'application/json'
         },
     });
-    if (!codeResponse.ok) {
-        console.error(codeResponse);
-        $("#error").text(codeResponse.statusText);
+    if (!otcResponse.ok) {
+        console.error(otcResponse);
+        $("#error").text(otcResponse.statusText);
         $("#error").show();
         return;
     }
     else {
-        const code = await codeResponse.json();
-        $("#temp-code-value").text(code.code);
+        const code = await otcResponse.json();
+        $("#temp-code-value").text(code.Code);
         $("#temp-code-value").show();
         $("#temp-code-expiry").text(`This code is valid until ${new Date(code.ExpiresAt).toLocaleString()}`);
     }
@@ -356,7 +355,7 @@ $(document).ready(async function(){
     }
 
     // Fetch and display user and session info.
-    var userInfo = {};
+    let userInfo = {};
     const userResponse = await fetch("/user/info", {
         method: "GET",
         headers: {
@@ -423,8 +422,7 @@ $(document).ready(async function(){
             registerServiceWorker();
             $("#allow-notifications").addClass("disabled");
             $("#allow-notifications-icon").text("check_circle");
-            // Reload is apparently needed to ensure the Service Worker is linked to the page, despite calling claim()
-            // TODO: FIXME.
+            // FIXME: Reload is apparently needed to ensure the Service Worker is linked to the page, despite calling claim()
             setTimeout(location.reload.bind(location), 3000);
         }
     });
