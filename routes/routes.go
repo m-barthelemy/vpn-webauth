@@ -10,6 +10,7 @@ import (
 	googlecontroller "github.com/m-barthelemy/vpn-webauth/controllers/google"
 	otcController "github.com/m-barthelemy/vpn-webauth/controllers/otc"
 	otpController "github.com/m-barthelemy/vpn-webauth/controllers/otp"
+	sseController "github.com/m-barthelemy/vpn-webauth/controllers/sse"
 	userController "github.com/m-barthelemy/vpn-webauth/controllers/user"
 	vpnController "github.com/m-barthelemy/vpn-webauth/controllers/vpn"
 	webauthNController "github.com/m-barthelemy/vpn-webauth/controllers/webauthn"
@@ -154,7 +155,6 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.RefreshAuth, true)),
 		),
 	)
-
 	mux.Handle("/user/info",
 		handlers.LoggingHandler(
 			os.Stdout,
@@ -162,5 +162,14 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		),
 	)
 
+	// Server-Side Events fallback if browser doesn't support push notifications
+	sseC := sseController.New(db, config)
+	sseC.Start()
+	mux.Handle("/events",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessHandler.IdentificationMiddleware(tokenSigningKey, sseC.HandleEvents)),
+		),
+	)
 	return mux
 }

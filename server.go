@@ -70,10 +70,10 @@ func startServer(config *models.Config, handler http.Handler) {
 		// Needed to avoid some resources exhaustion, especially if the service is publicly exposed.
 		ReadTimeout:       5 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
-		WriteTimeout:      8 * time.Second,
-		IdleTimeout:       30 * time.Second,
-		MaxHeaderBytes:    8 * 1024, // 8KB
-		Handler:           http.TimeoutHandler(handler, 5*time.Second, "Request took too long"),
+		WriteTimeout:      1 * time.Hour,                 // Needs to be long for SSE
+		IdleTimeout:       30 * time.Second,              // slightly highler than the SSE periodic "ping" interval
+		MaxHeaderBytes:    8 * 1024,                      // 8KB
+		Handler:           &topHandler{handler: handler}, // Ensure requests time out except for SSE endpoint
 	}
 
 	log.Printf("Serving http/https for domains: %+v", domain)
@@ -97,4 +97,19 @@ func cacheDir(dir string) error {
 		return err
 	}
 	return nil
+}
+
+type topHandler struct {
+	handler    http.Handler
+	useTimeout bool
+}
+
+func (h *topHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// SSE are long duration connections
+	if r.URL.Path == "/events" {
+		h.handler.ServeHTTP(w, r)
+	} else {
+		o := http.TimeoutHandler(h.handler, 5*time.Second, "Request took too long")
+		o.ServeHTTP(w, r)
+	}
 }

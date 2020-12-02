@@ -226,17 +226,20 @@ func (m *UserManager) NotifyUser(user *models.User, notifId uuid.UUID) (bool, er
 	dp := NewDataProtector(m.config)
 	deletedCount := 0
 	var nonce struct {
-		ID     uuid.UUID
+		Nonce  uuid.UUID
 		Issuer string
 	}
-	nonce.ID = notifId
-	nonce.Issuer = m.config.MFAIssuer
+	nonce.Nonce = notifId
+	nonce.Issuer = m.config.Issuer
 	jsonNonce, err := json.Marshal(nonce)
 	if err != nil {
 		return false, err
 	}
 
 	notified := false
+	if len(subscriptions) == 0 { // Try SSE fallback
+
+	}
 	for i, subscription := range subscriptions {
 		pushSubscriptionRaw, err := dp.Decrypt(subscription.Data)
 		if err != nil {

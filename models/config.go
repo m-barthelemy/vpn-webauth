@@ -30,7 +30,7 @@ type Config struct {
 	EnforceMFA           bool          // ENFORCEMFA
 	MaxBodySize          int64         // not documented
 	MFAOTP               bool          // MFAOTP
-	MFAIssuer            string        // OTPISSUER
+	Issuer               string        // ISSUER
 	MFATouchID           bool          // MFATOUCHID
 	MFAWebauthn          bool          // MFAWEBAUTHN
 	LogoURL              *url.URL      // LOGOURL
@@ -58,11 +58,12 @@ func (config *Config) New() Config {
 		ExcludedIdentities:   []string{},
 		Port:                 8080,
 		Host:                 "127.0.0.1",
-		VPNSessionValidity:   1 * time.Hour,
+		VPNSessionValidity:   30 * time.Minute,
+		WebSessionValidity:   12 * time.Hour,
 		EnableNotifications:  true,
 		EnforceMFA:           true,
 		MaxBodySize:          4096, // 4KB
-		MFAIssuer:            "VPN",
+		Issuer:               "VPN",
 		MFAOTP:               true,
 		MFATouchID:           true,
 		MFAWebauthn:          true,
@@ -74,7 +75,6 @@ func (config *Config) New() Config {
 	}
 	redirDomain, _ := url.Parse(fmt.Sprintf("http://%s:%v", defaultConfig.Host, defaultConfig.Port))
 	defaultConfig.RedirectDomain = redirDomain
-	defaultConfig.WebSessionValidity = 12 * time.Hour
 	// We create a default random key for signing session tokens
 	b := make([]byte, 32) // random ID
 	rand.Read(b)
@@ -86,6 +86,7 @@ func (config *Config) New() Config {
 
 func (config *Config) Verify() {
 	log.Printf("VPN Session validity set to %v", config.VPNSessionValidity)
+	log.Printf("Web Session validity set to %v", config.WebSessionValidity)
 	log.Printf("Google callback redirect set to %s", config.RedirectDomain)
 	if config.GoogleClientID == "" {
 		log.Fatal("GOOGLECLIENTID is not set")

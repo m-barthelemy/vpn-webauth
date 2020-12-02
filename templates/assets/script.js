@@ -78,11 +78,11 @@ const saveSubscription = async subscription => {
 const registerServiceWorker = async () => {
     if (!('PushManager' in window)) {
         console.warn("pushManager not available");
-        return;
+        return false;
     }
     if (!('serviceWorker' in navigator)) {
         console.warn("Service Worker not available");
-        return;
+        return false;
     }
     let swRegistration = await navigator.serviceWorker.register('/service.js');
     swRegistration = await navigator.serviceWorker.ready;
@@ -90,7 +90,7 @@ const registerServiceWorker = async () => {
     const existingSubscription = await swRegistration.pushManager.getSubscription();
     if (existingSubscription){
         console.log("Already subscribed to push notifications");
-        return swRegistration;
+        return true;
     }
 
     try {
@@ -101,7 +101,9 @@ const registerServiceWorker = async () => {
         const response = await saveSubscription(subscription);
     } catch (err) {
         console.log('Error', err);
+        return false;
     }
+    return true;
 }
 
 // Force service worker reload during dev
@@ -313,20 +315,6 @@ function bufferDecode(value) {
 
 // main
 $(document).ready(async function(){
-    if ('permissions' in navigator) {
-        const notificationPerm = await navigator.permissions.query({name:'notifications'});
-        console.log(`Notifications are ${notificationPerm.state}`);
-        if (notificationPerm.state === "granted") {
-            registerServiceWorker();
-        }
-        // Watch for permissions change if user denies notifications but later enables them
-        notificationPerm.onchange = function() {
-            if (notificationPerm.state !== "denied") {
-                tryGetNotificationsApproval() && registerServiceWorker();
-            }
-        };
-    }
-
     const searchParams = new URLSearchParams(window.location.search);
     if (searchParams.has('error')) {
         $("#error").show();
@@ -388,6 +376,23 @@ $(document).ready(async function(){
     }
     $("#data-issuer").text(userInfo.Issuer);
     $("#data-session-validity").text(new Date(userInfo.SessionExpiry * 1000).toLocaleString());
+
+    if ('permissions' in navigator) {
+        const notificationPerm = await navigator.permissions.query({name:'notifications'});
+        console.log(`Notifications are ${notificationPerm.state}`);
+        if (notificationPerm.state === "granted") {
+            await registerServiceWorker();
+        }
+        // Watch for permissions change if user denies notifications but later enables them
+        notificationPerm.onchange = async function() {
+            if (notificationPerm.state !== "denied") {
+                 tryGetNotificationsApproval() && await registerServiceWorker();
+            }
+            else { // currently only shown if user is at the success page
+                $("notification-warning").show();
+            }
+        };
+    }
 
     if (userInfo.EnableNotifications) {
         if (checkWorkerPush() && Notification.permission === "default") {
@@ -466,4 +471,15 @@ $(document).ready(async function(){
             }
         }
     }).change();
+
+    const source = new EventSource('/events');
+    source.onopen = function() {
+        console.log('connection to SSE stream has been opened');
+    };
+    source.onerror = function (error) {
+        console.log('An error has occurred while receiving SSE stream', error);
+    };
+    source.onmessage = function (stream) {
+        console.log('received SSE message', stream);
+    };
 });

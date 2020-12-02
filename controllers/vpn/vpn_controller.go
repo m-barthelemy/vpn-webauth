@@ -149,7 +149,7 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	log.Printf("VpnController: user %s session extended from valid browser session.", user.Email)
+	log.Printf("VpnController: user %s VPN session extended from valid Web session.", user.Email)
 }
 
 func contains(arr []string, str string) bool {

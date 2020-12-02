@@ -140,14 +140,14 @@ func (u *UserController) RefreshAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var nonce struct{ ID uuid.UUID }
+	var nonce struct{ Nonce uuid.UUID }
 	if err := json.NewDecoder(r.Body).Decode(&nonce); err != nil {
 		log.Printf("UserController: Data could not be deserialized for %s nonce: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	log.Printf("UserController: User %s requesting new VPN session still has a valid web session, notifying VPNController", email)
-	eventBus.Publish(fmt.Sprintf("%s:%s", email, sourceIP), nonce.ID)
+	eventBus.Publish(fmt.Sprintf("%s:%s", email, sourceIP), nonce.Nonce)
 }
 
 func (u *UserController) GetSessionInfo(w http.ResponseWriter, r *http.Request) {
@@ -166,7 +166,7 @@ func (u *UserController) GetSessionInfo(w http.ResponseWriter, r *http.Request) 
 
 	userInfo := SessionInfo{
 		Identity:            email,
-		Issuer:              u.config.MFAIssuer,
+		Issuer:              u.config.Issuer,
 		EnableNotifications: u.config.EnableNotifications,
 		IconURL:             u.config.LogoURL.String(),
 		SessionExpiry:       sessionExpiresAt,
