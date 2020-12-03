@@ -13,16 +13,16 @@ async function tryGetNotificationsApproval() {
     return false;
 }
 
-/*function createNotification(title, text, icon) {
+function createNotification(title, text, icon) {
     const notif = new Notification(title, {
         body: text,
         ison: icon
     });
     notif.onclick = function(event) {
         event.preventDefault(); // prevent the browser from focusing the Notification's tab
-        window.open('https://vpn.massdm.cloud');
+        window.location.href = "/";
     }
-}*/
+}
 
 const checkWorkerPush = () => {
     if (!('serviceWorker' in navigator)) {
@@ -310,7 +310,43 @@ function bufferDecode(value) {
     return Uint8Array.from(atob(value), c => c.charCodeAt(0));
 }
 
+function startListenSSE() {
+    console.log("Enable SSE fallback for VPN connection notifications");
+    const source = new EventSource('/events');
+    source.onopen = function() {
+        console.log('Connection to SSE stream has been opened');
+    };
+    source.onerror = function (error) {
+        console.warn('SSE error', error);
+        //startListenSSE();
+    };
+    source.onmessage = function (stream) {
+        console.log(`${new Date()} Received SSE message`, stream);
+        if (stream.data) {
+            const event = JSON.parse(stream.data);
+            if (event.Action == "Auth") {
+                console.log("RECEIVED AUTH EVENT");
+                SendAuthProof(event);
+            }
+        }
+    };
+}
 
+async function SendAuthProof(data, notificationsEnabled) {
+    const updateAuthResponse = await fetch(`/user/auth/refresh?source=sse`, {
+        method: "POST",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    });
+    if (updateAuthResponse.status == 401 && userInfo.EnableNotifications == true) {
+        createNotification(`${data.Issuer}: authentication required`, "Click to authenticate", data.IconURL);
+    }
+}
+
+var userInfo = {};
 
 // main
 $(document).ready(async function(){
@@ -355,7 +391,6 @@ $(document).ready(async function(){
     }
 
     // Fetch and display user and session info.
-    let userInfo = {};
     const userResponse = await fetch("/user/info", {
         method: "GET",
         headers: {
@@ -385,7 +420,11 @@ $(document).ready(async function(){
         // Watch for permissions change if user denies notifications but later enables them
         notificationPerm.onchange = async function() {
             if (notificationPerm.state !== "denied") {
-                 tryGetNotificationsApproval() && await registerServiceWorker();
+                 const notificationsApproved = await tryGetNotificationsApproval();
+                 const pushWorker =  await registerServiceWorker();
+                 if (notificationsApproved && !pushWorker) {
+                    startListenSSE();    
+                 }
             }
             else { // currently only shown if user is at the success page
                 $("notification-warning").show();
@@ -393,12 +432,18 @@ $(document).ready(async function(){
         };
     }
 
+    // If notifications are enabled and user allowed them, enable either
+    // Service Worker or SSE.
     if (userInfo.EnableNotifications) {
-        if (checkWorkerPush() && Notification.permission === "default") {
+        const hasWorkerPush = checkWorkerPush();
+        if (hasWorkerPush && Notification.permission === "default") {
             $("#notification-info").show();
         }
         else if (Notification.permission === "denied") {
             $("#notification-warning").show();
+        }
+        if (!hasWorkerPush && Notification.permission === "granted") {
+            startListenSSE();
         }
     }
 
@@ -470,14 +515,4 @@ $(document).ready(async function(){
         }
     }).change();
 
-    const source = new EventSource('/events');
-    source.onopen = function() {
-        console.log('connection to SSE stream has been opened');
-    };
-    source.onerror = function (error) {
-        console.log('An error has occurred while receiving SSE stream', error);
-    };
-    source.onmessage = function (stream) {
-        console.log('received SSE message', stream);
-    };
 });

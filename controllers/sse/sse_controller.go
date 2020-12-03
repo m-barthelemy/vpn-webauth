@@ -62,7 +62,6 @@ func (b *SSEBroker) publish(clientId string, sourceIP string, message SSEMessage
 				s <- data
 				s <- sseEnd
 				found = true
-				break
 			}
 		} else { // Push to every client
 			s <- data
@@ -102,13 +101,14 @@ type SSEController struct {
 }
 
 // New creates an instance of the controller and sets its DB handle
-func New(db *gorm.DB, config *models.Config) *SSEController {
+func New(db *gorm.DB, config *models.Config, bus *EventBus.Bus) *SSEController {
 	return &SSEController{
 		db:     db,
 		config: config,
 		broker: &SSEBroker{
 			clientsChannels: make(map[chan []byte]ClientAuthorizationStatus),
 			clientsMutex:    new(sync.Mutex),
+			bus:             bus,
 		},
 	}
 }
@@ -157,9 +157,8 @@ func (s *SSEController) HandleEvents(w http.ResponseWriter, r *http.Request) {
 			_, _ = fmt.Fprintf(w, "data: %s\n\n", msg)
 			flusher.Flush()
 		case <-r.Context().Done():
+			log.Printf("Removed SSE client %s connecting from from %s", identity, sourceIP)
 			return
 		}
 	}
-
-	log.Printf("Removed SSE client %s connecting from from %s", identity, sourceIP)
 }

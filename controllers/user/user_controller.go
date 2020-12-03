@@ -146,7 +146,7 @@ func (u *UserController) RefreshAuth(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	log.Printf("UserController: User %s requesting new VPN session still has a valid web session, notifying VPNController", email)
+	log.Printf("UserController: User %s requesting new VPN session sent proof of valid web session, notifying VPNController", email)
 	eventBus.Publish(fmt.Sprintf("%s:%s", email, sourceIP), nonce.Nonce)
 }
 

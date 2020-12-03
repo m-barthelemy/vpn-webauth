@@ -1,17 +1,14 @@
 package services
 
 import (
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
 	"time"
 
+	"github.com/asaskevich/EventBus"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/gofrs/uuid"
 	"github.com/m-barthelemy/vpn-webauth/models"
-
-	"github.com/SherClockHolmes/webpush-go"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -21,8 +18,11 @@ type UserManager struct {
 	config *models.Config
 }
 
+var bus EventBus.Bus
+
 // New creates an instance of UserManager and sets its DB handle
 func New(db *gorm.DB, config *models.Config) *UserManager {
+	bus = EventBus.New()
 	return &UserManager{db: db, config: config}
 }
 
@@ -216,7 +216,8 @@ func (m *UserManager) DeleteUserSubscription(subscription *models.UserSubscripti
 	return result.Error
 }
 
-func (m *UserManager) NotifyUser(user *models.User, notifId uuid.UUID) (bool, error) {
+// TODO: Move to a NotificationsManager service.
+/*func (m *UserManager) NotifyUser(user *models.User, notifId uuid.UUID, sourceIP string) (bool, error) {
 	var subscriptions []models.UserSubscription
 	minUsedAt := time.Now().AddDate(0, -3, 0)
 	if result := m.db.Where("user_id = ? AND last_used_at > ?", user.ID.String(), minUsedAt).Find(&subscriptions); result.Error != nil {
@@ -237,9 +238,6 @@ func (m *UserManager) NotifyUser(user *models.User, notifId uuid.UUID) (bool, er
 	}
 
 	notified := false
-	if len(subscriptions) == 0 { // Try SSE fallback
-
-	}
 	for i, subscription := range subscriptions {
 		pushSubscriptionRaw, err := dp.Decrypt(subscription.Data)
 		if err != nil {
@@ -269,11 +267,12 @@ func (m *UserManager) NotifyUser(user *models.User, notifId uuid.UUID) (bool, er
 		}
 		notified = true
 	}
+
 	if deletedCount > 0 {
 		log.Printf("UserManager: Deleted %d inactive push subscriptions for %s", deletedCount, user.Email)
 	}
 	return notified, nil
-}
+} */
 
 // Claims is used Used for the session cookie
 type Claims struct {

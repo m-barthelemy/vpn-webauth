@@ -15,6 +15,7 @@ import (
 	vpnController "github.com/m-barthelemy/vpn-webauth/controllers/vpn"
 	webauthNController "github.com/m-barthelemy/vpn-webauth/controllers/webauthn"
 	"github.com/m-barthelemy/vpn-webauth/models"
+	"github.com/m-barthelemy/vpn-webauth/services"
 	"github.com/markbates/pkger"
 	"gorm.io/gorm"
 )
@@ -125,8 +126,9 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	// is still "online" and still has a strong web authentication
 	// without requiring the user to open the web app and sign in again.
 	bus := EventBus.New()
+	notificationsManager := services.NewNotificationsManager(db, config, &bus)
 
-	vpnC := vpnController.New(db, config, &bus)
+	vpnC := vpnController.New(db, config, notificationsManager, &bus)
 	mux.Handle("/vpn/check",
 		handlers.LoggingHandler(
 			os.Stdout,
@@ -163,7 +165,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	)
 
 	// Server-Side Events fallback if browser doesn't support push notifications
-	sseC := sseController.New(db, config)
+	sseC := sseController.New(db, config, &bus)
 	sseC.Start()
 	mux.Handle("/events",
 		handlers.LoggingHandler(
@@ -171,5 +173,6 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			http.HandlerFunc(sessHandler.IdentificationMiddleware(tokenSigningKey, sseC.HandleEvents)),
 		),
 	)
+
 	return mux
 }
