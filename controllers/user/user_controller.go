@@ -10,25 +10,18 @@ import (
 	"net/http"
 
 	"github.com/SherClockHolmes/webpush-go"
-	"github.com/asaskevich/EventBus"
 	"github.com/gofrs/uuid"
 	"github.com/m-barthelemy/vpn-webauth/models"
+	"github.com/m-barthelemy/vpn-webauth/services"
 	userManager "github.com/m-barthelemy/vpn-webauth/services"
 	"github.com/m-barthelemy/vpn-webauth/utils"
 	"gorm.io/gorm"
 )
 
 type UserController struct {
-	db        *gorm.DB
-	config    *models.Config
-	bus       *EventBus.Bus
-	vapidKeys VapidKeys
-}
-
-type VapidKeys struct {
-	PublicKey  string
-	privateKey string
-	subscriber string
+	db                   *gorm.DB
+	config               *models.Config
+	notificationsManager *services.NotificationsManager
 }
 
 type SessionInfo struct {
@@ -41,9 +34,12 @@ type SessionInfo struct {
 }
 
 // New creates an instance of the controller and sets its DB handle
-func New(db *gorm.DB, config *models.Config, bus *EventBus.Bus) *UserController {
-	vapidKeys := VapidKeys{subscriber: config.AdminEmail, PublicKey: config.VapidPublicKey, privateKey: config.VapidPrivateKey}
-	return &UserController{db: db, config: config, bus: bus, vapidKeys: vapidKeys}
+func New(db *gorm.DB, config *models.Config, notificationsManager *services.NotificationsManager) *UserController {
+	return &UserController{
+		db:                   db,
+		config:               config,
+		notificationsManager: notificationsManager,
+	}
 }
 
 func (u *UserController) GetPushSubscriptionKey(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +60,8 @@ func (u *UserController) GetPushSubscriptionKey(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	keyInfo := VapidKeys{PublicKey: u.vapidKeys.PublicKey}
+	var keyInfo struct{ PublicKey string }
+	keyInfo.PublicKey = u.config.VapidPublicKey
 	utils.JSONResponse(w, keyInfo, http.StatusOK)
 }
 
@@ -123,19 +120,18 @@ func (u *UserController) RegisterPushSubscription(w http.ResponseWriter, r *http
 // transparently and accept the connection attempt.
 func (u *UserController) RefreshAuth(w http.ResponseWriter, r *http.Request) {
 	sourceIP := utils.New(u.config).GetClientIP(r)
-	eventBus := *u.bus
 
 	r.Body = http.MaxBytesReader(w, r.Body, u.config.MaxBodySize) // Refuse request with big body
 
 	var email, userOk = r.Context().Value("identity").(string)
 	if !userOk {
-		eventBus.Publish(fmt.Sprintf("%s:%s", email, sourceIP), nil)
+		u.notificationsManager.PublishBrowserProof(email, sourceIP, uuid.Nil)
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 	var sessionHasMFA, mfaOk = r.Context().Value("hasMfa").(bool)
 	if u.config.EnforceMFA && (!mfaOk || !sessionHasMFA) {
-		eventBus.Publish(fmt.Sprintf("%s:%s", email, sourceIP), nil)
+		u.notificationsManager.PublishBrowserProof(email, sourceIP, uuid.Nil)
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
@@ -146,8 +142,8 @@ func (u *UserController) RefreshAuth(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	log.Printf("UserController: User %s requesting new VPN session sent proof of valid web session, notifying VPNController", email)
-	eventBus.Publish(fmt.Sprintf("%s:%s", email, sourceIP), nonce.Nonce)
+	log.Printf("UserController: User %s browser sent proof of valid web session, notifying VPNController", email)
+	u.notificationsManager.PublishBrowserProof(email, sourceIP, nonce.Nonce)
 }
 
 func (u *UserController) GetSessionInfo(w http.ResponseWriter, r *http.Request) {

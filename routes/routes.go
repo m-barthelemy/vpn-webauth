@@ -128,7 +128,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	bus := EventBus.New()
 	notificationsManager := services.NewNotificationsManager(db, config, &bus)
 
-	vpnC := vpnController.New(db, config, notificationsManager, &bus)
+	vpnC := vpnController.New(db, config, notificationsManager)
 	mux.Handle("/vpn/check",
 		handlers.LoggingHandler(
 			os.Stdout,
@@ -136,7 +136,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		),
 	)
 
-	userC := userController.New(db, config, &bus)
+	userC := userController.New(db, config, notificationsManager)
 	// Creates a browser push subscription for the user
 	mux.Handle("/user/push_subscriptions/begin",
 		handlers.LoggingHandler(

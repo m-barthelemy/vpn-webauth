@@ -12,21 +12,13 @@ import (
 	"github.com/m-barthelemy/vpn-webauth/controllers/sse"
 	"github.com/m-barthelemy/vpn-webauth/models"
 
-	//userManager "github.com/m-barthelemy/vpn-webauth/services"
 	"gorm.io/gorm"
 )
 
 type NotificationsManager struct {
-	db        *gorm.DB
-	config    *models.Config
-	bus       *EventBus.Bus
-	vapidKeys VapidKeys
-}
-
-type VapidKeys struct {
-	PublicKey  string
-	privateKey string
-	subscriber string
+	db     *gorm.DB
+	config *models.Config
+	bus    *EventBus.Bus
 }
 
 type SessionInfo struct {
@@ -40,8 +32,7 @@ type SessionInfo struct {
 
 // New creates an instance of the controller and sets its DB handle
 func NewNotificationsManager(db *gorm.DB, config *models.Config, bus *EventBus.Bus) *NotificationsManager {
-	vapidKeys := VapidKeys{subscriber: config.AdminEmail, PublicKey: config.VapidPublicKey, privateKey: config.VapidPrivateKey}
-	return &NotificationsManager{db: db, config: config, bus: bus, vapidKeys: vapidKeys}
+	return &NotificationsManager{db: db, config: config, bus: bus}
 }
 
 func (n *NotificationsManager) NotifyUser(user *models.User, sourceIP string) (bool, *uuid.UUID, error) {
@@ -150,4 +141,9 @@ func (n *NotificationsManager) WaitForBrowserProof(user *models.User, sourceIP s
 	eventBus.Unsubscribe(fmt.Sprintf("%s:%s", user.Email, sourceIP), checkWebSessions)
 
 	return hasValidBrowserSession
+}
+
+func (n *NotificationsManager) PublishBrowserProof(identity string, sourceIP string, nonce uuid.UUID) {
+	eventBus := *n.bus
+	eventBus.Publish(fmt.Sprintf("%s:%s", identity, sourceIP), nonce)
 }
