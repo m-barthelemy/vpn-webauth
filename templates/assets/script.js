@@ -318,7 +318,6 @@ function startListenSSE() {
     };
     source.onerror = function (error) {
         console.warn('SSE error', error);
-        //startListenSSE();
     };
     source.onmessage = function (stream) {
         console.log(`${new Date()} Received SSE message`, stream);
@@ -439,8 +438,9 @@ $(document).ready(async function(){
     // If notifications are enabled and user allowed them, enable either
     // Service Worker or SSE.
     if (userInfo.EnableNotifications) {
+        console.log(`Notification.permission=${Notification.permission}`);
         const hasWorkerPush = checkWorkerPush();
-        if (hasWorkerPush && Notification.permission === "default") {
+        if (Notification.permission === "default") {
             $("#notification-info").show();
         }
         else if (Notification.permission === "denied") {
