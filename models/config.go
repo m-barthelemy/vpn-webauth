@@ -15,66 +15,68 @@ import (
 // Config holds all the application config values.
 // Not really a classical model since not saved into DB.
 type Config struct {
-	AdminEmail           string        // ADMINEMAIL
-	ConnectionsRetention int           // CONNECTIONSRETENTION
-	Debug                bool          // DEBUG
-	Port                 int           // PORT
-	Host                 string        // HOST
-	DbType               string        // DBTYPE
-	DbDSN                string        // DBDSN
-	ExcludedIdentities   []string      // EXCLUDEDIDENTITIES
-	RedirectDomain       *url.URL      // REDIRECTDOMAIN
-	GoogleClientID       string        // GOOGLECLIENTID
-	GoogleClientSecret   string        // GOOGLECLIENTSECRET
-	EnableNotifications  bool          // ENABLENOTIFICATIONS
-	EnforceMFA           bool          // ENFORCEMFA
-	MaxBodySize          int64         // not documented
-	MFAOTP               bool          // MFAOTP
-	MFAIssuer            string        // OTPISSUER
-	MFATouchID           bool          // MFATOUCHID
-	MFAWebauthn          bool          // MFAWEBAUTHN
-	LogoURL              *url.URL      // LOGOURL
-	SigningKey           string        // SIGNINGKEY
-	EncryptionKey        string        // ENCRYPTIONKEY
-	OriginalIPHeader     string        // ORIGINALIPHEADER
-	OriginalProtoHeader  string        // ORIGINALPROTOHEADER
-	SSLMode              string        // SSLMODE
-	SSLAutoCertsDir      string        // SSLAUTOCERTSDIR
-	SSLCustomCertPath    string        // SSLCUSTOMCERTPATH
-	SSLCustomKeyPath     string        // SSLCUSTOMKEYPATH
-	VapidPublicKey       string        // VAPIDPUBLICKEY
-	VapidPrivateKey      string        // VAPIDPRIVATEKEY
-	VPNCheckPassword     string        // VPNCHECKPASSWORD
-	VPNSessionValidity   time.Duration // VPNSESSIONVALIDITY
-	WebSessionValidity   time.Duration // WEBSESSIONVALIDITY
+	AdminEmail             string        // ADMINEMAIL
+	ConnectionsRetention   int           // CONNECTIONSRETENTION
+	Debug                  bool          // DEBUG
+	Port                   int           // PORT
+	Host                   string        // HOST
+	DbType                 string        // DBTYPE
+	DbDSN                  string        // DBDSN
+	ExcludedIdentities     []string      // EXCLUDEDIDENTITIES
+	RedirectDomain         *url.URL      // REDIRECTDOMAIN
+	GoogleClientID         string        // GOOGLECLIENTID
+	GoogleClientSecret     string        // GOOGLECLIENTSECRET
+	EnableNotifications    bool          // ENABLENOTIFICATIONS
+	EnforceMFA             bool          // ENFORCEMFA
+	MaxBodySize            int64         // not documented
+	MFAOTP                 bool          // MFAOTP
+	Issuer                 string        // ISSUER
+	MFATouchID             bool          // MFATOUCHID
+	MFAWebauthn            bool          // MFAWEBAUTHN
+	LogoURL                *url.URL      // LOGOURL
+	SigningKey             string        // SIGNINGKEY
+	EncryptionKey          string        // ENCRYPTIONKEY
+	OriginalIPHeader       string        // ORIGINALIPHEADER
+	OriginalProtoHeader    string        // ORIGINALPROTOHEADER
+	SSLMode                string        // SSLMODE
+	SSLAutoCertsDir        string        // SSLAUTOCERTSDIR
+	SSLCustomCertPath      string        // SSLCUSTOMCERTPATH
+	SSLCustomKeyPath       string        // SSLCUSTOMKEYPATH
+	VapidPublicKey         string        // VAPIDPUBLICKEY
+	VapidPrivateKey        string        // VAPIDPRIVATEKEY
+	VPNCheckPassword       string        // VPNCHECKPASSWORD
+	VPNSessionValidity     time.Duration // VPNSESSIONVALIDITY
+	WebSessionValidity     time.Duration // WEBSESSIONVALIDITY
+	WebSessionProofTimeout time.Duration // WEBSESSIONPROOFTIMEOUT
 }
 
 func (config *Config) New() Config {
 	var defaultConfig = Config{
-		ConnectionsRetention: 30,
-		DbType:               "sqlite",
-		DbDSN:                "/tmp/vpnwa.db",
-		Debug:                false,
-		ExcludedIdentities:   []string{},
-		Port:                 8080,
-		Host:                 "127.0.0.1",
-		VPNSessionValidity:   1 * time.Hour,
-		EnableNotifications:  true,
-		EnforceMFA:           true,
-		MaxBodySize:          4096, // 4KB
-		MFAIssuer:            "VPN",
-		MFAOTP:               true,
-		MFATouchID:           true,
-		MFAWebauthn:          true,
-		SSLMode:              "off",
-		SSLAutoCertsDir:      "/tmp",
-		SSLCustomCertPath:    "/ssl/cert.pem",
-		SSLCustomKeyPath:     "/ssl/kep.pem",
-		OriginalProtoHeader:  "X-Forwarded-Proto",
+		ConnectionsRetention:   30,
+		DbType:                 "sqlite",
+		DbDSN:                  "/tmp/vpnwa.db",
+		Debug:                  false,
+		ExcludedIdentities:     []string{},
+		Port:                   8080,
+		Host:                   "127.0.0.1",
+		VPNSessionValidity:     30 * time.Minute,
+		WebSessionValidity:     12 * time.Hour,
+		WebSessionProofTimeout: 600 * time.Millisecond,
+		EnableNotifications:    true,
+		EnforceMFA:             true,
+		MaxBodySize:            4096, // 4KB
+		Issuer:                 "VPN",
+		MFAOTP:                 true,
+		MFATouchID:             true,
+		MFAWebauthn:            true,
+		SSLMode:                "off",
+		SSLAutoCertsDir:        "/tmp",
+		SSLCustomCertPath:      "/ssl/cert.pem",
+		SSLCustomKeyPath:       "/ssl/kep.pem",
+		OriginalProtoHeader:    "X-Forwarded-Proto",
 	}
 	redirDomain, _ := url.Parse(fmt.Sprintf("http://%s:%v", defaultConfig.Host, defaultConfig.Port))
 	defaultConfig.RedirectDomain = redirDomain
-	defaultConfig.WebSessionValidity = 12 * time.Hour
 	// We create a default random key for signing session tokens
 	b := make([]byte, 32) // random ID
 	rand.Read(b)
@@ -86,6 +88,7 @@ func (config *Config) New() Config {
 
 func (config *Config) Verify() {
 	log.Printf("VPN Session validity set to %v", config.VPNSessionValidity)
+	log.Printf("Web Session validity set to %v", config.WebSessionValidity)
 	log.Printf("Google callback redirect set to %s", config.RedirectDomain)
 	if config.GoogleClientID == "" {
 		log.Fatal("GOOGLECLIENTID is not set")

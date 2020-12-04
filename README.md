@@ -118,39 +118,37 @@ It expect the following JSON encoded body data:
  ## Configuration options
 All the configuration parameters have to passed as environment variables.
 ### Application
-  - `HOST`: the IP address to listen on. Default: `127.0.0.1`
-  - `PORT`: the port to listen to. Default: `8080`
-  - `DBTYPE`: the database engine where the sessions will be stored. Default: `sqlite`. Can be `sqlite`, `postgres`, `mysql`.
-  - `DBDSN`: the database connection string. Default: `tmp/vpnwa.db`. Check https://gorm.io/docs/connecting_to_the_database.html for examples.
-    > By default a Sqlite database is created. You probably want to at least change its path. Sqlite is only suitable for testing purposes or for a small number of concurrent users, and will only work with with a single instance of the app. It is recommended to use MySQL or Postgres instead.
+- `CONNECTIONSRETENTION`: how long to keep VPN connections log, in days. Default: 30.
+  > NOTE: The connections audit log cleanup task is only run during the application startup. Also, there is currently no way to view this audit log from the app.
+- `DBTYPE`: the database engine where the sessions will be stored. Default: `sqlite`. Can be `sqlite`, `postgres`, `mysql`.
+- `DBDSN`: the database connection string. Default: `tmp/vpnwa.db`. Check https://gorm.io/docs/connecting_to_the_database.html for examples.
+  > By default a Sqlite database is created. You probably want to at least change its path. Sqlite is only suitable for testing purposes or for a small number of concurrent users, and will only work with with a single instance of the app. It is recommended to use MySQL or Postgres instead.
 
-    > NOTE: the app will automatically create the tables and thus needs to have the privileges to do so.
-  - `EXCLUDEDIDENTITIES`: list of VPN accounts (identities) that do not require any additional authentication by this app, separated by comma. Optional.
-    > The VPN server will still query the application when these accounts try to connect, but will always get a positive response.
-    > NOTE: Your VPN's own authentication process still fully applies.
-  - `REDIRECTDOMAIN`: the base URL that oAuth2/Google will redirect to after signing in. Default: http://`HOST`:`PORT`
-    > You need to set it to the user-facing endpoint for this application, for example https://vpn.myconpany.com.
-  - `GOOGLECLIENTID`: Google Client ID. **Mandatory**.
-  - `GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
-  - `ENCRYPTIONKEY`: Key used to encrypt sensitive information in the database. Must be 32 characters. **Mandatory** if `ENFORCEMFA` is set to `true`.
-  - `LOGOURL`: Add your organization logo on top of the webapp pages. Optional. If the app is served over HTTPS (and it should), `LOGOURL` must also be a HTTPS URL.
-  - `SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
-    > Regenerating a new key every time the application starts means that all your users web sessions will be invalid and they will have to sign in again if they need a new VPN "session".
-    > It is recommended that you create and pass your own key.
-  - `ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. If running this app behind Nginx for example, you will need to configure Nginx to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-For` is used for this purpose. Default: empty.
-  - `ORIGINALPROTOHEADER`: the header to use to fetch the real protocol (http, https) used between the clients and the proxy. Default: `X-Forwarded-Proto`.
-  - `CONNECTIONSRETENTION`: how long to keep VPN connections log, in days. Default: 30.
-    > NOTE: The connections audit log cleanup task is only run during the application startup. Also, there is currently no way to view this audit log from the app.
+  > NOTE: the app will automatically create the tables and thus needs to have the privileges to do so.
+- `ENCRYPTIONKEY`: Key used to encrypt sensitive information in the database. Must be 32 characters. **Mandatory** if `ENFORCEMFA` is set to `true`.
+- `EXCLUDEDIDENTITIES`: list of VPN accounts (identities) that do not require any additional authentication by this app, separated by comma. Optional.
+  > The VPN server will still query the application when these accounts try to connect, but will always get a positive response.
+  > NOTE: Your VPN's own authentication process still fully applies.
+- `GOOGLECLIENTID`: Google Client ID. **Mandatory**.
+- `GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
+- `HOST`: the IP address to listen on. Default: `127.0.0.1`
+- `ISSUER`: Name that appears on the users OTP authenticator app and browser notifications title. Default: `VPN`.
+  > It is recommended that you set it to the name of your VPN connection as it appears on your users devices.
+- `LOGOURL`: Add your organization logo on top of the webapp pages. Optional. If the app is served over HTTPS (and it should), `LOGOURL` must also be a HTTPS URL.
+- `ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. If running this app behind Nginx for example, you will need to configure Nginx to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-For` is used for this purpose. Default: empty.
+- `ORIGINALPROTOHEADER`: the header to use to fetch the real protocol (http, https) used between the clients and the proxy. Default: `X-Forwarded-Proto`.
+- `PORT`: the port to listen to. Default: `8080`
+- `REDIRECTDOMAIN`: the base URL that oAuth2/Google will redirect to after signing in. Default: http://`HOST`:`PORT`
+  > You need to set it to the user-facing endpoint for this application, for example https://vpn.myconpany.com.
+- `SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
+  > Regenerating a new key every time the application starts means that all your users web sessions will be invalid and they will have to sign in again if they need a new VPN "session".
+  > It is recommended that you create and pass your own key.
+- `WEBSESSIONVALIDITY`: How long a web authentication is valid. During this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `12h`. Specify custom value as a number and a time unit, for example `48h30m`. 
 
 
 ### Multi-Factor Authentication
-  - `ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`.
-    > NOTE: if MFA is not enforced, related options are not shown to the users; however, they can still enable it by visiting the registration page.
-  - `WEBSESSIONVALIDITY`: How long a web authentication is valid. During this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `12h`. Specify custom value as a number and a time unit, for example `48h30m`. 
-  - `MFAISSUER`: Name that appears on the users authenticator app or TouchID/Physical key prompt. Default: `VPN`.
-    > It is recommended that you set it to the name of your VPN connection as it appears on your users devices.
-  - `MFAOTP`: Whether to enable OTP token authrntication after OAuth2 login. Default: `true`. 
-    > NOTE: This is not related to Google 2FA. By default Google will only require 2FA if your organization enforces it, and it will remember a device/browser for a very long time. This option adds a mandatory 2FA verifications upon each login, independently from your Google settings. Your users will have to register a new 2FA entry in their favorite authenticator app when using this web authentication for the first time.
+  - `ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`. If enabled, users will have to choose one of the available MFA options (see below).
+  - `MFAOTP`: Whether to enable OTP token authentication after OAuth2 login. Default: `true`. 
   - `MFATOUCHID`: Whether to enable Apple TouchID/FaceID and Windows Hello biometrics authentication after OAuth2 login, if a compatible device is detected. Default: `true`.
     > With compatible devices and operating systems, this is certainly the fastest, most convenient and most secure additional authentication. 
     > This feature complies with the definiton of "Something you are" of the common three authentication factors.
@@ -165,7 +163,7 @@ It is also possible to sign in from different browsers and devices by using the 
 ### VPN
   - `VPNCHECKPASSWORD`: Shared password between the app and the Strongswan `ext-auth` script to protect the endpoint checking for valid user "sessions". Optional.
     > If the `/vpn/check` endpoint is publicly available, it is a good idea to set a password to ensure that only your VPN server is allowed to query the app for user sessions. Make sure you also set it in your `ext-auth` configuration.
-  - `VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication. Default: `1h`. Specify custom value as a number and a time unit, for example `1h30m`
+  - `VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication. During this interval the web authentication status is not reverified. Default: `30m`. Specify custom value as a number and a time unit, for example `1h30m`.
     > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
 
@@ -191,7 +189,9 @@ If they accept, when they attempt to connect to the VPN without a valid web sess
 
  Additionally, if their VPN session is expired (`VPNSESSIONVALIDITY`) but they still have a valid web session (`WEBSESSIONVALIDITY`), their next attempt to connect to the VPN will try to transparently ask the browser used to sign in to prove that it still holds a valid session and has the same source IP as the VPN connection attempt. If so, the VPN connection will be automatically allowed and a new VPN "session" created without any intervention.
 
-> NOTE: automatic VPN sessions renewal is a best effort feature; the browser must be running, even without this app opened, and must reply with a "proof of session and IP" quickly enough.
+> NOTE: automatic VPN sessions renewal is a best effort feature; the browser must be running, even without this app opened, and must reply with a "proof of session and IP" quickly enough. This is because Strongswan will be waiting in blocking mode for the app to reply whether the user is allowed. 
+Network latency and distance between end users and the app could negatively impact their ability to use the feature.
+By default, the app stops waiting for a browser "proof of session" after 600ms.
 
 
 - `ENABLENOTIFICATIONS`: whether to enable desktop notifications and session continuity. Default: `true`.

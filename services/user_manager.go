@@ -1,17 +1,13 @@
 package services
 
 import (
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/gofrs/uuid"
 	"github.com/m-barthelemy/vpn-webauth/models"
-
-	"github.com/SherClockHolmes/webpush-go"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -214,62 +210,6 @@ func (m *UserManager) AddUserSubscription(user *models.User, subscription *model
 func (m *UserManager) DeleteUserSubscription(subscription *models.UserSubscription) error {
 	result := m.db.Delete(&models.UserSubscription{}, "hash = ?", subscription.Hash)
 	return result.Error
-}
-
-func (m *UserManager) NotifyUser(user *models.User, notifId uuid.UUID) (bool, error) {
-	var subscriptions []models.UserSubscription
-	minUsedAt := time.Now().AddDate(0, -3, 0)
-	if result := m.db.Where("user_id = ? AND last_used_at > ?", user.ID.String(), minUsedAt).Find(&subscriptions); result.Error != nil {
-		return false, result.Error
-	}
-
-	dp := NewDataProtector(m.config)
-	deletedCount := 0
-	var nonce struct {
-		ID     uuid.UUID
-		Issuer string
-	}
-	nonce.ID = notifId
-	nonce.Issuer = m.config.MFAIssuer
-	jsonNonce, err := json.Marshal(nonce)
-	if err != nil {
-		return false, err
-	}
-
-	notified := false
-	for i, subscription := range subscriptions {
-		pushSubscriptionRaw, err := dp.Decrypt(subscription.Data)
-		if err != nil {
-			return false, err
-		}
-		pushSubscription := &webpush.Subscription{}
-		if err := json.Unmarshal([]byte(pushSubscriptionRaw), &pushSubscription); err != nil {
-			return false, err
-		}
-
-		resp, err := webpush.SendNotification(jsonNonce, pushSubscription, &webpush.Options{
-			Subscriber:      m.config.AdminEmail,
-			VAPIDPublicKey:  m.config.VapidPublicKey,
-			VAPIDPrivateKey: m.config.VapidPrivateKey,
-			TTL:             120,
-		})
-		defer resp.Body.Close()
-
-		// The push provider signals that the subscription is no longer active, so delete it.
-		if resp.StatusCode >= 400 && resp.StatusCode <= 500 {
-			if err := m.DeleteUserSubscription(&subscriptions[i]); err != nil {
-				return false, err
-			}
-			deletedCount++
-		} else if err != nil {
-			return false, err
-		}
-		notified = true
-	}
-	if deletedCount > 0 {
-		log.Printf("UserManager: Deleted %d inactive push subscriptions for %s", deletedCount, user.Email)
-	}
-	return notified, nil
 }
 
 // Claims is used Used for the session cookie
