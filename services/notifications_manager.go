@@ -134,7 +134,7 @@ func (n *NotificationsManager) WaitForBrowserProof(user *models.User, sourceIP s
 			break
 		} // otherwise there can still be a browser having a valid session that has not yet replied.
 	// Wait for a short interval to not clog the VPN server that waiting for a reply in blocking mode
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(n.config.WebSessionProofTimeout):
 		log.Printf("NotificationsManager: No active web session replied on time for user %s", user.Email)
 	}
 	close(channel)

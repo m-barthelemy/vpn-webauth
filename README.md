@@ -189,7 +189,9 @@ If they accept, when they attempt to connect to the VPN without a valid web sess
 
  Additionally, if their VPN session is expired (`VPNSESSIONVALIDITY`) but they still have a valid web session (`WEBSESSIONVALIDITY`), their next attempt to connect to the VPN will try to transparently ask the browser used to sign in to prove that it still holds a valid session and has the same source IP as the VPN connection attempt. If so, the VPN connection will be automatically allowed and a new VPN "session" created without any intervention.
 
-> NOTE: automatic VPN sessions renewal is a best effort feature; the browser must be running, even without this app opened, and must reply with a "proof of session and IP" quickly enough.
+> NOTE: automatic VPN sessions renewal is a best effort feature; the browser must be running, even without this app opened, and must reply with a "proof of session and IP" quickly enough. This is because Strongswan will be waiting in blocking mode for the app to reply whether the user is allowed. 
+Network latency and distance between end users and the app could negatively impact their ability to use the feature.
+By default, the app stops waiting for a browser "proof of session" after 600ms.
 
 
 - `ENABLENOTIFICATIONS`: whether to enable desktop notifications and session continuity. Default: `true`.
