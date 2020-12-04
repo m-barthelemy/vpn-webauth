@@ -107,7 +107,7 @@ plugins {
 ```
 
 The application endpoint verifying if a user will be allowed to connect is `/vpn/check`.
-It expect the following JSON encoded body data:
+It expects the following JSON encoded body data:
 ```json
 {
 	"Identity": "string",  // the VPN connection identity/login, matching the OAuth2 identity (email)

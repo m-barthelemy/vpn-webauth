@@ -408,7 +408,10 @@ $(document).ready(async function(){
         userInfo = await userResponse.json();
         console.log(`userInfo: ${JSON.stringify(userInfo)}`);
     }
-    $("#data-issuer").text(userInfo.Issuer);
+    // Set placeholders values with data from userInfo
+    $("[name='data-connection-name']").each(function() {
+        $(this).text(userInfo.Issuer);
+    });
     $("#data-session-validity").text(new Date(userInfo.SessionExpiry * 1000).toLocaleString());
 
     if ('permissions' in navigator) {
@@ -423,6 +426,7 @@ $(document).ready(async function(){
                  const notificationsApproved = await tryGetNotificationsApproval();
                  const pushWorker =  await registerServiceWorker();
                  if (notificationsApproved && !pushWorker) {
+                    $("#notification-restricted-support-warning").show();
                     startListenSSE();    
                  }
             }
@@ -443,6 +447,7 @@ $(document).ready(async function(){
             $("#notification-warning").show();
         }
         if (!hasWorkerPush && Notification.permission === "granted") {
+            $("#notification-restricted-support-warning").show();
             startListenSSE();
         }
     }
