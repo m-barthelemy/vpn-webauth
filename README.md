@@ -48,8 +48,7 @@ Normal user sign-in once they have setup their additional authentication step; i
 
 
 Successful sign-in:
-
-<img width="571" alt="Screen Shot 2020-11-24 at 8 38 49 AM" src="https://user-images.githubusercontent.com/2519084/100031381-7b7c8c80-2e30-11eb-8188-4ff8bf32d564.png">
+<img width="615" alt="Screen Shot 2020-12-04 at 9 04 54 AM" src="https://user-images.githubusercontent.com/2519084/101108589-d328ae00-360f-11eb-8367-812057910879.png">
 
 
 
