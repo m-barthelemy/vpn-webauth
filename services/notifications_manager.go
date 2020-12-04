@@ -42,6 +42,8 @@ func (n *NotificationsManager) NotifyUser(user *models.User, sourceIP string) (b
 		return false, nil, result.Error
 	}
 
+	// Nonce ensuring that "proof of session" received from browsers match a legitimate proof request
+	// originating from this app.
 	notifId, _ := uuid.NewV4()
 
 	dp := NewDataProtector(n.config)
@@ -73,12 +75,12 @@ func (n *NotificationsManager) NotifyUser(user *models.User, sourceIP string) (b
 			Subscriber:      n.config.AdminEmail,
 			VAPIDPublicKey:  n.config.VapidPublicKey,
 			VAPIDPrivateKey: n.config.VapidPrivateKey,
-			TTL:             120,
+			TTL:             60,
 		})
 		defer resp.Body.Close()
 
 		// The push provider signals that the subscription is no longer active, so delete it.
-		if resp.StatusCode >= 400 && resp.StatusCode <= 500 {
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 			if err := userManager.DeleteUserSubscription(&subscriptions[i]); err != nil {
 				return false, &notifId, err
 			}
@@ -108,6 +110,8 @@ func (n *NotificationsManager) NotifyUser(user *models.User, sourceIP string) (b
 	return notified, &notifId, nil
 }
 
+// WaitForBrowserProof waits for browser to reply with a request having a valid session token, and a body
+// containing the same nonce value that was sent with the Push or SSE notification.
 func (n *NotificationsManager) WaitForBrowserProof(user *models.User, sourceIP string, nonce uuid.UUID) bool {
 	channel := make(chan bool, 1)
 	eventBus := *n.bus
@@ -122,7 +126,7 @@ func (n *NotificationsManager) WaitForBrowserProof(user *models.User, sourceIP s
 	}
 
 	hasValidBrowserSession := false
-	// Background work so that we can kill it after some time
+	// Background task that we can kill it after some time to avoid Strongswan hanging for too long
 	go func() {
 		eventBus.Subscribe(fmt.Sprintf("%s:%s", user.Email, sourceIP), checkWebSessions)
 		eventBus.WaitAsync()
