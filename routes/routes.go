@@ -103,13 +103,13 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	)
 
 	otcC := otcController.New(db, config)
-	mux.Handle("/auth/code/generate",
+	mux.Handle("/auth/otc/generate",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, otcC.GenerateSingleUseCode, false)),
 		),
 	)
-	mux.Handle("/auth/code/validate",
+	mux.Handle("/auth/otc/validate",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, otcC.ValidateSingleUseCode, false)),

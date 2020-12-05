@@ -272,7 +272,7 @@ async function webAuthNLogin(allowCrossPlatformDevice = false) {
 }
 
 async function getSingleUseCode() {
-    const otcResponse = await fetch("/auth/code/generate", {
+    const otcResponse = await fetch("/auth/otc/generate", {
         method: "POST",
         headers: {
             'Accept': 'application/json'
@@ -521,7 +521,7 @@ $(document).ready(async function(){
         }
         if (dataLength == 6) {
             // TODO: Move to function
-            const codeResponse = await fetch("/auth/code/validate", {
+            const codeResponse = await fetch("/auth/otc/validate", {
                 method: "POST",
                 body: JSON.stringify(
                     { Code: $(this).val() }
