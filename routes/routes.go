@@ -157,10 +157,18 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.RefreshAuth, true)),
 		),
 	)
+
 	mux.Handle("/user/info",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.GetSessionInfo, true)),
+		),
+	)
+
+	mux.Handle("/user/logout",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.Logout, false)),
 		),
 	)
 

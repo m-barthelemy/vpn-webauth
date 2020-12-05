@@ -61,7 +61,7 @@ func main() {
 
 	// Delete old VPN connections log entries
 	userManager := userManager.New(db, &config)
-	if err := userManager.CleanupConnections(); err != nil {
+	if err := userManager.CleanupConnectionsLog(); err != nil {
 		log.Printf("Could not delete old VPN connections log entries: %s", err.Error())
 	}
 

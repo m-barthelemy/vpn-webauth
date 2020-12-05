@@ -118,7 +118,7 @@ It expects the following JSON encoded body data:
  ## Configuration options
 All the configuration parameters have to passed as environment variables.
 ### Application
-- `CONNECTIONSRETENTION`: how long to keep VPN connections log, in days. Default: 30.
+- `CONNECTIONSRETENTION`: how long to keep VPN connections audit logs, in days. Default: `90`.
   > NOTE: The connections audit log cleanup task is only run during the application startup. Also, there is currently no way to view this audit log from the app.
 - `DBTYPE`: the database engine where the sessions will be stored. Default: `sqlite`. Can be `sqlite`, `postgres`, `mysql`.
 - `DBDSN`: the database connection string. Default: `tmp/vpnwa.db`. Check https://gorm.io/docs/connecting_to_the_database.html for examples.

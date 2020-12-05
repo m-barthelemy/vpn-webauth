@@ -101,6 +101,16 @@ func (m *UserManager) CreateVpnSession(user *models.User, ip string) error {
 	return nil
 }
 
+func (m *UserManager) DeleteVpnSession(identity string, ip string) error {
+	// First delete any existing session for the same user
+	oldSession := models.VpnSession{Email: identity, SourceIP: ip}
+	deleteResult := m.db.Delete(&oldSession)
+	if deleteResult.Error != nil {
+		return deleteResult.Error
+	}
+	return nil
+}
+
 // AddMFA Creates a new `UserMFA`, and encrypts the `data` field
 func (m *UserManager) AddMFA(user *models.User, mfaType string, data string, userAgent string) (*models.UserMFA, error) {
 	// Cleanup any expired, non validated UserMFA
@@ -219,6 +229,7 @@ type Claims struct {
 	jwt.StandardClaims
 }
 
+// CreateSession generates and sends the JWT token cookie.
 func (m *UserManager) CreateSession(user *models.User, hasMFA bool, w http.ResponseWriter) error {
 	jwtKey := []byte(m.config.SigningKey)
 	cookieName := "vpnwa_session"
@@ -249,6 +260,36 @@ func (m *UserManager) CreateSession(user *models.User, hasMFA bool, w http.Respo
 	}
 	http.SetCookie(w, &cookie)
 	return m.createIdentifierCookie(user, w)
+}
+
+func (m *UserManager) DeleteSession(w http.ResponseWriter) error {
+	jwtKey := []byte(m.config.SigningKey)
+	cookieName := "vpnwa_session"
+	if m.config.SSLMode != "off" {
+		cookieName = "__Host-" + cookieName
+	}
+	expirationTime := time.Now().Add(-24 * time.Hour)
+	claims := &Claims{
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: expirationTime.Unix(),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtKey)
+	if err != nil {
+		return err
+	}
+	cookie := http.Cookie{
+		Name:     cookieName,
+		Value:    tokenString,
+		Expires:  expirationTime,
+		HttpOnly: true,
+		Path:     "/",
+		Secure:   m.config.SSLMode != "off",
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, &cookie)
+	return nil
 }
 
 // CreateIdentifierCookie creates a long-term, non-authorizing cookie identifying the user
@@ -285,7 +326,7 @@ func (m *UserManager) createIdentifierCookie(user *models.User, w http.ResponseW
 }
 
 // CleanupConnections deletes connection entries older than configured value
-func (m *UserManager) CleanupConnections() error {
+func (m *UserManager) CleanupConnectionsLog() error {
 	expireDate := time.Now().AddDate(0, 0, -m.config.ConnectionsRetention)
 	result := m.db.Delete(&models.VPNConnection{}, "created_at < ?", expireDate)
 	return result.Error

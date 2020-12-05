@@ -52,7 +52,7 @@ type Config struct {
 
 func (config *Config) New() Config {
 	var defaultConfig = Config{
-		ConnectionsRetention:   30,
+		ConnectionsRetention:   90,
 		DbType:                 "sqlite",
 		DbDSN:                  "/tmp/vpnwa.db",
 		Debug:                  false,

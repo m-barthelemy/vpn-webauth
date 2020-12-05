@@ -146,6 +146,22 @@ func (u *UserController) RefreshAuth(w http.ResponseWriter, r *http.Request) {
 	u.notificationsManager.PublishBrowserProof(email, sourceIP, nonce.Nonce)
 }
 
+func (u *UserController) Logout(w http.ResponseWriter, r *http.Request) {
+	var email = r.Context().Value("identity").(string)
+	userManager := userManager.New(u.db, u.config)
+	if err := userManager.DeleteSession(w); err != nil {
+		log.Printf("UserController: Error deleting %s token: %s", email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	sourceIP := utils.New(u.config).GetClientIP(r)
+	if err := userManager.DeleteVpnSession(email, sourceIP); err != nil {
+		log.Printf("UserController: Error deleting %s VPN session: %s", email, err.Error())
+	}
+	log.Printf("UserController: User %s logged out", email)
+	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+}
+
 func (u *UserController) GetSessionInfo(w http.ResponseWriter, r *http.Request) {
 	var email string
 	var sessionHasMFA bool
