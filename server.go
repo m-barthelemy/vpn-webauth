@@ -100,8 +100,7 @@ func cacheDir(dir string) error {
 }
 
 type topHandler struct {
-	handler    http.Handler
-	useTimeout bool
+	handler http.Handler
 }
 
 func (h *topHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

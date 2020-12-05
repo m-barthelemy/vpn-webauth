@@ -68,6 +68,11 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+	if user == nil {
+		log.Printf("VpnController: Received request for unknown identity '%s' from %s", connRequest.Identity, connRequest.SourceIP)
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
 
 	vpnConnection := models.VPNConnection{
 		Allowed:     allowed,
@@ -75,9 +80,8 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		SourceIP:    connRequest.SourceIP,
 		VPNSourceIP: v.utils.GetClientIP(r),
 	}
-	if user != nil {
-		vpnConnection.UserID = &user.ID
-	}
+
+	vpnConnection.UserID = &user.ID
 	if allowed {
 		vpnConnection.VPNSessionID = &session.ID
 	}
