@@ -148,6 +148,7 @@ All the configuration parameters have to passed as environment variables.
 - `OAUTH2TENANT`: Azure Directory tenant ID. Mandatory if `OAUTH2PROVIDER` is set to `azure`.
 - `REDIRECTDOMAIN`: the base URL that OAuth2 will redirect to after signing in. Default: http://`HOST`:`PORT`
   > You need to set it to the user-facing endpoint for this application, for example https://vpn.myconpany.com.
+  
   > NOTE: You need to add this app redirect/callback endpoint (`REDIRECTDOMAIN/auth/google/callback` or `REDIRECTDOMAIN/auth/azure/callback`) to the list of allowed callbacks in your Google or Azure credentials configuration console.
 
 ### Multi-Factor Authentication
