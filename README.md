@@ -63,12 +63,16 @@ Successful sign-in:
 - There is currently no limit on how many attempts a user can make at entering a 2FA OTP code or using a Webauthn device.
 
  ## Setup
+
  ### Build
- You'll need to build the project:
+The easiest way to use this project is to download the precompiled binaries generated with each release at https://github.com/m-barthelemy/vpn-webauth/releases for your system.
+
+Alternatively, you can build the project yourself:
 ```
 go get github.com/m-barthelemy/vpn-webauth
 ```
-Alternatively, you can use the provided Dockerfile.
+
+You can also build the provided Dockerfile.
 
  ### Deploy
  You probably want to ensure this web app is served over HTTPS: while the OAuth2 flow will be protected by the provider, this app will receive information back from it, and if additional 2FA is required, the code has to be sent to the server.
