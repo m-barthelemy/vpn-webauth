@@ -204,7 +204,7 @@ By default, the app stops waiting for a browser "proof of session" after 600ms.
 - `ENABLENOTIFICATIONS`: whether to enable desktop notifications and session continuity. Default: `true`.
 - `VAPIDPUBLICKEY` and `VAPIDPRIVATEKEY`: a key pair to authenticate and authorize browser desktop notifications. Mandatory if `ENABLENOTIFICATIONS` is set to `true`. 
 
-If they are not set, a new key pair will be dynamically generated and suggested before the app startup fails. If you use the suggested key pair, ensure the suggested `VAPIDPRIVATEKEY` is kept secret and has not been shared or logged. Once set, the keys must not change otherwise all existing users subscriptions to notifications will be invalid.
+   > If they are not set, a new key pair will be dynamically generated and suggested before the app startup fails. If you use the suggested key pair, ensure the suggested `VAPIDPRIVATEKEY` is kept secret and has not been shared or logged. Once set, the keys must not change otherwise all existing users subscriptions to notifications will be invalid.
 
    > NOTE: you can also generate your own set of keys using the following commands:
    ```
