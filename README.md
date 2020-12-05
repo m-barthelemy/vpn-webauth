@@ -148,7 +148,7 @@ All the configuration parameters have to passed as environment variables.
 - `OAUTH2TENANT`: Azure Directory tenant ID. Mandatory if `OAUTH2PROVIDER` is set to `azure`.
 - `REDIRECTDOMAIN`: the base URL that OAuth2 will redirect to after signing in. Default: http://`HOST`:`PORT`
   > You need to set it to the user-facing endpoint for this application, for example https://vpn.myconpany.com.
-  
+
   > NOTE: You need to add this app redirect/callback endpoint (`REDIRECTDOMAIN/auth/google/callback` or `REDIRECTDOMAIN/auth/azure/callback`) to the list of allowed callbacks in your Google or Azure credentials configuration console.
 
 ### Multi-Factor Authentication
@@ -200,7 +200,9 @@ By default, the app stops waiting for a browser "proof of session" after 600ms.
 
 
 - `ENABLENOTIFICATIONS`: whether to enable desktop notifications and session continuity. Default: `true`.
-- `VAPIDPUBLICKEY` and `VAPIDPRIVATEKEY`: a key pair to authenticate and authorize browser desktop notifications. Mandatory if `ENABLENOTIFICATIONS` is set to `true`. If they are not set, a new key pair will be dynamically generated and suggested before the app startup fails. If you use the suggested key pair, ensure the suggested `VAPIDPRIVATEKEY` is kept secret and has not been shared or logged. Once set, the keys must not change otherwise all existing users subscriptions to notifications will be invalid.
+- `VAPIDPUBLICKEY` and `VAPIDPRIVATEKEY`: a key pair to authenticate and authorize browser desktop notifications. Mandatory if `ENABLENOTIFICATIONS` is set to `true`. 
+
+If they are not set, a new key pair will be dynamically generated and suggested before the app startup fails. If you use the suggested key pair, ensure the suggested `VAPIDPRIVATEKEY` is kept secret and has not been shared or logged. Once set, the keys must not change otherwise all existing users subscriptions to notifications will be invalid.
 
    > NOTE: you can also generate your own set of keys using the following commands:
    ```
@@ -212,4 +214,5 @@ By default, the app stops waiting for a browser "proof of session" after 600ms.
    openssl ec -in vapid_private.pem -pubout -outform DER|tail -c 65|base64|tr -d '=' |tr '/+' '_-' 
 
    ```
-Currently Google Chrome, Firefox and Edge support notifications and automated VPN session renewal. Safari does not.
+Currently Google Chrome, Firefox and Edge support notifications and automated VPN session renewal without meeding to keep this app opened.
+Safari requires the user to keep a tab open.
