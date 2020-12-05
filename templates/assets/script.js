@@ -405,7 +405,7 @@ $(document).ready(async function(){
     }
     else {
         userInfo = await userResponse.json();
-        if (userInfo.FullyAuthenticated && window.location.pathname != "/success") {
+        if (userInfo.FullyAuthenticated && window.location.pathname != "/success" && window.location.pathname != "/addDevice") {
             window.location.href = "/success";
         }
         else if (!userInfo.FullyAuthenticated && window.location.pathname == "/success") {

@@ -3,10 +3,10 @@ package controllers
 import (
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/big"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
@@ -75,7 +75,7 @@ func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *
 	}
 
 	code := OneTimeCode{
-		Code:           strconv.FormatUint(randomCode.Uint64(), 10),
+		Code:           fmt.Sprintf("%06d", randomCode.Uint64()),
 		RemainingTries: 3,
 	}
 
