@@ -198,6 +198,7 @@ If they accept, when they attempt to connect to the VPN without a valid web sess
 Network latency and distance between end users and the app could negatively impact their ability to use the feature.
 By default, the app stops waiting for a browser "proof of session" after 600ms.
 
+\ 
 
 - `ENABLENOTIFICATIONS`: whether to enable desktop notifications and session continuity. Default: `true`.
 - `VAPIDPUBLICKEY` and `VAPIDPRIVATEKEY`: a key pair to authenticate and authorize browser desktop notifications. Mandatory if `ENABLENOTIFICATIONS` is set to `true`. 
