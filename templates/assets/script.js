@@ -405,6 +405,13 @@ $(document).ready(async function(){
     }
     else {
         userInfo = await userResponse.json();
+        if (userInfo.FullyAuthenticated && window.location.pathname != "/success") {
+            window.location.href = "/success";
+        }
+        else if (!userInfo.FullyAuthenticated && window.location.pathname == "/success") {
+            window.location.href = "/";
+        }
+        
         console.log(`userInfo: ${JSON.stringify(userInfo)}`);
     }
     // Set placeholders values with data from userInfo

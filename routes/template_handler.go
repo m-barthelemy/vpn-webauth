@@ -49,6 +49,8 @@ func (g *TemplateHandler) HandleStaticAsset(response http.ResponseWriter, reques
 		// Send proper content-type for JS as this is required for the service worker
 		if strings.HasSuffix(fileName, ".js") {
 			response.Header().Set("Content-Type", "text/javascript")
+		} else if strings.HasSuffix(fileName, ".css") {
+			response.Header().Set("Content-Type", "text/css")
 		}
 		response.Write([]byte(content))
 	} else {

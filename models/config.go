@@ -24,8 +24,10 @@ type Config struct {
 	DbDSN                  string        // DBDSN
 	ExcludedIdentities     []string      // EXCLUDEDIDENTITIES
 	RedirectDomain         *url.URL      // REDIRECTDOMAIN
-	GoogleClientID         string        // GOOGLECLIENTID
-	GoogleClientSecret     string        // GOOGLECLIENTSECRET
+	OAuth2ClientID         string        // OAUTH2LIENTID
+	OAuth2ClientSecret     string        // OAUTH2CLIENTSECRET
+	OAuth2Provider         string        // OAUTH2PROVIDER
+	OAuth2Tenant           string        // OAUTH2TENANT
 	EnableNotifications    bool          // ENABLENOTIFICATIONS
 	EnforceMFA             bool          // ENFORCEMFA
 	MaxBodySize            int64         // not documented
@@ -52,7 +54,7 @@ type Config struct {
 
 func (config *Config) New() Config {
 	var defaultConfig = Config{
-		ConnectionsRetention:   30,
+		ConnectionsRetention:   90,
 		DbType:                 "sqlite",
 		DbDSN:                  "/tmp/vpnwa.db",
 		Debug:                  false,
@@ -90,11 +92,22 @@ func (config *Config) Verify() {
 	log.Printf("VPN Session validity set to %v", config.VPNSessionValidity)
 	log.Printf("Web Session validity set to %v", config.WebSessionValidity)
 	log.Printf("Google callback redirect set to %s", config.RedirectDomain)
-	if config.GoogleClientID == "" {
-		log.Fatal("GOOGLECLIENTID is not set")
+	if config.OAuth2Provider == "" {
+		log.Fatal("OAUTH2PROVIDER is not set, must be either google or azure")
+	} else {
+		config.OAuth2Provider = strings.ToLower(config.OAuth2Provider)
+		if config.OAuth2Provider != "google" && config.OAuth2Provider != "azure" {
+			log.Fatal("OAUTH2PROVIDER is invalid, must be either google or azure")
+		}
 	}
-	if config.GoogleClientSecret == "" {
-		log.Fatal("GOOGLECLIENTSECRET is not set")
+	if config.OAuth2Provider == "azure" && config.OAuth2Tenant == "" {
+		log.Fatal("Microsoft/Azure OAuth2 provider requires OAUTH2TENANT to be set")
+	}
+	if config.OAuth2ClientID == "" {
+		log.Fatal("OAUTH2CLIENTID is not set")
+	}
+	if config.OAuth2ClientSecret == "" {
+		log.Fatal("OAUTH2CLIENTSECRET is not set")
 	}
 	if config.EnforceMFA {
 		if config.EncryptionKey == "" {

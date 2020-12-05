@@ -7,7 +7,8 @@ import (
 
 	"github.com/asaskevich/EventBus"
 	"github.com/gorilla/handlers"
-	googlecontroller "github.com/m-barthelemy/vpn-webauth/controllers/google"
+	"github.com/gorilla/mux"
+	oauthcontroller "github.com/m-barthelemy/vpn-webauth/controllers/oauth2"
 	otcController "github.com/m-barthelemy/vpn-webauth/controllers/otc"
 	otpController "github.com/m-barthelemy/vpn-webauth/controllers/otp"
 	sseController "github.com/m-barthelemy/vpn-webauth/controllers/sse"
@@ -31,34 +32,32 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	if err != nil {
 		log.Fatalf("Error compiling templates: %s", err.Error())
 	}
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/assets/", tplHandler.HandleStaticAsset)
-	mux.HandleFunc("/fonts/", tplHandler.HandleStaticAsset)
-	mux.HandleFunc("/font/", tplHandler.HandleStaticAsset)
+	//mux := http.NewServeMux()
+	mux := mux.NewRouter()
+	mux.PathPrefix("/assets/").HandlerFunc(tplHandler.HandleStaticAsset)
+	mux.PathPrefix("/fonts/").HandlerFunc(tplHandler.HandleStaticAsset)
+	mux.PathPrefix("/font/").HandlerFunc(tplHandler.HandleStaticAsset)
 	mux.HandleFunc("/favicon.ico", tplHandler.HandleStaticAsset) // Avoid it being treated like a template throwing errors in logs
 	mux.HandleFunc("/service.js", tplHandler.HandleStaticAsset)  // Needs to be served from the root due to Service Worker scope
 
-	mux.HandleFunc("/", tplHandler.HandleEmbeddedTemplate)
-
-	googleC := googlecontroller.New(db, config)
-	mux.Handle("/auth/google/login",
+	oauth2C := oauthcontroller.New(db, config)
+	mux.Handle("/auth/{provider}/login",
 		handlers.LoggingHandler(
 			os.Stdout,
-			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, googleC.OauthGoogleLogin, true)),
+			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, oauth2C.OAuth2BeginLogin, true)),
 		),
 	)
-	mux.Handle("/auth/google/callback",
+	mux.Handle("/auth/{provider}/callback",
 		handlers.LoggingHandler(
 			os.Stdout,
-			http.HandlerFunc(googleC.OauthGoogleCallback),
+			http.HandlerFunc(oauth2C.OAuth2Callback),
 		),
 	)
 
 	mux.Handle("/auth/getmfachoice",
 		handlers.LoggingHandler(
 			os.Stdout,
-			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, googleC.GetMFaChoosePage, true)),
+			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, oauth2C.GetMFaChoosePage, true)),
 		),
 	)
 
@@ -157,10 +156,18 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.RefreshAuth, true)),
 		),
 	)
+
 	mux.Handle("/user/info",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.GetSessionInfo, true)),
+		),
+	)
+
+	mux.Handle("/user/logout",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.Logout, false)),
 		),
 	)
 
@@ -173,6 +180,8 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			http.HandlerFunc(sessHandler.IdentificationMiddleware(tokenSigningKey, sseC.HandleEvents)),
 		),
 	)
+
+	mux.PathPrefix("/").HandlerFunc(tplHandler.HandleEmbeddedTemplate)
 
 	return mux
 }
