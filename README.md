@@ -7,18 +7,19 @@ Traditionally, simple IPSec VPN authentication methods involve deploying certifi
 
 While IKEv2 permits, in theory, the use of a second round of authentication, default VPN clients installed on OS such as MacOs and Windows have very little compatibility with it.
 
-This project uses the `ext-auth` Strongswan plugin to provide an additional layer of authentication via a user web login and optional 2FA token.
+This project uses the `ext-auth` Strongswan plugin to provide an additional layer of authentication via a user web login and optional 2FA.
 This can help to protect your organization aganist VPN credentials or certificates being leaked or stolen.
-This tool compatible with all VPN clients and operating systems.
 
 It can also help achieve compliance with some security standards requiring MFA to be implemented for VPNs giving access to sensitive environments.
+
+This tool compatible with all VPN clients and operating systems.
 
 
 ## How does it work?
 
  - The user registers to the webapp (_before_ connecting to the VPN)
- - They authenticate using OAuth2 (for now, only Google is supported)
- - Optionally, they are required to complete additional authentication, using an OTP token (independent from any Google/OAuth2 2FA), TouchID/FaceID or a physical security key.
+ - They authenticate using OAuth2 (for now, Google and Azure Directory are supported)
+ - Optionally, they are required to complete additional authentication, using an OTP token (independent from the OAuth2 provider 2FA), TouchID/FaceID or a physical security key.
  - A "session" is created with the user email, their source IP address and the time when they completed the web authentication
  - They now connect to the VPN. Strongswan's `ext-auth` plugin calls this webapp to check if the user has successfully completed a web authentication recently and from the same source IP address. If not, the connection is rejected.
 
@@ -56,7 +57,6 @@ Successful sign-in:
 ## Limitations
 - The user identity reported by Strongswan **must** match the email reported by the web authentication. However, if the Strongswan identity is the first part of the email address (without @domain.tld), you can modify the `webauth-check.sh` script to add the domain.
 - If a user successfully authenticates using this app, someone else on the same local network would be able to reuse the web session, provided they have the user's Strongswan credentials. This by design, since the app matches a web auth with a Strongswan connection only using the Strongswan identity and the source IP address.
-- Only Google is currently supported for the web authentication.
 - Since the web authentication has to happen before connecting to the VPN, is probably needs to be hosted in a less protected part of your environment.
 - There is currently no way to reset a user account if they have lost or changed their 2FA device. However, all you need to do is manually delete the User record in the database (`DELETE FROM users WHERE email='user@domain.tld'`).
 - Strongswan blocks during the call to the `ext-auth` plugin. Since checking the user web authentication against this app is fast, this shouldn't be an issue, unless you have a high number of users connecting almost simultaneously.
@@ -129,8 +129,6 @@ All the configuration parameters have to passed as environment variables.
 - `EXCLUDEDIDENTITIES`: list of VPN accounts (identities) that do not require any additional authentication by this app, separated by comma. Optional.
   > The VPN server will still query the application when these accounts try to connect, but will always get a positive response.
   > NOTE: Your VPN's own authentication process still fully applies.
-- `GOOGLECLIENTID`: Google Client ID. **Mandatory**.
-- `GOOGLECLIENTSECRET`: Google Client Secret. **Mandatory**.
 - `HOST`: the IP address to listen on. Default: `127.0.0.1`
 - `ISSUER`: Name that appears on the users OTP authenticator app and browser notifications title. Default: `VPN`.
   > It is recommended that you set it to the name of your VPN connection as it appears on your users devices.
@@ -138,13 +136,19 @@ All the configuration parameters have to passed as environment variables.
 - `ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. If running this app behind Nginx for example, you will need to configure Nginx to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-For` is used for this purpose. Default: empty.
 - `ORIGINALPROTOHEADER`: the header to use to fetch the real protocol (http, https) used between the clients and the proxy. Default: `X-Forwarded-Proto`.
 - `PORT`: the port to listen to. Default: `8080`
-- `REDIRECTDOMAIN`: the base URL that oAuth2/Google will redirect to after signing in. Default: http://`HOST`:`PORT`
-  > You need to set it to the user-facing endpoint for this application, for example https://vpn.myconpany.com.
 - `SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
   > Regenerating a new key every time the application starts means that all your users web sessions will be invalid and they will have to sign in again if they need a new VPN "session".
   > It is recommended that you create and pass your own key.
 - `WEBSESSIONVALIDITY`: How long a web authentication is valid. During this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `12h`. Specify custom value as a number and a time unit, for example `48h30m`. 
 
+### OAuth2
+- `OAUTH2PROVIDER`: The Oauth2 provider. Can be `google` or `azure`. **Mandatory**.
+- `OAUTH2CLIENTID`: Google or Microsoft Client ID. **Mandatory**.
+- `OAUTH2CLIENTSECRET`: Google or Microsoft Client Secret. **Mandatory**.
+- `OAUTH2TENANT`: Azure Directory tenant ID. Mandatory if `OAUTH2PROVIDER` is set to `azure`.
+- `REDIRECTDOMAIN`: the base URL that OAuth2 will redirect to after signing in. Default: http://`HOST`:`PORT`
+  > You need to set it to the user-facing endpoint for this application, for example https://vpn.myconpany.com.
+  > NOTE: You need to add this app redirect/callback endpoint (`REDIRECTDOMAIN/auth/google/callback` or `REDIRECTDOMAIN/auth/azure/callback`) to the list of allowed callbacks in your Google or Azure credentials configuration console.
 
 ### Multi-Factor Authentication
   - `ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`. If enabled, users will have to choose one of the available MFA options (see below).

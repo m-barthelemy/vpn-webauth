@@ -17,6 +17,7 @@ import (
 	"github.com/m-barthelemy/vpn-webauth/utils"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"golang.org/x/oauth2/microsoft"
 	"gorm.io/gorm"
 )
 
@@ -25,31 +26,31 @@ type OAuth2Controller struct {
 	config *models.Config
 }
 
-type GoogleUser struct {
-	Id            string `json:"sub"`
-	Email         string `json:"email"`
-	EmailVerified string `json:"email_verified"`
-}
-
-var googleOauthConfig *oauth2.Config
+var oAuthConfig *oauth2.Config
 
 const googleUserInfoURL = "https://www.googleapis.com/oauth2/v2/userinfo?access_token="
+const azureUserInfoURL = "https://graph.microsoft.com/oidc/userinfo"
 
 func New(db *gorm.DB, config *models.Config) *OAuth2Controller {
 	// Scopes: OAuth 2.0 scopes provide a way to limit the amount of access that is granted to an access token.
-	googleOauthConfig = &oauth2.Config{
-		RedirectURL:  fmt.Sprintf("%s/auth/google/callback", config.RedirectDomain.String()),
-		ClientID:     config.GoogleClientID,
-		ClientSecret: config.GoogleClientSecret,
-		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.email"},
-		Endpoint:     google.Endpoint,
+	oAuthConfig = &oauth2.Config{
+		RedirectURL:  fmt.Sprintf("%s/auth/%s/callback", config.RedirectDomain.String(), config.OAuth2Provider),
+		ClientID:     config.OAuth2ClientID,
+		ClientSecret: config.OAuth2ClientSecret,
+	}
+	if config.OAuth2Provider == "google" {
+		oAuthConfig.Endpoint = google.Endpoint
+		oAuthConfig.Scopes = []string{"https://www.googleapis.com/auth/userinfo.email"}
+	} else if config.OAuth2Provider == "azure" {
+		oAuthConfig.Endpoint = microsoft.AzureADEndpoint(config.OAuth2Tenant)
+		oAuthConfig.Scopes = []string{"openid", "email"}
 	}
 
 	return &OAuth2Controller{db: db, config: config}
 }
 
 // OauthGoogleLogin redirects to Google for the actual login
-func (g *OAuth2Controller) OauthGoogleLogin(w http.ResponseWriter, r *http.Request) {
+func (g *OAuth2Controller) OAuth2BeginLogin(w http.ResponseWriter, r *http.Request) {
 	contextValue := r.Context().Value("identity")
 
 	// If we have a valid session, directly move to next step
@@ -61,14 +62,17 @@ func (g *OAuth2Controller) OauthGoogleLogin(w http.ResponseWriter, r *http.Reque
 
 	oauthState := g.generateStateCookie("oauthstate", w)
 
-	// `select_account` forces displaying the Google account selection step, in case the user has multiple
-	//  accounts registered on their device.
-	url := googleOauthConfig.AuthCodeURL(oauthState) + "&prompt=select_account"
+	url := oAuthConfig.AuthCodeURL(oauthState)
+	if g.config.OAuth2Provider == "google" {
+		// `select_account` forces displaying the Google account selection step, in case the user has multiple
+		//  accounts registered on their device.
+		url += "&prompt=select_account"
+	}
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
 // OauthGoogleCallback is called once the Google authentication has been completed
-func (g *OAuth2Controller) OauthGoogleCallback(w http.ResponseWriter, r *http.Request) {
+func (g *OAuth2Controller) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 	oauthState, err := r.Cookie("oauthstate")
 	if err != nil {
 		log.Printf("OAuth2Controller: Error fetching OAuth state cookie: %s", err)
@@ -78,22 +82,32 @@ func (g *OAuth2Controller) OauthGoogleCallback(w http.ResponseWriter, r *http.Re
 
 	// The state value in the URL when Google redirects back to us, and in the `oauthState` cookie, must match.
 	if r.FormValue("state") != oauthState.Value {
-		log.Println("OAuth2Controller: Invalid oauth google state")
+		log.Println("OAuth2Controller: Invalid OAuth state")
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
-	googleUser, err := getUserDataFromGoogle(r.FormValue("code"))
+	var oauthUser OAuth2User
+	if g.config.OAuth2Provider == "google" {
+		oauthUser, err = getUserDataFromGoogle(r.FormValue("code"))
+	} else if g.config.OAuth2Provider == "azure" {
+		oauthUser, err = getUserDataFromAzure(r.FormValue("code"))
+	}
 	if err != nil {
-		log.Printf("GoogleController: Error fetching user info from Google: %s", err)
+		log.Printf("OAuth2Controller: Error fetching user info from %s: %s", err, g.config.OAuth2Provider)
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
-	log.Printf("User %s completed Google authentication step", googleUser.Email)
+	if oauthUser.Email == "" {
+		log.Printf("OAuth2Controller: %s user `email` field is null or empty", g.config.OAuth2Provider)
+		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		return
+	}
 
-	g.afterFirstAuthStep(googleUser.Email, w, r)
-
+	userIdentity := oauthUser.Email
+	log.Printf("User %s completed %s authentication step", userIdentity, g.config.OAuth2Provider)
+	g.afterFirstAuthStep(userIdentity, w, r)
 }
 
 func (g *OAuth2Controller) afterFirstAuthStep(email string, w http.ResponseWriter, r *http.Request) {
@@ -184,21 +198,51 @@ func (g *OAuth2Controller) generateStateCookie(name string, w http.ResponseWrite
 	return state
 }
 
-func getUserDataFromGoogle(code string) (GoogleUser, error) {
-	var user GoogleUser
+type OAuth2User struct {
+	Id            string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified string `json:"email_verified"`
+}
 
-	token, err := googleOauthConfig.Exchange(context.Background(), code)
+func getUserDataFromGoogle(code string) (OAuth2User, error) {
+	var user OAuth2User
+
+	token, err := oAuthConfig.Exchange(context.Background(), code)
 	if err != nil {
-		return user, fmt.Errorf("GoogleController: exchange code is wrong: %s", err.Error())
+		return user, fmt.Errorf("OAuth2Controller: exchange code is wrong: %s", err.Error())
 	}
 	response, err := http.Get(googleUserInfoURL + token.AccessToken)
 	if err != nil {
-		return user, fmt.Errorf("GoogleController: failed to get user info: %s", err.Error())
+		return user, fmt.Errorf("OAuth2Controller: failed to get user info: %s", err.Error())
 	}
 	defer response.Body.Close()
 	contents, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		return user, fmt.Errorf("GoogleController: failed to read response: %s", err.Error())
+		return user, fmt.Errorf("OAuth2Controller: failed to read response: %s", err.Error())
+	}
+
+	err = json.Unmarshal(contents, &user)
+	return user, err
+}
+
+func getUserDataFromAzure(code string) (OAuth2User, error) {
+	var user OAuth2User
+
+	token, err := oAuthConfig.Exchange(context.Background(), code)
+	if err != nil {
+		return user, fmt.Errorf("OAuth2Controller: exchange code is wrong: %s", err.Error())
+	}
+	client := http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest("GET", azureUserInfoURL, nil)
+	req.Header.Set("authorization", "Bearer "+token.AccessToken)
+	response, err := client.Do(req)
+	if err != nil {
+		return user, fmt.Errorf("OAuth2Controller: failed to get user info: %s", err.Error())
+	}
+	defer response.Body.Close()
+	contents, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return user, fmt.Errorf("OAuth2Controller: failed to read response: %s", err.Error())
 	}
 
 	err = json.Unmarshal(contents, &user)

@@ -14,9 +14,14 @@
                 <br/>
                 <div class="row">
                     <div>
-                        <a class="btn col s12 waves-effect blue-grey" href="/auth/google/login" style="text-transform:none">
+                        <a class="btn col s12 waves-effect blue-grey" href="/auth/{{.OAuth2Provider}}/login" style="text-transform:none">
                             <div class="icon">
-                                <i class="fa fa-google"></i>&nbsp;Login with Google
+                                {{ if eq .OAuth2Provider "google" }}
+                                <i class="fa fa-google fa-2x"></i>
+                                {{ else if eq .OAuth2Provider "azure" }}
+                                <i class="fa fa-windows fa-2x"></i>
+                                {{ end }}
+                                &nbsp;Login with {{.OAuth2Provider}}
                             </div>
                         </a>
                     </div>
