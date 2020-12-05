@@ -126,9 +126,15 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	// without requiring the user to open the web app and sign in again.
 	bus := EventBus.New()
 	notificationsManager := services.NewNotificationsManager(db, config, &bus)
-
 	vpnC := vpnController.New(db, config, notificationsManager)
 	mux.Handle("/vpn/check",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(vpnC.CheckSession),
+		),
+	)
+
+	mux.Handle("/ssh/check",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(vpnC.CheckSession),
