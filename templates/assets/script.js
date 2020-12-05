@@ -233,12 +233,7 @@ async function webAuthNLogin(allowCrossPlatformDevice = false) {
     }
     catch (e) {
         $("#touchid-icon").removeClass("fadein-animated");
-        $("#error").html(`<b>You may be trying to authenticate from a new device or browser. <br/>
-            Sign in using your allowed device or browser, and click 'Add new browser or device'.<br/>
-            This will allow you to generate a one time code.<br/>
-            Click <a href="/enter2fa?options=code">here</a> to enter a one time code.
-            </b>`);
-        $("#error").show();
+        $("#error-new-device").show();
         return;
     }
     const authData = assertion.response.authenticatorData;
@@ -310,6 +305,20 @@ function bufferDecode(value) {
     return Uint8Array.from(atob(value), c => c.charCodeAt(0));
 }
 
+// Remove all occurrences of an item from an array
+function removeAllFromArray(arr, value) {
+    var i = 0;
+    while (i < arr.length) {
+        if (arr[i] === value) {
+            arr.splice(i, 1);
+        } else {
+            ++i;
+        }
+    }
+    return arr;
+}
+
+  
 function startListenSSE() {
     console.log("Enable SSE fallback for VPN connection notifications");
     const source = new EventSource('/events');
@@ -354,28 +363,32 @@ $(document).ready(async function(){
         $("#error").show();
     }
 
+    let mfaOptions = [];
     if (searchParams.has('options')) {
-        const allOptions = searchParams.get('options').split(",");
-        if(!allOptions.includes("webauthn")) {
+        mfaOptions = searchParams.get('options').split(",");
+        removeAllFromArray(mfaOptions, "");
+        if(!mfaOptions.includes("webauthn")) {
             console.log("Webauthn is not allowed");
             $("#webauthn-section").hide();
         }
-        if(!allOptions.includes("otp")) {
+        if(!mfaOptions.includes("otp")) {
             console.log("OTP is not allowed");
             $("#otp-section").hide();
         }
-        if(!allOptions.includes("touchid")) {
+        if(!mfaOptions.includes("touchid")) {
             console.log("TouchID is not allowed");
             $("#touchid-section").hide();
         }
         // This one is very specific, so hidden by default
-        if(allOptions.includes("code")) {
+        if(mfaOptions.includes("code")) {
             console.log("Single usage code is allowed");
             $("#code-section").show();
         }
     }
 
     if (!window.PublicKeyCredential) { // Browser without any Webauthn support
+        removeAllFromArray(mfaOptions, "touchid");
+        removeAllFromArray(mfaOptions, "webauthn");
         $("#touchid-section").hide();
         $("#webauthn-section").hide();
     }
@@ -385,8 +398,15 @@ $(document).ready(async function(){
             console.log("TouchID/FaceID/Windows Hello is available.");
         } else {
             console.log(`TouchID/FaceID/Windows Hello available: ${tpmAuthAvailable}`);
+            removeAllFromArray(mfaOptions, "touchid");
             $("#touchid-section").hide();
         }
+    }
+    // If no MFA options to choose from, the user is most likely trying to sign in from a new browser and only had webauthn MFAs configured.
+    // Show the option to use an OTC from another registered device/browser
+    console.log(`MFA options=${mfaOptions}, length=${mfaOptions.length}`);
+    if (mfaOptions.length == 0) {
+        $("#error-new-device").show();
     }
 
     // Fetch and display user and session info.
@@ -405,7 +425,7 @@ $(document).ready(async function(){
     }
     else {
         userInfo = await userResponse.json();
-        if (userInfo.FullyAuthenticated && window.location.pathname != "/success" && window.location.pathname != "/addDevice") {
+        if (userInfo.FullyAuthenticated && window.location.pathname == "/") {
             window.location.href = "/success";
         }
         else if (!userInfo.FullyAuthenticated && window.location.pathname == "/success") {
@@ -486,7 +506,6 @@ $(document).ready(async function(){
 
     $("#otp").keyup( function() {
         const dataLength = $(this).val().length;
-        
         if(dataLength > 0) {
             $("#error").hide();
         }
@@ -495,9 +514,8 @@ $(document).ready(async function(){
         }
     }).change();
 
-    $("#code").keyup( async function() {
+    $("#otc").keyup( async function() {
         const dataLength = $(this).val().length;
-        
         if(dataLength > 0) {
             $("#error").hide();
         }

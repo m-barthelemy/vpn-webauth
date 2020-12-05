@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/pquerna/otp/totp"
 
@@ -50,7 +51,7 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 
 	var otpMFA *models.UserMFA
 	for i := range user.MFAs {
-		if user.MFAs[i].Type == "otp" {
+		if user.MFAs[i].Type == "otp" && user.MFAs[i].ExpiresAt.After(time.Now()) {
 			otpMFA = &user.MFAs[i]
 			break
 		}

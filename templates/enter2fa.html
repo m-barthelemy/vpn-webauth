@@ -13,13 +13,13 @@
                     <h2>Confirm you're you!</h2>
                     <br/><br/>
 
-                    <form id="code-form" action="/auth/code/validate" method="POST">
+                    <form id="otc-form" action="/auth/code/validate" method="POST">
                     <div class="row" id="code-section" style="display: none;">
                         <br/>
                         <p>Enter the temporary code from your other device</p>
                         <div class='input-field col s12'>
                             <i class="material-icons prefix">keyboard</i>
-                            <input class='validate otp' type='number' name='code' id='code' max="999999" minlength="6" maxlength="6" autofocus/>
+                            <input class='validate otp' type='number' id='otc' max="999999" minlength="6" maxlength="6"/>
                             <span class="helper-text" data-error="Must be 6 digits" data-success="right"></span>
                         </div>
                         <br/><br/>
@@ -49,22 +49,30 @@
                         <br/><br/>
                     </div>
 
-                    <form id="otp-form" action="/auth/otp/validate" method="POST">
                     <div class="row" id="otp-section">
+                        <form id="otp-form" action="/auth/otp/validate" method="POST">
                         <br/>
                         <p>6 digits code from your authenticator app (Authy, Google Authenticator...)</p>
                         <div class='input-field col s12'>
                             <i class="material-icons prefix">keyboard</i>
-                            <input class='validate otp' type='number' name='otp' id='otp' max="999999" minlength="6" maxlength="6" autofocus/>
+                            <input class='validate otp' type='number' id='otp' max="999999" minlength="6" maxlength="6" autofocus/>
                             <label for='otp'>Use the entry starting with "<span name="data-connection-name"></span>"</label>
                             <span class="helper-text" data-error="Must be 6 digits" data-success="right"></span>
                         </div>
                         <br/><br/>
+                        </form>
                     </div>
-                    </form>
 
                     <br/>
                     <div id="error" class="card-panel red accent-3" style="display: none; color: #ffffff;"><b>The code was invalid</b></div>
+                    <div id="error-new-device" class="card-panel red accent-3" style="display: none; color: #ffffff;">
+                        <b>
+                            You may be trying to authenticate from a new device or browser. <br/>
+                            Sign in using your allowed device or browser, and click 'Add new browser or device'.<br/>
+                            This will allow you to generate a one time code.<br/>
+                            Click <a href="/enter2fa?options=code">here</a> to enter a one time code.
+                        </b>
+                    </div>
                 </div>
             </div>
     </center>
