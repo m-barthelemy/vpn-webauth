@@ -13,8 +13,7 @@
                     <h2>Confirm you're you!</h2>
                     <br/><br/>
 
-                    <form id="otc-form" action="/auth/code/validate" method="POST">
-                    <div class="row" id="code-section" style="display: none;">
+                    <div class="row display-none" id="otc-section">
                         <br/>
                         <p>Enter the temporary code from your other device</p>
                         <div class='input-field col s12'>
@@ -24,12 +23,11 @@
                         </div>
                         <br/><br/>
                     </div>
-                    </form> 
 
                     <div class="row" id="touchid-section">
                         <div class='col s12'>
                             <a id="login-touchid" class="btn-large waves-effect blue-grey left mfa-choose-btn">
-                                <i id="touchid-icon" class="large material-icons left" style="color: #ff80ab; font-size: 2.2em;">fingerprint</i>&nbsp;Use TouchID, FaceID or Windows Hello
+                                <i id="touchid-icon" class="large material-icons left touchid-icon">fingerprint</i>&nbsp;Use TouchID, FaceID or Windows Hello
                             </a>
                         </div>
                         <br/>
@@ -50,7 +48,6 @@
                     </div>
 
                     <div class="row" id="otp-section">
-                        <form id="otp-form" action="/auth/otp/validate" method="POST">
                         <br/>
                         <p>6 digits code from your authenticator app (Authy, Google Authenticator...)</p>
                         <div class='input-field col s12'>
@@ -60,12 +57,11 @@
                             <span class="helper-text" data-error="Must be 6 digits" data-success="right"></span>
                         </div>
                         <br/><br/>
-                        </form>
                     </div>
 
                     <br/>
-                    <div id="error" class="card-panel red accent-3" style="display: none; color: #ffffff;"><b>The code was invalid</b></div>
-                    <div id="error-new-device" class="card-panel red accent-3" style="display: none; color: #ffffff;">
+                    <div id="error" class="card-panel red accent-3 display-none" style="color: #ffffff;"><b>The code was invalid</b></div>
+                    <div id="error-new-device" class="card-panel red accent-3 display-none" style="color: #ffffff;">
                         <b>
                             You may be trying to authenticate from a new device or browser. <br/>
                             Sign in using your allowed device or browser, and click 'Add new browser or device'.<br/>

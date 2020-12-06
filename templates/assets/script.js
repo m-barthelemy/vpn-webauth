@@ -415,7 +415,7 @@ $(document).ready(async function(){
         // This one is very specific, so hidden by default
         if(mfaOptions.includes("code")) {
             console.log("Single usage code is allowed");
-            $("#code-section").show();
+            $("#otc-section").show();
         }
     }
 
