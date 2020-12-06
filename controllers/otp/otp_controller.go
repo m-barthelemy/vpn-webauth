@@ -141,7 +141,8 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 
 	var otpMFA *models.UserMFA
 	for i := range user.MFAs {
-		if user.MFAs[i].Type == "otp" && user.MFAs[i].IsValid() {
+		// OTP provider must be fully validated if singing in, or expiry date must be valid if mfa is pending validation
+		if user.MFAs[i].Type == "otp" && (user.MFAs[i].IsValid() || user.MFAs[i].ExpiresAt.After(time.Now())) {
 			otpMFA = &user.MFAs[i]
 			break
 		}
@@ -180,7 +181,7 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if !totp.Validate(codeToValidate.Code, key.Secret()) {
 		log.Printf("OTPController: Error validating OTP code validation for %s", email)
-		http.Redirect(w, r, "/enter2fa?error", http.StatusTemporaryRedirect)
+		http.Error(w, "Invalid code", http.StatusBadRequest)
 		return
 	}
 

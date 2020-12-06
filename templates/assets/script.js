@@ -372,9 +372,9 @@ async function validateOneTimePass(isOTC, code) {
     });
     if (!codeResponse.ok) {
         console.error(codeResponse);
-        if(codeResponse.statusText != "") {
+        /*if(codeResponse.statusText != "") {
             $("#error").text(codeResponse.statusText);
-        }
+        }*/
         $("#error").show();
     }
     else {
@@ -553,7 +553,7 @@ $(document).ready(async function(){
             $("#error").hide();
         }
         if (dataLength == 6) {
-            await salidateOneTimePass(true, $(this).val())
+            await validateOneTimePass(true, $(this).val())
         }
     }).change();
 
