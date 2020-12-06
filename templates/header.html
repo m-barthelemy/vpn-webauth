@@ -1,7 +1,7 @@
 {{ define "header" }}
 <head>
     <meta http-equiv="Content-Security-Policy" 
-        content="default-src 'self'; font-src https://fonts.gstatic.com 'self'; child-src 'self'; object-src 'none'; style-src 'self'; img-src 'self' {{.LogoURL}}; script-src 'self'; form-action 'self';">
+        content="default-src 'self'; object-src 'none'; media-src 'none'; connect-src 'self'; font-src https://fonts.gstatic.com 'self'; child-src 'self'; style-src 'self'; img-src 'self' {{.LogoURL}}; script-src 'self'; form-action 'self';">
     <link href="/assets/material-icons.css" rel="stylesheet">
     <link rel="stylesheet" type="text/css" href="/assets/materialize-0.97.5.min.css">
     <link rel="stylesheet" type="text/css" href="/assets/font-awesome.min-4.7.0.css">
