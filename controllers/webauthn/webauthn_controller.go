@@ -109,8 +109,6 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 
-	r.Body = http.MaxBytesReader(w, r.Body, m.config.MaxBodySize) // Refuse request with big body
-
 	webAuthnType, err := getWebauthType(r)
 	if err != nil {
 		log.Printf("WebAuthNController: Error getting WebAuthn type: %s", err)
@@ -248,8 +246,6 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 
 func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
-
-	r.Body = http.MaxBytesReader(w, r.Body, m.config.MaxBodySize) // Refuse request with big body
 
 	webAuthnType, err := getWebauthType(r)
 	if err != nil {
