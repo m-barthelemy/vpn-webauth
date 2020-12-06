@@ -256,6 +256,7 @@ func (m *UserManager) CreateSession(user *models.User, hasMFA bool, w http.Respo
 		HttpOnly: true,
 		Path:     "/",
 		Secure:   m.config.SSLMode != "off",
+		// Only allows GET requests when reaching the app by clicking on a link
 		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, &cookie)
