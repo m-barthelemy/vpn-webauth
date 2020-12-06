@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"bytes"
+	"encoding/json"
 	"image/png"
 	"log"
 	"net/http"
@@ -27,6 +28,10 @@ type OTPController struct {
 // New creates an instance of the controller and sets its DB handle
 func New(db *gorm.DB, config *models.Config) *OTPController {
 	return &OTPController{db: db, config: config}
+}
+
+type OneTimePassword struct {
+	Code string
 }
 
 // GenerateQrCode creates an OTP MFA provider for the user and the OTP secret.
@@ -125,6 +130,7 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 
 func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
+
 	userManager := userManager.New(u.db, u.config)
 	user, err := userManager.Get(email)
 	if err != nil {
@@ -135,7 +141,7 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 
 	var otpMFA *models.UserMFA
 	for i := range user.MFAs {
-		if user.MFAs[i].Type == "otp" {
+		if user.MFAs[i].Type == "otp" && user.MFAs[i].IsValid() {
 			otpMFA = &user.MFAs[i]
 			break
 		}
@@ -164,13 +170,15 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
+	var codeToValidate OneTimePassword
+	err = json.NewDecoder(r.Body).Decode(&codeToValidate)
 	if err != nil {
-		log.Printf("OTPController: Error loading user OTP for %s : %s", email, err.Error())
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		log.Printf("OTPController: Unable to unmarshal %s OTP code: %s", user.Email, err.Error())
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
-
-	if !totp.Validate(r.FormValue("otp"), key.Secret()) {
+	if !totp.Validate(codeToValidate.Code, key.Secret()) {
 		log.Printf("OTPController: Error validating OTP code validation for %s", email)
 		http.Redirect(w, r, "/enter2fa?error", http.StatusTemporaryRedirect)
 		return
@@ -198,6 +206,4 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-
-	http.Redirect(w, r, "/success", http.StatusTemporaryRedirect)
 }

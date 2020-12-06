@@ -26,7 +26,6 @@ func New(db *gorm.DB, config *models.Config) *OneTimeCodeController {
 	return &OneTimeCodeController{db: db, config: config}
 }
 
-// SingleUseCode is what is received from the Stringswan `ext-auth` script request
 type OneTimeCode struct {
 	Code           string
 	RemainingTries int
@@ -102,8 +101,6 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
-	r.Body = http.MaxBytesReader(w, r.Body, c.config.MaxBodySize) // Refuse request with big body
-
 	var user *models.User
 	userManager := userManager.New(c.db, c.config)
 	user, err := userManager.Get(email)
@@ -124,7 +121,7 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 	// Get active single-use code `UserMFA`
 	var codeMFA *models.UserMFA
 	for i, mfa := range user.MFAs {
-		if mfa.Type == "code" && mfa.Validated && mfa.ExpiresAt.After(time.Now()) {
+		if mfa.Type == "code" && mfa.IsValid() {
 			codeMFA = &user.MFAs[i]
 			break
 		}

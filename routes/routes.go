@@ -59,7 +59,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, oauth2C.GetMFaChoosePage, true)),
 		),
-	)
+	).Methods("GET")
 
 	otpC := otpController.New(db, config)
 	// This creates the OTP provider (and secret) for the User
@@ -68,13 +68,13 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, otpC.GenerateQrCode, false)),
 		),
-	)
+	).Methods("GET")
 	mux.Handle("/auth/otp/validate",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, otpC.ValidateOTP, false)),
 		),
-	)
+	).Methods("POST")
 
 	webauthnC := webauthNController.New(db, config)
 	mux.Handle("/auth/webauthn/beginregister",
@@ -82,25 +82,25 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, webauthnC.BeginRegister, false)),
 		),
-	)
+	).Methods("POST")
 	mux.Handle("/auth/webauthn/finishregister",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, webauthnC.FinishRegister, false)),
 		),
-	)
+	).Methods("POST")
 	mux.Handle("/auth/webauthn/beginlogin",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, webauthnC.BeginLogin, false)),
 		),
-	)
+	).Methods("POST")
 	mux.Handle("/auth/webauthn/finishlogin",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, webauthnC.FinishLogin, false)),
 		),
-	)
+	).Methods("POST")
 
 	otcC := otcController.New(db, config)
 	mux.Handle("/auth/otc/generate",
@@ -108,13 +108,13 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, otcC.GenerateSingleUseCode, false)),
 		),
-	)
+	).Methods("POST")
 	mux.Handle("/auth/otc/validate",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, otcC.ValidateSingleUseCode, false)),
 		),
-	)
+	).Methods("POST")
 
 	// Shared event bus between the VPN and the User controllers.
 	// This allows RefreshAuth to signal to CheckSession that a User
@@ -133,7 +133,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			os.Stdout,
 			http.HandlerFunc(vpnC.CheckSession),
 		),
-	)
+	).Methods("POST")
 
 	userC := userController.New(db, config, notificationsManager)
 	// Creates a browser push subscription for the user
@@ -142,27 +142,27 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.GetPushSubscriptionKey, false)),
 		),
-	)
+	).Methods("POST")
 	mux.Handle("/user/push_subscriptions/finish",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.RegisterPushSubscription, false)),
 		),
-	)
+	).Methods("POST")
 
 	mux.Handle("/user/auth/refresh",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.RefreshAuth, true)),
 		),
-	)
+	).Methods("POST")
 
 	mux.Handle("/user/info",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.GetSessionInfo, true)),
 		),
-	)
+	).Methods("GET")
 
 	mux.Handle("/user/logout",
 		handlers.LoggingHandler(

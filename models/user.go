@@ -33,7 +33,7 @@ func (user *User) HasMFA() bool {
 		return false
 	}
 	for _, item := range user.MFAs {
-		if item.Validated {
+		if item.IsValid() {
 			return true
 		}
 	}
