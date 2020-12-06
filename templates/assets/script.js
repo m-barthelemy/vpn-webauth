@@ -354,6 +354,39 @@ async function SendAuthProof(data, notificationsEnabled) {
     }
 }
 
+// Submits an OTP or OTC for validation
+async function validateOneTimePass(isOTC, code) {
+    let url = "/auth/otp/validate";
+    if (isOTC) {
+        url = "/auth/otc/validate";
+    }
+    const codeResponse = await fetch(url, {
+        method: "POST",
+        body: JSON.stringify(
+            { Code: code }
+        ),
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+    });
+    if (!codeResponse.ok) {
+        console.error(codeResponse);
+        /*if(codeResponse.statusText != "") {
+            $("#error").text(codeResponse.statusText);
+        }*/
+        $("#error").show();
+    }
+    else {
+        if (isOTC) {
+            window.location.href = "/auth/getmfachoice";
+        }
+        else {
+            window.location.href = "/success";
+        }
+    }
+}
+
 var userInfo = {};
 
 // main
@@ -504,13 +537,13 @@ $(document).ready(async function(){
         }
     });
 
-    $("#otp").keyup( function() {
+    $("#otp").keyup( async function() {
         const dataLength = $(this).val().length;
         if(dataLength > 0) {
             $("#error").hide();
         }
         if (dataLength == 6) {
-            $("#otp-form").submit();
+            await validateOneTimePass(false, $(this).val())
         }
     }).change();
 
@@ -520,28 +553,7 @@ $(document).ready(async function(){
             $("#error").hide();
         }
         if (dataLength == 6) {
-            // TODO: Move to function
-            const codeResponse = await fetch("/auth/otc/validate", {
-                method: "POST",
-                body: JSON.stringify(
-                    { Code: $(this).val() }
-                ),
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-            });
-            if (!codeResponse.ok) {
-                console.error(codeResponse);
-                if(codeResponse.statusText != "") {
-                    $("#error").text(codeResponse.statusText);
-                }
-                $("#error").show();
-                return;
-            }
-            else {
-                window.location.href = "/auth/getmfachoice";
-            }
+            await validateOneTimePass(true, $(this).val())
         }
     }).change();
 
