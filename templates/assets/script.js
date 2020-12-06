@@ -543,7 +543,8 @@ $(document).ready(async function(){
             $("#error").hide();
         }
         if (dataLength == 6) {
-            await validateOneTimePass(false, $(this).val())
+            await validateOneTimePass(false, $(this).val());
+            $(this).val("");
         }
     }).change();
 
@@ -553,7 +554,8 @@ $(document).ready(async function(){
             $("#error").hide();
         }
         if (dataLength == 6) {
-            await validateOneTimePass(true, $(this).val())
+            await validateOneTimePass(true, $(this).val());
+            $(this).val("");
         }
     }).change();
 

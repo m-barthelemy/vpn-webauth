@@ -49,7 +49,7 @@ main {
 }
 
 .fadein {
-    animation: fadeIn 4s alternate;
+    animation: fadeIn 3s alternate;
 }
 
 .anchor-btn {
