@@ -4,8 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/gorilla/mux"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"github.com/m-barthelemy/vpn-webauth/services"
@@ -31,10 +35,13 @@ func New(db *gorm.DB, config *models.Config, notificationsManager *services.Noti
 	}
 }
 
-// VpnConnectionRequest is what is received from the Stringswan `ext-auth` script request
-type VpnConnectionRequest struct {
-	Identity string
-	SourceIP string
+// ServerConnectionRequest is what is received from the Strongswan `ext-auth` script
+// or pam_exec module.
+type ServerConnectionRequest struct {
+	Identity    string // The user identity as seen by remote SSH/VPN server
+	SourceIP    string // The user source IP
+	SSHAuthInfo string // Value of SSH_AUTH_INFO_0, line returns replaced with commas
+	CallerName  string // The name or hostname of the caller (Hostname for SSH)
 }
 
 func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
@@ -45,17 +52,52 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid VPNCHECKPASSWORD", http.StatusForbidden)
 		return
 	}
-
-	var connRequest VpnConnectionRequest
+	callerIP, _, _ := net.SplitHostPort(r.RemoteAddr)
+	// TODO: how does that apply to SSH connections?
+	if len(v.config.VPNCheckAllowedIPs) > 0 {
+		if !contains(v.config.VPNCheckAllowedIPs, callerIP) {
+			log.Printf("VpnController: source IP %s is not in VPNCHECKALLOWEDIPS allowed list", callerIP)
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+	}
+	var connRequest ServerConnectionRequest
 	err := json.NewDecoder(r.Body).Decode(&connRequest)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
+	if connRequest.Identity == "" {
+		http.Error(w, "Empty Identity field", http.StatusBadRequest)
+		return
+	}
 	// Early exit if identity is excluded from any additional auth.
 	if contains(v.config.ExcludedIdentities, connRequest.Identity) {
 		http.Error(w, "Excluded", http.StatusOK)
+		return
+	}
+
+	params := mux.Vars(r)
+	checkType := params["type"] // "vpn" or "ssh"
+	if checkType != "vpn" && checkType != "ssh" {
+		log.Printf("VpnController: path %s must end with ssh or vpn", r.URL.Path)
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		return
+	}
+	if checkType == "vpn" && !v.config.EnableVPN {
+		log.Print("VpnController: Received VPN request but ENABLEVPN is disabled")
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	} else if checkType == "ssh" && !v.config.EnableSSH {
+		log.Print("VpnController: Received SSH request but ENABLESSH is disabled")
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
+
+	sshKey := getSSHKey(connRequest.SSHAuthInfo)
+	if checkType == "ssh" && v.config.SSHRequireKey && sshKey == "" {
+		log.Printf("VpnController: '%s' SSH request from %s (%s) didn't include any public key", connRequest.Identity, callerIP, connRequest.CallerName)
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 
@@ -72,21 +114,22 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vpnConnection := models.VPNConnection{
-		Allowed:     allowed,
-		Identity:    connRequest.Identity,
-		SourceIP:    connRequest.SourceIP,
-		VPNSourceIP: v.utils.GetClientIP(r),
+	auditEntry := models.ConnectionAuditEntry{
+		Allowed:        allowed,
+		Identity:       connRequest.Identity,
+		ClientSourceIP: connRequest.SourceIP,
+		CallerSourceIP: v.utils.GetClientIP(r),
+		Type:           checkType,
 	}
 
-	vpnConnection.UserID = &user.ID
+	auditEntry.UserID = &user.ID
 	if allowed {
-		vpnConnection.VPNSessionID = &session.ID
+		auditEntry.SessionID = &session.ID
 	}
 
 	if allowed {
-		if tx := v.db.Save(&vpnConnection); tx.Error != nil {
-			log.Printf("VpnController: error saving Vpnconnection audit entry for %s: %s", user.Email, tx.Error.Error())
+		if tx := v.db.Save(&auditEntry); tx.Error != nil {
+			log.Printf("VpnController: error saving connection audit entry for %s: %s", user.Email, tx.Error.Error())
 		}
 		http.Error(w, fmt.Sprintf("Ok %s", time.Since(start)), http.StatusOK)
 		return
@@ -94,13 +137,13 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 
 	_, notifUniqueID, err := v.notificationsManager.NotifyUser(user, connRequest.SourceIP)
 	hasValidBrowserSession := v.notificationsManager.WaitForBrowserProof(user, connRequest.SourceIP, *notifUniqueID)
-	vpnConnection.Allowed = hasValidBrowserSession
-	if tx := v.db.Save(&vpnConnection); tx.Error != nil {
-		log.Printf("VpnController: error saving Vpnconnection audit entry for %s: %s", user.Email, tx.Error.Error())
+	auditEntry.Allowed = hasValidBrowserSession
+	if tx := v.db.Save(&auditEntry); tx.Error != nil {
+		log.Printf("VpnController: error saving connection audit entry for %s: %s", user.Email, tx.Error.Error())
 	}
 
 	if !hasValidBrowserSession {
-		log.Printf("VpnController: No valid session found for user %s", connRequest.Identity)
+		log.Printf("VpnController: No valid session found for user %s from %s", connRequest.Identity, connRequest.SourceIP)
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
@@ -122,4 +165,15 @@ func contains(arr []string, str string) bool {
 		}
 	}
 	return false
+}
+
+func getSSHKey(sshAuthInfo string) string {
+	authInfoList := strings.Split(sshAuthInfo, ",")
+	for idx, val := range authInfoList {
+		if val == "publickey" {
+			// Format is "publickey key_type key_value "
+			return authInfoList[idx+2]
+		}
+	}
+	return ""
 }

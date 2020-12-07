@@ -69,6 +69,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, otpC.GenerateQrCode, false)),
 		),
 	).Methods("GET")
+
 	mux.Handle("/auth/otp/validate",
 		handlers.LoggingHandler(
 			os.Stdout,
@@ -83,18 +84,21 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, webauthnC.BeginRegister, false)),
 		),
 	).Methods("POST")
+
 	mux.Handle("/auth/webauthn/finishregister",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, webauthnC.FinishRegister, false)),
 		),
 	).Methods("POST")
+
 	mux.Handle("/auth/webauthn/beginlogin",
 		handlers.LoggingHandler(
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, webauthnC.BeginLogin, false)),
 		),
 	).Methods("POST")
+
 	mux.Handle("/auth/webauthn/finishlogin",
 		handlers.LoggingHandler(
 			os.Stdout,
@@ -109,6 +113,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, otcC.GenerateSingleUseCode, false)),
 		),
 	).Methods("POST")
+
 	mux.Handle("/auth/otc/validate",
 		handlers.LoggingHandler(
 			os.Stdout,
@@ -126,20 +131,6 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	// without requiring the user to open the web app and sign in again.
 	bus := EventBus.New()
 	notificationsManager := services.NewNotificationsManager(db, config, &bus)
-	vpnC := vpnController.New(db, config, notificationsManager)
-	mux.Handle("/vpn/check",
-		handlers.LoggingHandler(
-			os.Stdout,
-			http.HandlerFunc(vpnC.CheckSession),
-		),
-	).Methods("POST")
-
-	mux.Handle("/ssh/check",
-		handlers.LoggingHandler(
-			os.Stdout,
-			http.HandlerFunc(vpnC.CheckSession),
-		),
-	)
 
 	userC := userController.New(db, config, notificationsManager)
 	// Creates a browser push subscription for the user
@@ -149,6 +140,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.GetPushSubscriptionKey, false)),
 		),
 	).Methods("POST")
+
 	mux.Handle("/user/push_subscriptions/finish",
 		handlers.LoggingHandler(
 			os.Stdout,
@@ -175,7 +167,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 			os.Stdout,
 			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.Logout, false)),
 		),
-	)
+	).Methods("GET")
 
 	// Server-Side Events fallback if browser doesn't support push notifications
 	sseC := sseController.New(db, config, &bus)
@@ -187,6 +179,15 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		),
 	)
 
+	vpnC := vpnController.New(db, config, notificationsManager)
+	mux.Handle("/check/{type}",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(vpnC.CheckSession),
+		),
+	).Methods("POST")
+
+	// Default: render html templates
 	mux.PathPrefix("/").HandlerFunc(tplHandler.HandleEmbeddedTemplate)
 
 	return mux

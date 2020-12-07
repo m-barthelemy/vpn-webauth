@@ -52,7 +52,10 @@ func main() {
 	if err := db.AutoMigrate(&models.UserMFA{}); err != nil {
 		log.Fatalf("Failed to run database migrations for UserMFA model: %s", err)
 	}
-	if err := db.AutoMigrate(&models.VPNConnection{}); err != nil {
+	if err := db.AutoMigrate(&models.UserIdentity{}); err != nil {
+		log.Fatalf("Failed to run database migrations for UserIdentity model: %s", err)
+	}
+	if err := db.AutoMigrate(&models.ConnectionAuditEntry{}); err != nil {
 		log.Fatalf("Failed to run database migrations for VPNConnection model: %s", err)
 	}
 	if err := db.AutoMigrate(&models.UserSubscription{}); err != nil {

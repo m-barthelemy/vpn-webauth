@@ -29,6 +29,8 @@ type Config struct {
 	OAuth2Provider         string        // OAUTH2PROVIDER
 	OAuth2Tenant           string        // OAUTH2TENANT
 	EnableNotifications    bool          // ENABLENOTIFICATIONS
+	EnableSSH              bool          // ENABLESSH
+	EnableVPN              bool          // ENABLEVPN
 	EnforceMFA             bool          // ENFORCEMFA
 	MaxBodySize            int64         // not documented
 	MFAOTP                 bool          // MFAOTP
@@ -40,6 +42,7 @@ type Config struct {
 	EncryptionKey          string        // ENCRYPTIONKEY
 	OriginalIPHeader       string        // ORIGINALIPHEADER
 	OriginalProtoHeader    string        // ORIGINALPROTOHEADER
+	SSHRequireKey          bool          // SSHREQUIREKEY
 	SSLMode                string        // SSLMODE
 	SSLAutoCertsDir        string        // SSLAUTOCERTSDIR
 	SSLCustomCertPath      string        // SSLCUSTOMCERTPATH
@@ -47,6 +50,7 @@ type Config struct {
 	VapidPublicKey         string        // VAPIDPUBLICKEY
 	VapidPrivateKey        string        // VAPIDPRIVATEKEY
 	VPNCheckPassword       string        // VPNCHECKPASSWORD
+	VPNCheckAllowedIPs     []string      // VPNCHECKALLOWEDIPS
 	VPNSessionValidity     time.Duration // VPNSESSIONVALIDITY
 	WebSessionValidity     time.Duration // WEBSESSIONVALIDITY
 	WebSessionProofTimeout time.Duration // WEBSESSIONPROOFTIMEOUT

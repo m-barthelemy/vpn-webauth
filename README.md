@@ -137,7 +137,9 @@ All the configuration parameters have to passed as environment variables.
 - `ISSUER`: Name that appears on the users OTP authenticator app and browser notifications title. Default: `VPN`.
   > It is recommended that you set it to the name of your VPN connection as it appears on your users devices.
 - `LOGOURL`: Add your organization logo on top of the webapp pages. Optional. If the app is served over HTTPS (and it should), `LOGOURL` must also be a HTTPS URL.
-- `ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. If running this app behind Nginx for example, you will need to configure Nginx to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-For` is used for this purpose. Default: empty.
+- `ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. 
+  > If running this app behind Nginx for example, or using a corporate proxy, you will need to configure them to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-For` is used for this purpose. Default: empty.
+  > The source IP address seen by Strongswan must match the source IP address used for the web authentication. If you have both a corporate HTTP proxy for users and a reverse-proxy such as Nginx in front of this app, you will need to configure the corporate proxy to set a header containing the original client IP, and ensure that Nginx passes it to the app. Do not configure both the corporate and the reverse proxies to append to the same header, as the app will only read the its value.
 - `ORIGINALPROTOHEADER`: the header to use to fetch the real protocol (http, https) used between the clients and the proxy. Default: `X-Forwarded-Proto`.
 - `PORT`: the port to listen to. Default: `8080`
 - `SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
@@ -172,6 +174,8 @@ It is also possible to sign in from different browsers and devices by using the 
 ### VPN
   - `VPNCHECKPASSWORD`: Shared password between the app and the Strongswan `ext-auth` script to protect the endpoint checking for valid user "sessions". Optional.
     > If the `/vpn/check` endpoint is publicly available, it is a good idea to set a password to ensure that only your VPN server is allowed to query the app for user sessions. Make sure you also set it in your `ext-auth` configuration.
+  - `VPNCHECKALLOWEDIPS`: Comma-separated list of IPs allowed to query the check endpoint. Optional. Default: empty, anyone can use the endpoint.
+    > NOTE: For this to work as expected, the VPN server needs to connect **directly** to the check endpoint, without any corporate or forward proxy. `ORIGINALIPHEADER` is ignored for requests coming from your VPN server.
   - `VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication. During this interval the web authentication status is not reverified. Default: `30m`. Specify custom value as a number and a time unit, for example `1h30m`.
     > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.

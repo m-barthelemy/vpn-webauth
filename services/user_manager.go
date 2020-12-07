@@ -25,7 +25,7 @@ func New(db *gorm.DB, config *models.Config) *UserManager {
 func (m *UserManager) Get(email string) (*models.User, error) {
 	var user models.User
 
-	result := m.db.Preload("MFAs").Where("email = ?", email).First(&user)
+	result := m.db.Preload("MFAs").Preload("Identities").Where("email = ?", email).First(&user)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -329,6 +329,6 @@ func (m *UserManager) createIdentifierCookie(user *models.User, w http.ResponseW
 // CleanupConnections deletes connection entries older than configured value
 func (m *UserManager) CleanupConnectionsLog() error {
 	expireDate := time.Now().AddDate(0, 0, -m.config.ConnectionsRetention)
-	result := m.db.Delete(&models.VPNConnection{}, "created_at < ?", expireDate)
+	result := m.db.Delete(&models.ConnectionAuditEntry{}, "created_at < ?", expireDate)
 	return result.Error
 }

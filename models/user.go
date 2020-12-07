@@ -10,11 +10,12 @@ import (
 // User is a successfully authenticated OAuth2 account
 type User struct {
 	gorm.Model
-	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
-	Email     string    `gorm:"unique"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	MFAs      []UserMFA
+	ID         uuid.UUID `gorm:"type:uuid;primaryKey"`
+	Email      string    `gorm:"unique"`
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	MFAs       []UserMFA
+	Identities []UserIdentity
 }
 
 // BeforeCreate ensures the model has an ID before saving it
