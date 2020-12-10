@@ -1,23 +1,22 @@
 ## What is it?
 
-This is quick (and dirty) web application allowing to add a second round of authentication to a Strongswan VPN.
-It doesn't replace, and in fact requires, a normal authentication process using passwords or certificates.
+This is quick (and dirty) web application allowing to add a second round of authentication to a Strongswan VPN or to SSH connections.
+It doesn't replace, and in fact requires, a normal VPN or SSH authentication process.
+It provides an additional layer of authentication via a user web login and optional 2FA.
+It can help achieve compliance with some security standards requiring MFA to be implemented to your authentication workflows.
 
-Traditionally, simple IPSec VPN authentication methods involve deploying certificates to the client, or using a login + password.
-
-While IKEv2 permits, in theory, the use of a second round of authentication, default VPN clients installed on OS such as MacOs and Windows have very little compatibility with it.
-
-This project uses the `ext-auth` Strongswan plugin to provide an additional layer of authentication via a user web login and optional 2FA.
+### For Strongswan VPNs
+This project uses the `ext-auth` Strongswan plugin.
 This can help to protect your organization aganist VPN credentials or certificates being leaked or stolen.
-
-It can also help achieve compliance with some security standards requiring MFA to be implemented for VPNs giving access to sensitive environments.
-
 This tool compatible with all VPN clients and operating systems.
+
+### For SSH
+This project used the `pam_exec` PAM module shipped with the majority of the Linux distributions.
 
 
 ## How does it work?
 
- - The user registers to the webapp (_before_ connecting to the VPN)
+ - The user registers to the webapp
  - They authenticate using OAuth2 (for now, Google and Azure Directory are supported)
  - Optionally, they are required to complete additional authentication, using an OTP token (independent from the OAuth2 provider 2FA), TouchID/FaceID or a physical security key.
  - A "session" is created with the user email, their source IP address and the time when they completed the web authentication

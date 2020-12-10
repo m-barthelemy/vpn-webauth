@@ -1,9 +1,14 @@
 package services
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -32,6 +37,82 @@ func (m *UserManager) Get(email string) (*models.User, error) {
 	return &user, nil
 }
 
+func (m *UserManager) GetSSHIdentity(userName string, publicKey string) (*models.UserIdentity, error) {
+	var identity models.UserIdentity
+	result := m.db.Preload("User").Where("type = ? AND name = ? AND public_key = ? and validated = true", "ssh", userName, publicKey).First(&identity)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &identity, nil
+}
+
+// CreateIdentity creates a new UserIdentity for the specified username
+// and returns the one-time code for the User to validate.
+func (m *UserManager) CreateIdentity(userName string, publicKey string) (*string, error) {
+	b := make([]byte, 32)
+	rand.Read(b)
+	//otc := base64.URLEncoding.EncodeToString(b)
+	otc := base64.RawStdEncoding.EncodeToString(b)
+	// remove / and + to ease copy/pasting of the challenge
+	otc = strings.ReplaceAll(otc, "/", "0")
+	otc = strings.ReplaceAll(otc, "+", "0")
+	runes := []rune(otc)
+	// Ensure temporary code is always 32 chars
+	otc = string(runes[0:32])
+
+	// We must later find the identity pending validation by its temporary code
+	// so a simple hash is the only way to do so while offering _some_ kind of
+	// protection for the temporary code
+	hashedOTCBytes := sha256.Sum256([]byte(otc))
+	//hashedOTCBytes := hashedOTCBytes32[:]
+	hashedOTC := fmt.Sprintf("%x", hashedOTCBytes)
+
+	identity := models.UserIdentity{
+		Name:           userName,
+		PublicKey:      publicKey,
+		Validated:      false,
+		ValidationData: hashedOTC,
+		Type:           "ssh",
+	}
+	result := m.db.Create(&identity)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &otc, nil
+}
+
+func (m *UserManager) ValidateIdentity(user *models.User, otc string) (*models.UserIdentity, error) {
+	hashedOTCBytes := sha256.Sum256([]byte(otc))
+	//hashedOTCBytes := hashedOTCBytes32[:]
+	hashedOTC := fmt.Sprintf("%x", hashedOTCBytes)
+
+	var identity models.UserIdentity
+	validity := time.Now().Add(-3 * time.Minute)
+	result := m.db.Where("validation_data = ? and validated = false and created_at > ?", hashedOTC, validity).First(&identity)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	identity.UserID = &user.ID
+	identity.ValidationData = ""
+	identity.Validated = true
+	tx := m.db.Save(&identity)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	identity.User = user
+	// Cleanup expired and never validated identities
+	_ = m.db.Delete(&models.UserIdentity{}, "validated = false AND created_at < ?", validity)
+	return &identity, nil
+
+}
+
 // Check that the user exists and has a valid OTP setup.
 // User is created if it doesn't exist.
 // Returns false if the user doesn't have a verified TOTP secret
@@ -56,8 +137,8 @@ func (m *UserManager) CheckOrCreate(email string) (*models.User, error) {
 	return &user, nil
 }
 
-func (m *UserManager) CheckVpnSession(identity string, ip string) (*models.User, *models.VpnSession, bool, error) {
-	var session models.VpnSession
+func (m *UserManager) CheckVpnSession(identity string, ip string) (*models.User, *models.RemoteSession, bool, error) {
+	var session models.RemoteSession
 	var user models.User
 
 	duration := m.config.VPNSessionValidity
@@ -86,13 +167,13 @@ func (m *UserManager) CheckVpnSession(identity string, ip string) (*models.User,
 // CreateVpnSession Creates a new VPN "Session" for the `User` from the specified IP address.
 func (m *UserManager) CreateVpnSession(user *models.User, ip string) error {
 	// First delete any existing session for the same user
-	oldSession := models.VpnSession{Email: user.Email}
+	oldSession := models.RemoteSession{Type: "vpn", Email: user.Email}
 	deleteResult := m.db.Delete(&oldSession)
 	if deleteResult.Error != nil {
 		return deleteResult.Error
 	}
 	// Then create the new "session"
-	var vpnSession = models.VpnSession{Email: user.Email, SourceIP: ip}
+	var vpnSession = models.RemoteSession{Type: "vpn", Email: user.Email, SourceIP: ip}
 	result := m.db.Create(&vpnSession)
 	if result.Error != nil {
 		return result.Error
@@ -103,7 +184,7 @@ func (m *UserManager) CreateVpnSession(user *models.User, ip string) error {
 
 func (m *UserManager) DeleteVpnSession(identity string, ip string) error {
 	// First delete any existing session for the same user
-	oldSession := models.VpnSession{Email: identity, SourceIP: ip}
+	oldSession := models.RemoteSession{Type: "vpn", Email: identity, SourceIP: ip}
 	deleteResult := m.db.Delete(&oldSession)
 	if deleteResult.Error != nil {
 		return deleteResult.Error

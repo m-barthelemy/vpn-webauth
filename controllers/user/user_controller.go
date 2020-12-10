@@ -25,6 +25,7 @@ type UserController struct {
 }
 
 type SessionInfo struct {
+	AppURL              string
 	Identity            string // user identity (email)
 	Issuer              string // Name of the connection
 	EnableNotifications bool
@@ -40,6 +41,10 @@ func New(db *gorm.DB, config *models.Config, notificationsManager *services.Noti
 		config:               config,
 		notificationsManager: notificationsManager,
 	}
+}
+
+type OneTimePassword struct {
+	Code string
 }
 
 func (u *UserController) GetPushSubscriptionKey(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +83,7 @@ func (u *UserController) RegisterPushSubscription(w http.ResponseWriter, r *http
 	}
 
 	// Deny if the user has enabled MFA but hasn't logged in fully
-	if user.HasMFA() && !sessionHasMFA {
+	if u.config.EnforceMFA && !sessionHasMFA {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
@@ -173,6 +178,7 @@ func (u *UserController) GetSessionInfo(w http.ResponseWriter, r *http.Request) 
 	}
 
 	userInfo := SessionInfo{
+		AppURL:              u.config.RedirectDomain.String(),
 		Identity:            email,
 		Issuer:              u.config.Issuer,
 		EnableNotifications: u.config.EnableNotifications,
@@ -186,4 +192,42 @@ func (u *UserController) GetSessionInfo(w http.ResponseWriter, r *http.Request) 
 	}
 
 	utils.JSONResponse(w, userInfo, http.StatusOK)
+}
+
+func (u *UserController) ValidateSshIdentity(w http.ResponseWriter, r *http.Request) {
+	var email = r.Context().Value("identity").(string)
+	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
+
+	// Deny if MFA is enforced but User hasn't fully logged in
+	if u.config.EnforceMFA && !sessionHasMFA {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
+
+	userManager := userManager.New(u.db, u.config)
+	user, err := userManager.Get(email)
+	if err != nil {
+		log.Printf("UserController: Error fetching user %s: %s", email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	var codeToValidate OneTimePassword
+	err = json.NewDecoder(r.Body).Decode(&codeToValidate)
+	if err != nil {
+		log.Printf("UserController: Unable to unmarshal %s OTP code: %s", user.Email, err.Error())
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	identity, err := userManager.ValidateIdentity(user, codeToValidate.Code)
+	if err != nil {
+		log.Printf("UserController: Error validating user %s SSH identity: %s", email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	if identity == nil {
+		log.Printf("UserController: no matching SSH identity to validate for %s", email)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
 }

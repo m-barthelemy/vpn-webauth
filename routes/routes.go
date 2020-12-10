@@ -12,8 +12,8 @@ import (
 	otcController "github.com/m-barthelemy/vpn-webauth/controllers/otc"
 	otpController "github.com/m-barthelemy/vpn-webauth/controllers/otp"
 	sseController "github.com/m-barthelemy/vpn-webauth/controllers/sse"
+	systemSessionController "github.com/m-barthelemy/vpn-webauth/controllers/system_sessions"
 	userController "github.com/m-barthelemy/vpn-webauth/controllers/user"
-	vpnController "github.com/m-barthelemy/vpn-webauth/controllers/vpn"
 	webauthNController "github.com/m-barthelemy/vpn-webauth/controllers/webauthn"
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"github.com/m-barthelemy/vpn-webauth/services"
@@ -155,6 +155,13 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		),
 	).Methods("POST")
 
+	mux.Handle("/user/identities/validate",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.ValidateSshIdentity, false)),
+		),
+	).Methods("POST")
+
 	mux.Handle("/user/info",
 		handlers.LoggingHandler(
 			os.Stdout,
@@ -179,11 +186,11 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		),
 	)
 
-	vpnC := vpnController.New(db, config, notificationsManager)
+	ssC := systemSessionController.New(db, config, notificationsManager)
 	mux.Handle("/check/{type}",
 		handlers.LoggingHandler(
 			os.Stdout,
-			http.HandlerFunc(vpnC.CheckSession),
+			http.HandlerFunc(ssC.CheckSession),
 		),
 	).Methods("POST")
 

@@ -46,7 +46,7 @@ func main() {
 	if err := db.AutoMigrate(&models.User{}); err != nil {
 		log.Fatalf("Failed to run database migrations for User model: %s", err)
 	}
-	if err := db.AutoMigrate(&models.VpnSession{}); err != nil {
+	if err := db.AutoMigrate(&models.RemoteSession{}); err != nil {
 		log.Fatalf("Failed to run database migrations for VpnSession model: %s", err)
 	}
 	if err := db.AutoMigrate(&models.UserMFA{}); err != nil {

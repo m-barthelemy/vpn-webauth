@@ -18,7 +18,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type VpnController struct {
+type SystemSessionController struct {
 	db                   *gorm.DB
 	config               *models.Config
 	notificationsManager *services.NotificationsManager
@@ -26,8 +26,8 @@ type VpnController struct {
 }
 
 // New creates an instance of the controller and sets its DB handle
-func New(db *gorm.DB, config *models.Config, notificationsManager *services.NotificationsManager) *VpnController {
-	return &VpnController{
+func New(db *gorm.DB, config *models.Config, notificationsManager *services.NotificationsManager) *SystemSessionController {
+	return &SystemSessionController{
 		db:                   db,
 		config:               config,
 		utils:                utils.New(config),
@@ -44,7 +44,7 @@ type ServerConnectionRequest struct {
 	CallerName  string // The name or hostname of the caller (Hostname for SSH)
 }
 
-func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
+func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	start := time.Now() // report time taken to verify user for debugging purposes
 	_, password, _ := r.BasicAuth()
 	if password != v.config.VPNCheckPassword {
@@ -88,12 +88,20 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		log.Print("VpnController: Received VPN request but ENABLEVPN is disabled")
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
-	} else if checkType == "ssh" && !v.config.EnableSSH {
-		log.Print("VpnController: Received SSH request but ENABLESSH is disabled")
-		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
-		return
+	} else if checkType == "ssh" {
+		if !v.config.EnableSSH {
+			log.Print("VpnController: Received SSH request but ENABLESSH is disabled")
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+		if v.config.SSHRequireKey && connRequest.SSHAuthInfo == "" {
+			log.Printf("VpnController: Received SSH request for '%s' from %s but SSH key is empty", connRequest.Identity, callerIP)
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
 	}
 
+	// SSH-only
 	sshKey := getSSHKey(connRequest.SSHAuthInfo)
 	if checkType == "ssh" && v.config.SSHRequireKey && sshKey == "" {
 		log.Printf("VpnController: '%s' SSH request from %s (%s) didn't include any public key", connRequest.Identity, callerIP, connRequest.CallerName)
@@ -102,7 +110,39 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userManager := userManager.New(v.db, v.config)
-	user, session, allowed, err := userManager.CheckVpnSession(connRequest.Identity, connRequest.SourceIP)
+	sshIdentity, err := userManager.GetSSHIdentity(connRequest.Identity, sshKey)
+	if err != nil {
+		log.Printf("VpnController: Error checking SSH identity for Unix user '%s' : %s", connRequest.Identity, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	// If it's the first time we see the key and/or username, reply with a one-time code
+	//  to tie the username+key to a known and authenticated User.
+	if sshIdentity == nil {
+		otc, err := userManager.CreateIdentity(connRequest.Identity, sshKey)
+		if err != nil {
+			log.Printf("VpnController: Error creating SSH identity for Unix user %s : %s", connRequest.Identity, err.Error())
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		log.Printf("VpnController: SSH identity for Unix user '%s' is unknown, sending one-time validation challenge", connRequest.Identity)
+		http.Error(w, fmt.Sprintf("%s/addSSHKey %s", v.config.RedirectDomain, *otc), http.StatusNotAcceptable)
+		return
+
+	}
+	user := sshIdentity.User
+	if user == nil {
+		log.Printf("VpnController: Valid SSH identity for Unix user %s doesn't match any User", connRequest.Identity)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	allowed := false
+	var session *models.RemoteSession
+	// end of SSH-only
+
+	/*user, session, allowed, err := userManager.CheckVpnSession(connRequest.Identity, connRequest.SourceIP)
 	if err != nil {
 		log.Printf("VpnController: Error checking user session: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -112,7 +152,7 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		log.Printf("VpnController: Received request for unknown identity '%s' from %s", connRequest.Identity, connRequest.SourceIP)
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
-	}
+	}*/
 
 	auditEntry := models.ConnectionAuditEntry{
 		Allowed:        allowed,
@@ -169,10 +209,11 @@ func contains(arr []string, str string) bool {
 
 func getSSHKey(sshAuthInfo string) string {
 	authInfoList := strings.Split(sshAuthInfo, ",")
-	for idx, val := range authInfoList {
-		if val == "publickey" {
+	for _, val := range authInfoList {
+		authInfo := strings.Split(val, " ")
+		if len(authInfo) == 3 && authInfo[0] == "publickey" {
 			// Format is "publickey key_type key_value "
-			return authInfoList[idx+2]
+			return authInfo[2]
 		}
 	}
 	return ""

@@ -1,0 +1,58 @@
+{{ define "addSSHKey" }}
+<html>
+{{ template "header" . }}
+<body>
+<div class="section"></div>
+<main>
+    <center>
+        <div class="section"></div>
+        <form action="/auth/otp/validate" method="POST" id="otp-form">
+        <div class="container">
+            <div class="z-depth-1 grey lighten-4 row main-container">
+                 <img src="{{.LogoURL}}" class="logo"/>
+                <br/><br/>
+                <br/>
+                <h4 class="section-title">1. SSH into any remote system</h4>
+                <p>...if not already done. You will get the following message:</p>
+                <div class="section">
+                <pre class="blue-grey darken-4 white left-align left">
+  ***********************************************************  
+  ⚠️  You need to validate your SSH key.
+  One-time code: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  Open <span id="data-app-url"></span>/addSSHKey
+  ***********************************************************  </pre>
+                </div>
+                <br/><br/>
+                <h4 class="section-title">&nbsp;</h4>
+                <h4 class="section-title">2. Paste the SSH One-time code </h4>
+                <p></p>
+                <br/>
+                <div class="row">
+                    <div class='input-field col s12'>
+                        <i class="material-icons prefix">keyboard</i>
+                        <input class='validate otp' type='password' name='ssh-otp' id='ssh-otp' maxlength="32" autofocus/>
+                        <label for='ssh-otp'>One-time Code</label>
+                        <span class="helper-text" data-error="Invalid code" data-success="right"></span>
+                    </div>
+                </div>
+                <br/>
+                <div id="error" class="card-panel red accent-3 display-none" style="color: #ffffff;"><b>The code is invalid</b></div>
+                <br/>
+                <div class="row">
+                    <div>
+                        <a class="btn col s12 waves-effect blue-grey left anchor-btn" href="/">
+                            <i class="material-icons left">home</i>&nbsp;Cancel
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+    </center>
+
+    <div class="section"></div>
+</main>
+</body>
+
+</html>
+{{ end }}

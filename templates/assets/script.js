@@ -354,12 +354,15 @@ async function SendAuthProof(data, notificationsEnabled) {
     }
 }
 
+const OtpType = {
+    OTP: '/auth/otp/validate',
+    OTC: '/auth/otc/validate',
+    SSHOTP: '/user/identities/validate',
+}
+
 // Submits an OTP or OTC for validation
-async function validateOneTimePass(isOTC, code) {
-    let url = "/auth/otp/validate";
-    if (isOTC) {
-        url = "/auth/otc/validate";
-    }
+async function validateOneTimePass(otpType, code) {
+    let url = otpType;
     const codeResponse = await fetch(url, {
         method: "POST",
         body: JSON.stringify(
@@ -472,7 +475,8 @@ $(document).ready(async function(){
         $(this).text(userInfo.Issuer);
     });
     $("#data-session-validity").text(new Date(userInfo.SessionExpiry * 1000).toLocaleString());
-
+    $("#data-app-url").text(userInfo.AppURL);
+    
     if ('permissions' in navigator) {
         const notificationPerm = await navigator.permissions.query({name:'notifications'});
         console.log(`Notifications are ${notificationPerm.state}`);
@@ -543,7 +547,7 @@ $(document).ready(async function(){
             $("#error").hide();
         }
         if (dataLength == 6) {
-            await validateOneTimePass(false, $(this).val());
+            await validateOneTimePass(OtpType.OTP, $(this).val());
             $(this).val("");
         }
     }).change();
@@ -554,7 +558,19 @@ $(document).ready(async function(){
             $("#error").hide();
         }
         if (dataLength == 6) {
-            await validateOneTimePass(true, $(this).val());
+            await validateOneTimePass(OtpType.OTC, $(this).val());
+            $(this).val("");
+        }
+    }).change();
+
+    $("#ssh-otp").keyup( async function() {
+        const dataLength = $(this).val().length;
+        if(dataLength > 0) {
+            $("#error").hide();
+        }
+        console.log(`SSH OYP length=${dataLength}`);
+        if (dataLength == 32) {
+            await validateOneTimePass(OtpType.SSHOTP, $(this).val());
             $(this).val("");
         }
     }).change();

@@ -8,7 +8,7 @@ import (
 )
 
 // VpnSession represents a successful Google + OTP login
-type VpnSession struct {
+type RemoteSession struct {
 	// Using `Email` and `Type` as primary key again ensures a user only has 1 valid "session"
 	ID        uuid.UUID `gorm:"unique"`
 	Type      string    `gorm:"primaryKey"`
@@ -19,7 +19,7 @@ type VpnSession struct {
 }
 
 // BeforeCreate ensures the model has an ID before saving it
-func (vpnSession *VpnSession) BeforeCreate(scope *gorm.DB) error {
+func (vpnSession *RemoteSession) BeforeCreate(scope *gorm.DB) error {
 	uuid, err := uuid.NewV4()
 	if err != nil {
 		return err
