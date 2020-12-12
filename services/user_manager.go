@@ -137,7 +137,7 @@ func (m *UserManager) CheckOrCreate(email string) (*models.User, error) {
 	return &user, nil
 }
 
-func (m *UserManager) CheckVpnSession(identity string, ip string) (*models.User, *models.RemoteSession, bool, error) {
+func (m *UserManager) CheckSystemSession(connectionType string, identity string, ip string) (*models.User, *models.RemoteSession, bool, error) {
 	var session models.RemoteSession
 	var user models.User
 
@@ -152,7 +152,7 @@ func (m *UserManager) CheckVpnSession(identity string, ip string) (*models.User,
 		}
 	}
 
-	sessionResult := m.db.Order("created_at desc").Where("email = ? AND source_ip = ?", identity, ip).First(&session)
+	sessionResult := m.db.Order("created_at desc").Where("type = ? AND identity = ? AND source_ip = ?", connectionType, identity, ip).First(&session)
 	if sessionResult.Error != nil {
 		if errors.Is(sessionResult.Error, gorm.ErrRecordNotFound) {
 			return &user, nil, false, nil
@@ -165,27 +165,27 @@ func (m *UserManager) CheckVpnSession(identity string, ip string) (*models.User,
 }
 
 // CreateVpnSession Creates a new VPN "Session" for the `User` from the specified IP address.
-func (m *UserManager) CreateVpnSession(user *models.User, ip string) error {
+func (m *UserManager) CreateVpnSession(connectionType string, user *models.User, ip string) (*models.RemoteSession, error) {
 	// First delete any existing session for the same user
-	oldSession := models.RemoteSession{Type: "vpn", Email: user.Email}
+	oldSession := models.RemoteSession{Type: connectionType, Identity: user.Email}
 	deleteResult := m.db.Delete(&oldSession)
 	if deleteResult.Error != nil {
-		return deleteResult.Error
+		return nil, deleteResult.Error
 	}
 	// Then create the new "session"
-	var vpnSession = models.RemoteSession{Type: "vpn", Email: user.Email, SourceIP: ip}
-	result := m.db.Create(&vpnSession)
+	var remoteSession = models.RemoteSession{Type: connectionType, Identity: user.Email, SourceIP: ip, UserID: &user.ID}
+	result := m.db.Create(&remoteSession)
 	if result.Error != nil {
-		return result.Error
+		return nil, result.Error
 	}
-	log.Printf("UserController: User %s created VPN session from %s", user.Email, ip)
-	return nil
+	log.Printf("UserController: User %s created %s session from %s", user.Email, connectionType, ip)
+	return &remoteSession, nil
 }
 
-func (m *UserManager) DeleteVpnSession(identity string, ip string) error {
+func (m *UserManager) DeleteVpnSession(user *models.User, ip string) error {
 	// First delete any existing session for the same user
-	oldSession := models.RemoteSession{Type: "vpn", Email: identity, SourceIP: ip}
-	deleteResult := m.db.Delete(&oldSession)
+	//oldSession := models.RemoteSession{UserID: &user.ID, SourceIP: ip}
+	deleteResult := m.db.Where("user_id = ? AND source_ip = ?", user.ID, ip).Delete(&models.RemoteSession{})
 	if deleteResult.Error != nil {
 		return deleteResult.Error
 	}

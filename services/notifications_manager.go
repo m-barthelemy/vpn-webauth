@@ -35,7 +35,7 @@ func NewNotificationsManager(db *gorm.DB, config *models.Config, bus *EventBus.B
 	return &NotificationsManager{db: db, config: config, bus: bus}
 }
 
-func (n *NotificationsManager) NotifyUser(user *models.User, sourceIP string) (bool, *uuid.UUID, error) {
+func (n *NotificationsManager) NotifyUser(connectionName string, user *models.User, sourceIP string) (bool, *uuid.UUID, error) {
 	var subscriptions []models.UserSubscription
 	minUsedAt := time.Now().AddDate(0, -3, 0)
 	if result := n.db.Where("user_id = ? AND last_used_at > ?", user.ID.String(), minUsedAt).Find(&subscriptions); result.Error != nil {
@@ -53,7 +53,7 @@ func (n *NotificationsManager) NotifyUser(user *models.User, sourceIP string) (b
 		Issuer string
 	}
 	nonce.Nonce = notifId
-	nonce.Issuer = n.config.Issuer
+	nonce.Issuer = connectionName
 	jsonNonce, err := json.Marshal(nonce)
 	if err != nil {
 		return false, &notifId, err
@@ -101,7 +101,7 @@ func (n *NotificationsManager) NotifyUser(user *models.User, sourceIP string) (b
 		Message: sse.SSEMessage{
 			Action: "Auth",
 			Nonce:  notifId.String(),
-			Issuer: n.config.Issuer,
+			Issuer: connectionName,
 		},
 	}
 	bus := *n.bus

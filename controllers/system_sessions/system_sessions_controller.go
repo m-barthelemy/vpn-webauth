@@ -48,7 +48,7 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 	start := time.Now() // report time taken to verify user for debugging purposes
 	_, password, _ := r.BasicAuth()
 	if password != v.config.VPNCheckPassword {
-		log.Print("VpnController: password does not match VPNCHECKPASSWORD")
+		log.Print("SystemSessionController: password does not match VPNCHECKPASSWORD")
 		http.Error(w, "Invalid VPNCHECKPASSWORD", http.StatusForbidden)
 		return
 	}
@@ -56,7 +56,7 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 	// TODO: how does that apply to SSH connections?
 	if len(v.config.VPNCheckAllowedIPs) > 0 {
 		if !contains(v.config.VPNCheckAllowedIPs, callerIP) {
-			log.Printf("VpnController: source IP %s is not in VPNCHECKALLOWEDIPS allowed list", callerIP)
+			log.Printf("SystemSessionController: source IP %s is not in VPNCHECKALLOWEDIPS allowed list", callerIP)
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
@@ -80,79 +80,50 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 	params := mux.Vars(r)
 	checkType := params["type"] // "vpn" or "ssh"
 	if checkType != "vpn" && checkType != "ssh" {
-		log.Printf("VpnController: path %s must end with ssh or vpn", r.URL.Path)
+		log.Printf("SystemSessionController: path %s must end with ssh or vpn", r.URL.Path)
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
 	if checkType == "vpn" && !v.config.EnableVPN {
-		log.Print("VpnController: Received VPN request but ENABLEVPN is disabled")
+		log.Print("SystemSessionController: Received VPN request but ENABLEVPN is disabled")
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	} else if checkType == "ssh" {
 		if !v.config.EnableSSH {
-			log.Print("VpnController: Received SSH request but ENABLESSH is disabled")
+			log.Print("SystemSessionController: Received SSH request but ENABLESSH is disabled")
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
 		if v.config.SSHRequireKey && connRequest.SSHAuthInfo == "" {
-			log.Printf("VpnController: Received SSH request for '%s' from %s but SSH key is empty", connRequest.Identity, callerIP)
+			log.Printf("SystemSessionController: Received SSH request for '%s' from %s but SSH key is empty", connRequest.Identity, callerIP)
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
 	}
 
-	// SSH-only
-	sshKey := getSSHKey(connRequest.SSHAuthInfo)
-	if checkType == "ssh" && v.config.SSHRequireKey && sshKey == "" {
-		log.Printf("VpnController: '%s' SSH request from %s (%s) didn't include any public key", connRequest.Identity, callerIP, connRequest.CallerName)
-		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-		return
-	}
-
-	userManager := userManager.New(v.db, v.config)
-	sshIdentity, err := userManager.GetSSHIdentity(connRequest.Identity, sshKey)
-	if err != nil {
-		log.Printf("VpnController: Error checking SSH identity for Unix user '%s' : %s", connRequest.Identity, err.Error())
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	// If it's the first time we see the key and/or username, reply with a one-time code
-	//  to tie the username+key to a known and authenticated User.
-	if sshIdentity == nil {
-		otc, err := userManager.CreateIdentity(connRequest.Identity, sshKey)
-		if err != nil {
-			log.Printf("VpnController: Error creating SSH identity for Unix user %s : %s", connRequest.Identity, err.Error())
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
-		log.Printf("VpnController: SSH identity for Unix user '%s' is unknown, sending one-time validation challenge", connRequest.Identity)
-		http.Error(w, fmt.Sprintf("%s/addSSHKey %s", v.config.RedirectDomain, *otc), http.StatusNotAcceptable)
-		return
-
-	}
-	user := sshIdentity.User
-	if user == nil {
-		log.Printf("VpnController: Valid SSH identity for Unix user %s doesn't match any User", connRequest.Identity)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
 	allowed := false
+	var user *models.User
 	var session *models.RemoteSession
-	// end of SSH-only
+	userManager := userManager.New(v.db, v.config)
 
-	/*user, session, allowed, err := userManager.CheckVpnSession(connRequest.Identity, connRequest.SourceIP)
+	user, session, allowed, err = userManager.CheckSystemSession(checkType, connRequest.Identity, connRequest.SourceIP)
 	if err != nil {
-		log.Printf("VpnController: Error checking user session: %s", err.Error())
+		log.Printf("SystemSessionController: Error checking user session: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	if user == nil {
-		log.Printf("VpnController: Received request for unknown identity '%s' from %s", connRequest.Identity, connRequest.SourceIP)
-		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-		return
-	}*/
+		if checkType == "vpn" {
+			log.Printf("SystemSessionController: Received request for unknown identity '%s' from %s", connRequest.Identity, connRequest.SourceIP)
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return
+		} else if checkType == "ssh" {
+			user = v.checkSSHSession(connRequest, w, r)
+			if user == nil {
+				return
+			}
+		}
+	}
 
 	auditEntry := models.ConnectionAuditEntry{
 		Allowed:        allowed,
@@ -169,33 +140,86 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 
 	if allowed {
 		if tx := v.db.Save(&auditEntry); tx.Error != nil {
-			log.Printf("VpnController: error saving connection audit entry for %s: %s", user.Email, tx.Error.Error())
+			log.Printf("SystemSessionController: error saving %s connection audit entry for %s: %s", checkType, connRequest.Identity, tx.Error.Error())
 		}
 		http.Error(w, fmt.Sprintf("Ok %s", time.Since(start)), http.StatusOK)
 		return
 	}
 
-	_, notifUniqueID, err := v.notificationsManager.NotifyUser(user, connRequest.SourceIP)
+	var connectionName string
+	if checkType == "vpn" {
+		connectionName = "🔗 " + v.config.Issuer
+	} else {
+		connectionName = fmt.Sprintf("🖥️ %s (%s)", connRequest.CallerName, callerIP)
+	}
+	_, notifUniqueID, err := v.notificationsManager.NotifyUser(connectionName, user, connRequest.SourceIP)
 	hasValidBrowserSession := v.notificationsManager.WaitForBrowserProof(user, connRequest.SourceIP, *notifUniqueID)
 	auditEntry.Allowed = hasValidBrowserSession
-	if tx := v.db.Save(&auditEntry); tx.Error != nil {
-		log.Printf("VpnController: error saving connection audit entry for %s: %s", user.Email, tx.Error.Error())
-	}
 
 	if !hasValidBrowserSession {
-		log.Printf("VpnController: No valid session found for user %s from %s", connRequest.Identity, connRequest.SourceIP)
-		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		log.Printf("SystemSessionController: No valid session found for user %s from %s", connRequest.Identity, connRequest.SourceIP)
+		http.Error(w, v.config.RedirectDomain.String(), http.StatusUnauthorized)
+		if tx := v.db.Save(&auditEntry); tx.Error != nil {
+			log.Printf("SystemSessionController: error saving %s connection audit entry for %s: %s", checkType, connRequest.Identity, tx.Error.Error())
+		}
 		return
 	}
 
 	// Create a new VPNSession
-	if err := userManager.CreateVpnSession(user, connRequest.SourceIP); err != nil {
-		log.Printf("VpnController: error creating VPN session: %s", err.Error())
+	newSession, err := userManager.CreateVpnSession(checkType, user, connRequest.SourceIP)
+	if err != nil {
+		log.Printf("SystemSessionController: error creating %s session: %s", checkType, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	log.Printf("VpnController: user %s VPN session extended from valid Web session.", user.Email)
+	auditEntry.SessionID = &newSession.ID
+	if tx := v.db.Create(&auditEntry); tx.Error != nil {
+		log.Printf("SystemSessionController: error saving %s connection audit entry for %s: %s", checkType, connRequest.Identity, tx.Error.Error())
+	}
+
+	log.Printf("SystemSessionController: %s session for %s extended from valid Web session.", checkType, user.Email)
 	http.Error(w, fmt.Sprintf("Ok %s", time.Since(start)), http.StatusOK)
+}
+
+func (v *SystemSessionController) checkSSHSession(connRequest ServerConnectionRequest, w http.ResponseWriter, r *http.Request) *models.User {
+	callerIP, _, _ := net.SplitHostPort(r.RemoteAddr)
+	sshKey := getSSHKey(connRequest.SSHAuthInfo)
+	if v.config.SSHRequireKey && sshKey == "" {
+		log.Printf("SystemSessionController: '%s' SSH request from %s (%s) didn't include any public key", connRequest.Identity, callerIP, connRequest.CallerName)
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return nil
+	}
+
+	userManager := userManager.New(v.db, v.config)
+	sshIdentity, err := userManager.GetSSHIdentity(connRequest.Identity, sshKey)
+	if err != nil {
+		log.Printf("SystemSessionController: Error checking SSH identity for Unix user '%s' : %s", connRequest.Identity, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return nil
+	}
+
+	// If it's the first time we see the key and/or username, reply with a one-time code
+	//  to tie the username+key to a known and authenticated User.
+	if sshIdentity == nil {
+		otc, err := userManager.CreateIdentity(connRequest.Identity, sshKey)
+		if err != nil {
+			log.Printf("SystemSessionController: Error creating SSH identity for Unix user %s : %s", connRequest.Identity, err.Error())
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return nil
+		}
+
+		log.Printf("SystemSessionController: SSH identity for Unix user '%s' is unknown, sending one-time validation challenge", connRequest.Identity)
+		http.Error(w, fmt.Sprintf("%s/addSSHKey %s", v.config.RedirectDomain, *otc), http.StatusNotAcceptable)
+		return nil
+
+	}
+	user := sshIdentity.User
+	if user == nil {
+		log.Printf("SystemSessionController: Valid SSH identity for Unix user %s doesn't match any User", connRequest.Identity)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return nil
+	}
+	return user
 }
 
 func contains(arr []string, str string) bool {

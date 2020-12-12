@@ -9,13 +9,14 @@ import (
 
 // VpnSession represents a successful Google + OTP login
 type RemoteSession struct {
-	// Using `Email` and `Type` as primary key again ensures a user only has 1 valid "session"
+	// Using `Identity` and `Type` as primary key again ensures a user only has 1 valid "session"
 	ID        uuid.UUID `gorm:"unique"`
 	Type      string    `gorm:"primaryKey"`
-	Email     string    `gorm:"primaryKey"`
+	Identity  string    `gorm:"primaryKey"`
 	SourceIP  string
 	CreatedAt time.Time
-	User      User `gorm:"primaryKey;foreignKey:Email;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:email"`
+	UserID    *uuid.UUID
+	User      *User //`gorm:"primaryKey;foreignKey:Identity;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:email"`
 }
 
 // BeforeCreate ensures the model has an ID before saving it

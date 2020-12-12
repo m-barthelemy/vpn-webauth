@@ -98,7 +98,7 @@ const registerServiceWorker = async () => {
         const applicationServerKey = urlBase64ToUint8Array(vapid.PublicKey);
         const options = { applicationServerKey: applicationServerKey, userVisibleOnly: true};
         const subscription = await swRegistration.pushManager.subscribe(options);
-        const response = await saveSubscription(subscription);
+        await saveSubscription(subscription);
     } catch (err) {
         console.log('Error', err);
         return false;
@@ -340,7 +340,7 @@ function startListenSSE() {
     };
 }
 
-async function SendAuthProof(data, notificationsEnabled) {
+async function SendAuthProof(data) {
     const updateAuthResponse = await fetch(`/user/auth/refresh?source=sse`, {
         method: "POST",
         headers: {
@@ -381,7 +381,7 @@ async function validateOneTimePass(otpType, code) {
         $("#error").show();
     }
     else {
-        if (isOTC) {
+        if (otpType == OtpType.OTC) {
             window.location.href = "/auth/getmfachoice";
         }
         else {
@@ -389,6 +389,7 @@ async function validateOneTimePass(otpType, code) {
         }
     }
 }
+
 
 var userInfo = {};
 
@@ -440,7 +441,6 @@ $(document).ready(async function(){
     }
     // If no MFA options to choose from, the user is most likely trying to sign in from a new browser and only had webauthn MFAs configured.
     // Show the option to use an OTC from another registered device/browser
-    console.log(`MFA options=${mfaOptions}, length=${mfaOptions.length}`);
     if (mfaOptions.length == 0) {
         $("#error-new-device").show();
     }
@@ -461,14 +461,13 @@ $(document).ready(async function(){
     }
     else {
         userInfo = await userResponse.json();
-        if (userInfo.FullyAuthenticated && window.location.pathname == "/") {
+        const page = window.location.pathname;
+        if (userInfo.FullyAuthenticated && page == "/") {
             window.location.href = "/success";
         }
-        else if (!userInfo.FullyAuthenticated && window.location.pathname == "/success") {
+        else if (!userInfo.FullyAuthenticated && (page == "/success" || page == "/addSSHKey")) {
             window.location.href = "/";
         }
-        
-        console.log(`userInfo: ${JSON.stringify(userInfo)}`);
     }
     // Set placeholders values with data from userInfo
     $("[name='data-connection-name']").each(function() {
@@ -476,7 +475,7 @@ $(document).ready(async function(){
     });
     $("#data-session-validity").text(new Date(userInfo.SessionExpiry * 1000).toLocaleString());
     $("#data-app-url").text(userInfo.AppURL);
-    
+
     if ('permissions' in navigator) {
         const notificationPerm = await navigator.permissions.query({name:'notifications'});
         console.log(`Notifications are ${notificationPerm.state}`);
@@ -502,7 +501,6 @@ $(document).ready(async function(){
     // If notifications are enabled and user allowed them, enable either
     // Service Worker or SSE.
     if (userInfo.EnableNotifications) {
-        console.log(`Notification.permission=${Notification.permission}`);
         const hasWorkerPush = checkWorkerPush();
         if (Notification.permission === "default") {
             $("#notification-info").show();
@@ -568,7 +566,6 @@ $(document).ready(async function(){
         if(dataLength > 0) {
             $("#error").hide();
         }
-        console.log(`SSH OYP length=${dataLength}`);
         if (dataLength == 32) {
             await validateOneTimePass(OtpType.SSHOTP, $(this).val());
             $(this).val("");

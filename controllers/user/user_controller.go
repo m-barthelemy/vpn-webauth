@@ -143,7 +143,7 @@ func (u *UserController) RefreshAuth(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	log.Printf("UserController: User %s browser sent proof of valid web session, notifying VPNController", email)
+	log.Printf("UserController: User %s browser sent proof of valid web session, notifying SystemSessionController", email)
 	u.notificationsManager.PublishBrowserProof(email, sourceIP, nonce.Nonce)
 }
 
@@ -155,9 +155,16 @@ func (u *UserController) Logout(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
 	sourceIP := utils.New(u.config).GetClientIP(r)
-	if err := userManager.DeleteVpnSession(email, sourceIP); err != nil {
-		log.Printf("UserController: Error deleting %s VPN session: %s", email, err.Error())
+	user, err := userManager.Get(email)
+	if err != nil {
+		log.Printf("UserController: Error fetching user %s: %s", email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	if err := userManager.DeleteVpnSession(user, sourceIP); err != nil {
+		log.Printf("UserController: Error deleting %s remote session: %s", email, err.Error())
 	}
 	log.Printf("UserController: User %s logged out", email)
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
