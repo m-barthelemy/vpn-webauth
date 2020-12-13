@@ -64,7 +64,7 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 	}
 
 	webAuthn, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: m.config.Issuer, // Display Name or the site
+		RPDisplayName: m.config.OrgName, // Display Name or the site
 		RPID:          m.config.RedirectDomain.Hostname(),
 		RPOrigin:      fmt.Sprintf("%s://%s", m.config.RedirectDomain.Scheme, m.config.RedirectDomain.Hostname()), // The origin URL for WebAuthn requests
 	})
@@ -132,7 +132,7 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 	}
 
 	webAuthn, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: m.config.Issuer,
+		RPDisplayName: m.config.OrgName,
 		RPID:          m.config.RedirectDomain.Hostname(),
 		RPOrigin:      fmt.Sprintf("%s://%s", m.config.RedirectDomain.Scheme, m.config.RedirectDomain.Hostname()), // The origin URL for WebAuthn requests
 	})
@@ -220,7 +220,7 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 	}
 
 	webAuthn, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: m.config.Issuer,
+		RPDisplayName: m.config.OrgName,
 		RPID:          m.config.RedirectDomain.Hostname(),
 		RPOrigin:      fmt.Sprintf("%s://%s", m.config.RedirectDomain.Scheme, m.config.RedirectDomain.Hostname()),
 	})
@@ -282,7 +282,7 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 	}
 
 	webAuthn, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: m.config.Issuer,
+		RPDisplayName: m.config.OrgName,
 		RPID:          m.config.RedirectDomain.Hostname(),
 		RPOrigin:      fmt.Sprintf("%s://%s", m.config.RedirectDomain.Scheme, m.config.RedirectDomain.Hostname()),
 	})

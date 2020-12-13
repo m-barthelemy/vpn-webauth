@@ -71,7 +71,7 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 
 	if otpMFA == nil {
 		otp, err := totp.Generate(totp.GenerateOpts{
-			Issuer:      u.config.Issuer,
+			Issuer:      u.config.OrgName,
 			AccountName: email,
 		})
 		if err != nil {
@@ -95,7 +95,7 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 
 	otpSecretBytes := []byte(otpSecret)
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      u.config.Issuer,
+		Issuer:      u.config.OrgName,
 		AccountName: email,
 		Secret:      otpSecretBytes,
 	})
@@ -162,7 +162,7 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	}
 	otpSecretBytes := []byte(otpSecret)
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      u.config.Issuer,
+		Issuer:      u.config.OrgName,
 		AccountName: email,
 		Secret:      otpSecretBytes,
 	})

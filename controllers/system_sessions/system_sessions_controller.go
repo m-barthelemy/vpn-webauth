@@ -47,9 +47,9 @@ type ServerConnectionRequest struct {
 func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	start := time.Now() // report time taken to verify user for debugging purposes
 	_, password, _ := r.BasicAuth()
-	if password != v.config.VPNCheckPassword {
-		log.Print("SystemSessionController: password does not match VPNCHECKPASSWORD")
-		http.Error(w, "Invalid VPNCHECKPASSWORD", http.StatusForbidden)
+	if password != v.config.RemoteAuthCheckPassword {
+		log.Print("SystemSessionController: password does not match REMOTEAUTHCHECKPASSWORD")
+		http.Error(w, "Invalid REMOTEAUTHCHECKPASSWORD", http.StatusForbidden)
 		return
 	}
 	callerIP, _, _ := net.SplitHostPort(r.RemoteAddr)
@@ -148,12 +148,17 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 
 	var connectionName string
 	if checkType == "vpn" {
-		connectionName = "🔗 " + v.config.Issuer
+		if connRequest.CallerName == "" {
+			connectionName = v.config.OrgName
+		} else {
+			connectionName = connRequest.CallerName
+		}
+		connectionName = "🔗 " + connectionName
 	} else {
 		connectionName = fmt.Sprintf("🖥️ %s (%s)", connRequest.CallerName, callerIP)
 	}
-	_, notifUniqueID, err := v.notificationsManager.NotifyUser(connectionName, user, connRequest.SourceIP)
-	hasValidBrowserSession := v.notificationsManager.WaitForBrowserProof(user, connRequest.SourceIP, *notifUniqueID)
+	_, notifUniqueID, err := v.notificationsManager.NotifyUser(checkType, connectionName, user, connRequest.SourceIP)
+	hasValidBrowserSession := v.notificationsManager.WaitForBrowserProof(checkType, user, connRequest.SourceIP, *notifUniqueID)
 	auditEntry.Allowed = hasValidBrowserSession
 
 	if !hasValidBrowserSession {

@@ -35,7 +35,7 @@ func NewNotificationsManager(db *gorm.DB, config *models.Config, bus *EventBus.B
 	return &NotificationsManager{db: db, config: config, bus: bus}
 }
 
-func (n *NotificationsManager) NotifyUser(connectionName string, user *models.User, sourceIP string) (bool, *uuid.UUID, error) {
+func (n *NotificationsManager) NotifyUser(connectionType string, connectionName string, user *models.User, sourceIP string) (bool, *uuid.UUID, error) {
 	var subscriptions []models.UserSubscription
 	minUsedAt := time.Now().AddDate(0, -3, 0)
 	if result := n.db.Where("user_id = ? AND last_used_at > ?", user.ID.String(), minUsedAt).Find(&subscriptions); result.Error != nil {
@@ -112,7 +112,7 @@ func (n *NotificationsManager) NotifyUser(connectionName string, user *models.Us
 
 // WaitForBrowserProof waits for browser to reply with a request having a valid session token, and a body
 // containing the same nonce value that was sent with the Push or SSE notification.
-func (n *NotificationsManager) WaitForBrowserProof(user *models.User, sourceIP string, nonce uuid.UUID) bool {
+func (n *NotificationsManager) WaitForBrowserProof(connectionType string, user *models.User, sourceIP string, nonce uuid.UUID) bool {
 	channel := make(chan bool, 1)
 	eventBus := *n.bus
 

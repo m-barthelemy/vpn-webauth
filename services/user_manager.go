@@ -141,7 +141,7 @@ func (m *UserManager) CheckSystemSession(connectionType string, identity string,
 	var session models.RemoteSession
 	var user models.User
 
-	duration := m.config.VPNSessionValidity
+	duration := m.config.RemoteSessionValidity
 	minDate := time.Now().Add(-duration)
 	userResult := m.db.Where("email = ?", identity).First(&user)
 	if userResult.Error != nil {
