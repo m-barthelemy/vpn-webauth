@@ -144,7 +144,7 @@ func (g *OAuth2Controller) afterFirstAuthStep(email string, w http.ResponseWrite
 			}
 		}
 
-		if _, err := userManager.CreateVpnSession("vpn", user, sourceIP); err != nil {
+		if _, err := userManager.CreateSystemSession("vpn", user, user.Email, sourceIP); err != nil {
 			log.Printf("OAuth2Controller: Error creating VPN session for %s : %s", user.Email, err.Error())
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}

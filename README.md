@@ -136,14 +136,14 @@ Configure the PAM session module to require and use `ssh-webauth.sh`:
 
 First, we'll configure PAM to use this app in non enforcing mode, in order not to break all your accesses to your remote system in case this app is not properly configured.
 ```
-xxxxxxx  stdout quiet /path/to/ssh-webauth.sh https://thisappdomain.tld/check/ssh REMOTEAUTHCHECKPASSWORD
+session optional pam_exec.so stdout quiet /path/to/ssh-webauth.sh https://thisappdomain.tld/check/ssh REMOTEAUTHCHECKPASSWORD
 ```
 
 Ensure that `sshd` uses the PAM authentication subsystem: you must have `UsePAM yes` present in your sshd config file.
 
-Try connecting to your remote system through SSH. Once you have a fully working setup, you can enforce the custom PAM authentication:
+Try connecting to your remote system through SSH. Once you have a fully working setup, you can enforce the custom PAM authentication (change `optional` to `required`):
 ```
-xxxxxxxxxxxxXXXXXXXXXXXX
+session required pam_exec.so stdout quiet /path/to/ssh-webauth.sh https://thisappdomain.tld/check/ssh REMOTEAUTHCHECKPASSWORD
 ```
 
 
@@ -160,7 +160,7 @@ All the configuration parameters have to passed as environment variables.
   > NOTE: the app will automatically create the tables and thus needs to have the privileges to do so.
 - `ENCRYPTIONKEY`: Key used to encrypt sensitive information in the database. Must be 32 characters. **Mandatory** if `ENFORCEMFA` is set to `true`.
 - `EXCLUDEDIDENTITIES`: list of VPN or SSH user accounts (identities) that do not require any additional authentication by this app, separated by comma. Optional.
-  > The VPN or SSH server will still query the application when these accounts try to connect, but will always get a positive response.
+  > The VPN or SSH servers will still query the application when these accounts try to connect, but will always get a positive response.
 - `HOST`: the IP address to listen on. Default: `127.0.0.1`
 - `ORGNAME`: Name that appears on the users OTP authenticator app. Default: `VPN`.
   > It is recommended that you set it to the name of your organization.
@@ -209,8 +209,7 @@ In case a user wants to be able to sign in from multiple browsers or devices, th
 It is also possible to sign in from different browsers and devices by using the OTP (authenticator app) feature.
 
 ### SSH
- - `ENABLESSH`: whether to enable additional web authentication through this app for SSH connections. Default: `false`.
- - `SSHREQUIREKEY`: whether to use the users SSH key to tie them to a valid web session. Default: `true`. If enabled, users have to register their public key in the app. 
+ - `ENABLESSH`: whether to enable additional web authentication through this app for SSH connections. Default: `false`. This feature requires SSH keys based  authentication.
    > When they SSH into a remote system configured to use this app, if their SSH key is not recognized, they will receive a one-time code and will be instructed to enter it into this app in order to automatically register their SSH public key.
 
    > NOTE: If this option is disabled, SSH keys will be ignored by the app. In that case, the only way to link a user web session to an SSH connection is that the SSH username matches the web identity (email address).

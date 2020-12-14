@@ -35,7 +35,6 @@ if [ "$PAM_TYPE" = "open_session" ] && [ -n "${PAM_RHOST}" ]; then
         echo "***************************************************************"
         echo ""
         EXIT_CODE=1
-    fi
     elif [ "${STATUS_CODE}" == "200" ]; then
 	EXIT_CODE=0
     fi

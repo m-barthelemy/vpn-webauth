@@ -195,7 +195,7 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sourceIP := utils.New(u.config).GetClientIP(r)
-	if _, err := userManager.CreateVpnSession("vpn", user, sourceIP); err != nil {
+	if _, err := userManager.CreateSystemSession("vpn", user, user.Email, sourceIP); err != nil {
 		log.Printf("OTPController: Error creating VPN session for %s : %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

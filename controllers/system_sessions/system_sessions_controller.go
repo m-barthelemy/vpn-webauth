@@ -68,7 +68,7 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if connRequest.Identity == "" {
-		http.Error(w, "Empty Identity field", http.StatusBadRequest)
+		http.Error(w, "Empty `Identity` field", http.StatusBadRequest)
 		return
 	}
 	// Early exit if identity is excluded from any additional auth.
@@ -94,27 +94,30 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
-		if v.config.SSHRequireKey && connRequest.SSHAuthInfo == "" {
+		if connRequest.SSHAuthInfo == "" {
 			log.Printf("SystemSessionController: Received SSH request for '%s' from %s but SSH key is empty", connRequest.Identity, callerIP)
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
 	}
 
-	allowed := false
-	var user *models.User
-	var session *models.RemoteSession
 	userManager := userManager.New(v.db, v.config)
+	var sessionIdentity string
+	if checkType == "ssh" { // the connecting user identity becomes the ssh key
+		sessionIdentity = getSSHKey(connRequest.SSHAuthInfo)
+	} else {
+		sessionIdentity = connRequest.Identity
+	}
 
-	user, session, allowed, err = userManager.CheckSystemSession(checkType, connRequest.Identity, connRequest.SourceIP)
+	user, session, allowed, err := userManager.CheckSystemSession(checkType, sessionIdentity, connRequest.SourceIP)
 	if err != nil {
-		log.Printf("SystemSessionController: Error checking user session: %s", err.Error())
+		log.Printf("SystemSessionController: Error checking %s user session: %s", checkType, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	if user == nil {
 		if checkType == "vpn" {
-			log.Printf("SystemSessionController: Received request for unknown identity '%s' from %s", connRequest.Identity, connRequest.SourceIP)
+			log.Printf("SystemSessionController: Received request for unknown %s identity '%s' from %s", checkType, connRequest.Identity, connRequest.SourceIP)
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		} else if checkType == "ssh" {
@@ -127,7 +130,7 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 
 	auditEntry := models.ConnectionAuditEntry{
 		Allowed:        allowed,
-		Identity:       connRequest.Identity,
+		Identity:       sessionIdentity,
 		ClientSourceIP: connRequest.SourceIP,
 		CallerSourceIP: v.utils.GetClientIP(r),
 		Type:           checkType,
@@ -171,12 +174,13 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 	}
 
 	// Create a new VPNSession
-	newSession, err := userManager.CreateVpnSession(checkType, user, connRequest.SourceIP)
-	if err != nil {
+	newSession, sessionCreateError := userManager.CreateSystemSession(checkType, user, sessionIdentity, connRequest.SourceIP)
+	if sessionCreateError != nil {
 		log.Printf("SystemSessionController: error creating %s session: %s", checkType, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
 	auditEntry.SessionID = &newSession.ID
 	if tx := v.db.Create(&auditEntry); tx.Error != nil {
 		log.Printf("SystemSessionController: error saving %s connection audit entry for %s: %s", checkType, connRequest.Identity, tx.Error.Error())
@@ -189,7 +193,7 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 func (v *SystemSessionController) checkSSHSession(connRequest ServerConnectionRequest, w http.ResponseWriter, r *http.Request) *models.User {
 	callerIP, _, _ := net.SplitHostPort(r.RemoteAddr)
 	sshKey := getSSHKey(connRequest.SSHAuthInfo)
-	if v.config.SSHRequireKey && sshKey == "" {
+	if sshKey == "" {
 		log.Printf("SystemSessionController: '%s' SSH request from %s (%s) didn't include any public key", connRequest.Identity, callerIP, connRequest.CallerName)
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return nil
@@ -241,7 +245,7 @@ func getSSHKey(sshAuthInfo string) string {
 	for _, val := range authInfoList {
 		authInfo := strings.Split(val, " ")
 		if len(authInfo) == 3 && authInfo[0] == "publickey" {
-			// Format is "publickey key_type key_value "
+			// Format is "publickey key_type key_value"
 			return authInfo[2]
 		}
 	}

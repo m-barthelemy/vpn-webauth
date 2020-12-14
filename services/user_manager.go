@@ -39,7 +39,7 @@ func (m *UserManager) Get(email string) (*models.User, error) {
 
 func (m *UserManager) GetSSHIdentity(userName string, publicKey string) (*models.UserIdentity, error) {
 	var identity models.UserIdentity
-	result := m.db.Preload("User").Where("type = ? AND name = ? AND public_key = ? and validated = true", "ssh", userName, publicKey).First(&identity)
+	result := m.db.Preload("User").Where("type = 'ssh' AND name = ? AND public_key = ? and validated = true", userName, publicKey).First(&identity)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -143,7 +143,7 @@ func (m *UserManager) CheckSystemSession(connectionType string, identity string,
 
 	duration := m.config.RemoteSessionValidity
 	minDate := time.Now().Add(-duration)
-	userResult := m.db.Where("email = ?", identity).First(&user)
+	userResult := m.db.Where("identity = ?", identity).First(&user)
 	if userResult.Error != nil {
 		if errors.Is(userResult.Error, gorm.ErrRecordNotFound) {
 			return nil, nil, false, nil
@@ -164,16 +164,17 @@ func (m *UserManager) CheckSystemSession(connectionType string, identity string,
 	return &user, &session, isValid, nil
 }
 
-// CreateVpnSession Creates a new VPN "Session" for the `User` from the specified IP address.
-func (m *UserManager) CreateVpnSession(connectionType string, user *models.User, ip string) (*models.RemoteSession, error) {
+// CreateSystemSession Creates a new VPN "Session" for the `User` from the specified IP address.
+func (m *UserManager) CreateSystemSession(connectionType string, user *models.User, identity string, ip string) (*models.RemoteSession, error) {
 	// First delete any existing session for the same user
-	oldSession := models.RemoteSession{Type: connectionType, Identity: user.Email}
+	oldSession := models.RemoteSession{Type: connectionType, Identity: identity}
 	deleteResult := m.db.Delete(&oldSession)
 	if deleteResult.Error != nil {
 		return nil, deleteResult.Error
 	}
+
 	// Then create the new "session"
-	var remoteSession = models.RemoteSession{Type: connectionType, Identity: user.Email, SourceIP: ip, UserID: &user.ID}
+	var remoteSession = models.RemoteSession{Type: connectionType, Identity: identity, SourceIP: ip, UserID: &user.ID}
 	result := m.db.Create(&remoteSession)
 	if result.Error != nil {
 		return nil, result.Error

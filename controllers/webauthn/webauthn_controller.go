@@ -176,7 +176,7 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 	_ = m.deleteWebauthNCookie("webauthn_register", w)
 
 	sourceIP := utils.New(m.config).GetClientIP(r)
-	if _, err := userManager.CreateVpnSession("vpn", user, sourceIP); err != nil {
+	if _, err := userManager.CreateSystemSession("vpn", user, user.Email, sourceIP); err != nil {
 		log.Printf("WebAuthNController: Error creating VPN session for %s : %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -309,7 +309,7 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 	}
 
 	sourceIP := utils.New(m.config).GetClientIP(r)
-	if _, err := userManager.CreateVpnSession("vpn", user, sourceIP); err != nil {
+	if _, err := userManager.CreateSystemSession("vpn", user, user.Email, sourceIP); err != nil {
 		log.Printf("WebAuthNController: Error creating VPN session for %s : %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
