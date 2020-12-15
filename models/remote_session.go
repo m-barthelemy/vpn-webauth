@@ -16,7 +16,7 @@ type RemoteSession struct {
 	SourceIP  string
 	CreatedAt time.Time
 	UserID    *uuid.UUID
-	User      *User //`gorm:"primaryKey;foreignKey:Identity;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;references:email"`
+	User      *User
 }
 
 // BeforeCreate ensures the model has an ID before saving it

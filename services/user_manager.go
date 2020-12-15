@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gofrs/uuid"
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -31,6 +32,16 @@ func (m *UserManager) Get(email string) (*models.User, error) {
 	var user models.User
 
 	result := m.db.Preload("MFAs").Preload("Identities").Where("email = ?", email).First(&user)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &user, nil
+}
+
+func (m *UserManager) GetById(id uuid.UUID) (*models.User, error) {
+	var user models.User
+
+	result := m.db.Preload("MFAs").Preload("Identities").Where("id = ?", id).First(&user)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -137,31 +148,34 @@ func (m *UserManager) CheckOrCreate(email string) (*models.User, error) {
 	return &user, nil
 }
 
-func (m *UserManager) CheckSystemSession(connectionType string, identity string, ip string) (*models.User, *models.RemoteSession, bool, error) {
+func (m *UserManager) CheckSystemSession(connectionType string, identity string, ip string) (*models.RemoteSession, bool, error) {
 	var session models.RemoteSession
-	var user models.User
+	//var user models.User
 
 	duration := m.config.RemoteSessionValidity
 	minDate := time.Now().Add(-duration)
-	userResult := m.db.Where("identity = ?", identity).First(&user)
-	if userResult.Error != nil {
-		if errors.Is(userResult.Error, gorm.ErrRecordNotFound) {
-			return nil, nil, false, nil
-		} else {
-			return nil, nil, false, userResult.Error
-		}
-	}
 
 	sessionResult := m.db.Order("created_at desc").Where("type = ? AND identity = ? AND source_ip = ?", connectionType, identity, ip).First(&session)
 	if sessionResult.Error != nil {
-		if errors.Is(sessionResult.Error, gorm.ErrRecordNotFound) {
-			return &user, nil, false, nil
+		if !errors.Is(sessionResult.Error, gorm.ErrRecordNotFound) {
+			return &session, false, sessionResult.Error
 		} else {
-			return &user, &session, false, sessionResult.Error
+			return nil, false, nil
 		}
 	}
 	isValid := (session.CreatedAt.After(minDate))
-	return &user, &session, isValid, nil
+
+	/*userResult := m.db.Where("id = ?", session.UserID).First(&user)
+	if userResult.Error != nil {
+		if errors.Is(userResult.Error, gorm.ErrRecordNotFound) {
+			return nil, &session, isValid, nil
+		} else {
+			return nil, &session, isValid, userResult.Error
+		}
+	}
+
+	return &user, &session, isValid, nil*/
+	return &session, isValid, nil
 }
 
 // CreateSystemSession Creates a new VPN "Session" for the `User` from the specified IP address.

@@ -16,10 +16,9 @@ type ConnectionAuditEntry struct {
 	ClientSourceIP string     // Client/user IP
 	CallerSourceIP string     // Source IP of the request to `/check/` (VPN server or remote SSH system)
 	Allowed        bool
-	SessionID      *uuid.UUID    `gorm:"type:uuid"`
-	CreatedAt      time.Time     `gorm:"index"`
-	User           User          `gorm:"primaryKey;foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;references:id"`
-	Session        RemoteSession `gorm:"primaryKey;foreignKey:SessionID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;references:id"`
+	SessionID      *uuid.UUID `gorm:"type:uuid"`
+	CreatedAt      time.Time  `gorm:"index"`
+	User           User       `gorm:"primaryKey;foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;references:id"`
 }
 
 // BeforeCreate ensures the model has an ID before saving it

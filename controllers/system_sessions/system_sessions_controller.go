@@ -109,25 +109,31 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 		sessionIdentity = connRequest.Identity
 	}
 
-	user, session, allowed, err := userManager.CheckSystemSession(checkType, sessionIdentity, connRequest.SourceIP)
+	session, allowed, err := userManager.CheckSystemSession(checkType, sessionIdentity, connRequest.SourceIP)
 	if err != nil {
 		log.Printf("SystemSessionController: Error checking %s user session: %s", checkType, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	if user == nil {
-		if checkType == "vpn" {
-			log.Printf("SystemSessionController: Received request for unknown %s identity '%s' from %s", checkType, connRequest.Identity, connRequest.SourceIP)
-			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+
+	var user *models.User
+	if session != nil {
+		user, err = userManager.GetById(*session.UserID)
+	} else if checkType == "vpn" {
+		user, err = userManager.Get(connRequest.Identity)
+	} else if checkType == "ssh" {
+		user = v.checkSSHSession(connRequest, w, r)
+		if user == nil {
 			return
-		} else if checkType == "ssh" {
-			user = v.checkSSHSession(connRequest, w, r)
-			if user == nil {
-				return
-			}
 		}
 	}
+	if user == nil {
+		log.Printf("SystemSessionController: Received %s request for unknown identity '%s' from %s", checkType, connRequest.Identity, connRequest.SourceIP)
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
 
+	//log.Printf("••••• Found existing %s session %s for user %s", checkType, session.ID.String(), user.Email)
 	auditEntry := models.ConnectionAuditEntry{
 		Allowed:        allowed,
 		Identity:       sessionIdentity,
