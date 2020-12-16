@@ -280,7 +280,7 @@ async function getSingleUseCode() {
     });
     if (!otcResponse.ok) {
         console.error(otcResponse);
-        $("#error").text(otcResponse.statusText);
+        //$("#error").text(otcResponse.statusText);
         $("#error").show();
         return;
     }
@@ -512,6 +512,10 @@ $(document).ready(async function(){
             $("#notification-restricted-support-warning").show();
             startListenSSE();
         }
+    }
+
+    if (!userInfo.EnableSSH) {
+        $("[name='ssh-only-section']").hide();
     }
 
     $("#login-touchid").click(function() {

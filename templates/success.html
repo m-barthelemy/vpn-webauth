@@ -6,7 +6,6 @@
 <main>
     <center>
         <div class="section"></div>
-        <form action="/auth/validateotp" method="POST">
             <div class="container">
                 <div class="z-depth-1 grey lighten-4 row main-container">
                     <img src="{{.LogoURL}}" class="logo"/>
@@ -16,8 +15,7 @@
                     <i class="large material-icons center fadein big-success-icon">verified_user</i>
                     <br/><br/>
                     <p>You can connect to <b name="data-connection-name"></b>.</p>
-                    <p>This session is valid until <span id="data-session-validity"></span>, 
-                        <br/>as long as you connect from the same place and network.</p>
+                    <p>This session is valid until <span id="data-session-validity"></span>.
                     <br/>
 
                     <div id="notification-info" class="card-panel green accent-2 fadein display-none">
@@ -60,11 +58,17 @@
                     <div class="row">
                         <div>
                             <a class="btn col s12 waves-effect blue-grey left anchor-btn" href="/addDevice">
-                                <i class="material-icons left">add_circle_outline</i>&nbsp;Add new browser or device
+                                <i class="material-icons left">important_devices</i>&nbsp;Add new browser or device
                             </a>
                         </div>
                     </div>
-                    <br/>
+                    <div class="row" name="ssh-only-section">
+                        <div>
+                            <a class="btn col s12 waves-effect blue-grey left anchor-btn" href="/publicKeys">
+                                <i class="material-icons left">vpn_key</i>&nbsp;Manage your SSH keys
+                            </a>
+                        </div>
+                    </div>
                     <div class="row">
                         <div>
                             <a class="btn col s12 waves-effect blue-grey left anchor-btn" href="/user/logout">
@@ -76,7 +80,6 @@
                     <br/>
                 </div>
             </div>
-        </form>
     </center>
 </main>
 </body>

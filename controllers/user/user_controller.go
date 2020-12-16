@@ -29,9 +29,12 @@ type SessionInfo struct {
 	Identity            string // user identity (email)
 	Issuer              string // Name of the connection
 	EnableNotifications bool
+	EnableVPN           bool
+	EnableSSH           bool
 	FullyAuthenticated  bool   // Whether authentication fully complies with requirement (ie MFA)
 	SessionExpiry       int64  // Unix timestamp
 	IconURL             string // LOGOURL
+	PublicKeys          []models.UserIdentity
 }
 
 // New creates an instance of the controller and sets its DB handle
@@ -189,6 +192,8 @@ func (u *UserController) GetSessionInfo(w http.ResponseWriter, r *http.Request) 
 		Identity:            email,
 		Issuer:              u.config.OrgName,
 		EnableNotifications: u.config.EnableNotifications,
+		EnableVPN:           u.config.EnableVPN,
+		EnableSSH:           u.config.EnableSSH,
 		IconURL:             u.config.LogoURL.String(),
 		SessionExpiry:       sessionExpiresAt,
 	}
@@ -198,6 +203,22 @@ func (u *UserController) GetSessionInfo(w http.ResponseWriter, r *http.Request) 
 		userInfo.FullyAuthenticated = true
 	}
 
+	if u.config.EnableSSH && userInfo.FullyAuthenticated {
+		userManager := userManager.New(u.db, u.config)
+		user, err := userManager.Get(email)
+		if err != nil {
+			log.Printf("UserController: Error fetching user %s: %s", email, err.Error())
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		userInfo.PublicKeys = []models.UserIdentity{}
+		for _, identity := range user.Identities {
+			if identity.Type == "ssh" {
+				userInfo.PublicKeys = append(userInfo.PublicKeys, identity)
+			}
+		}
+
+	}
 	utils.JSONResponse(w, userInfo, http.StatusOK)
 }
 

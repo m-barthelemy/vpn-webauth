@@ -12,14 +12,14 @@ import (
 type UserIdentity struct {
 	ID uuid.UUID `gorm:"type:uuid;primaryKey"`
 	// The composite index ensures that a key can only be tied to 1 User
-	UserID         *uuid.UUID `gorm:"uniqueIndex:idx_unique;"`
+	UserID         *uuid.UUID `gorm:"uniqueIndex:idx_unique;";json:"-"`
 	Type           string     `gorm:"uniqueIndex:idx_unique;not null"`
 	Name           string     `gorm:"uniqueIndex:idx_unique;"`
 	PublicKey      string     `gorm:"uniqueIndex:idx_unique;"`
-	ValidationData string
+	ValidationData string     `json:"-"`
 	Validated      bool
 	CreatedAt      time.Time
-	User           *User
+	User           *User `json:"-"`
 }
 
 // BeforeCreate ensures the model has an ID before saving it

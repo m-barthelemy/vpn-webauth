@@ -6,7 +6,6 @@
 <main>
     <center>
         <div class="section"></div>
-        <form action="/auth/validateotp" method="POST">
         <div class="container">
             <div class="z-depth-1 grey lighten-4 row main-container ">
                 <img src="{{.LogoURL}}" class="logo"/>
@@ -25,10 +24,12 @@
                     <br/>
                 </div>
                 <br/>
+                <div id="error" class="card-panel red lighten-2 fadein display-none white"><b>You have already generated a one-time code recently. Wait a few minutes and retry.</b></div>
                 <div id="temp-code-value" class="card-panel green accent-2 otp display-none">000000</div>
                 <br/>
                 <p id="temp-code-expiry">&nbsp;</p>
                 <br/>
+
                 <div class="row">
                     <div>
                         <a class="btn col s12 waves-effect blue-grey left anchor-btn" href="/">
@@ -38,7 +39,6 @@
                 </div>
             </div>
         </div>
-    </form>
     </center>
 </main>
 </body>
