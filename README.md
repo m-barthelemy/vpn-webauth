@@ -24,7 +24,7 @@ This project used the `pam_exec` PAM module shipped with the majority of the Lin
  - A "session" is created with the user email, their source IP address and the time when they completed the web authentication
  - If the VPN webauth feature is configured: when a user connects to your VPN, Strongswan's `ext-auth` plugin calls this webapp to check if the user has successfully completed a web authentication recently, from the same source IP address and user name (the web session email must match the VPN connection identity). If not, the connection is rejected.
 - If the SSH webauth feature is enabled and configured: when a user connected to a remote system via SSH, the PAM `pam_exec` module calls this webapp to check if the user has successfully completed a web authentication recently and has registered their SSH key in this app. If not, the connection is rejected with a message inviting the user to sign in. 
-  Unlike the VPN feature, the app does not enforce that the SSH connection come from the same source IP as the web session, since in many organizations a VPN connection or a jump host are used for accessing remote systems through SSH. The link between a user web session and SSH connections is made using the user SSH keys by default or, alternatively, by matching a web session identity (email) with the SSH username (like the VPN web auth feature previously described).
+  Unlike the VPN feature, the app does not enforce that the SSH connection come from the same source IP as the web session, since in many organizations a VPN connection or a jump host are used for accessing remote systems through SSH. The link between a user web session and SSH connections is made using the user SSH keys.
 
 
  If a user enables this app to send them notifications, they will generally be transparently allowed automatically to connect to the remote VPN or SSH system once their VPN session expires, or if they connect from a different location/source IP, as long as their web authentication through this app is valid.
@@ -59,6 +59,7 @@ Successful sign-in:
 
 
 ## Limitations
+Most of them only apply when using the VPN feature of this app.
 - The user identity reported by Strongswan **must** match the email reported by the web authentication. However, if the Strongswan identity is the first part of the email address (without @domain.tld), you can modify the `webauth-check.sh` script to add the domain.
 - If a user successfully authenticates using this app, someone else on the same local network would be able to reuse the web session, provided they have the user's Strongswan credentials. This by design, since the app matches a web auth with a Strongswan connection only using the Strongswan identity and the source IP address.
 - Since the web authentication has to happen before connecting to the VPN, is probably needs to be hosted in a less protected part of your environment.
@@ -126,10 +127,7 @@ It expects the following JSON encoded body data:
 
 ### Configure PAM for SSH
 
-XXXXXXXXXXXXXXXxxxxxx
-XXXXXXXXXXXXXXXxxxxxx
-
-Deploy the provided `scripts/ssh-webauth.sh` `pem_exec` script. Make sure it has restricted permissions (`chmod 500` for example). 
+Deploy the provided `scripts/ssh-webauth.sh` `pem_exec` script to your remote servers. Make sure it has restricted permissions (`chmod 500` for example). 
 The script requires `curl` to be installed.
 
 Configure the PAM session module to require and use `ssh-webauth.sh`:
@@ -151,6 +149,13 @@ session required pam_exec.so stdout quiet /path/to/ssh-webauth.sh https://thisap
 All the configuration parameters have to passed as environment variables.
 
 ### Application
+- `BASEURL`: The user-facing base URL of this application, for example https://auth.mycompany.com
+  > This is used as the base URL that OAuth2 will redirect to after signing in. Default: http://`HOST`:`PORT`.
+
+  > If you set `SSLMODE` to `auto`, the Let's Encrypt certificate will be generated for this domain.
+
+  > NOTE: You need to add this app redirect/callback endpoint (`BASEURL/auth/google/callback` or `BASEURL/auth/azure/callback`) to the list of allowed callbacks in your Google or Azure credentials configuration console.
+
 - `CONNECTIONSRETENTION`: how long to keep VPN connections audit logs, in days. Default: `90`.
   > NOTE: The connections audit log cleanup task is only run during the application startup. Also, there is currently no way to view this audit log from the app.
 - `DBTYPE`: the database engine where the sessions will be stored. Default: `sqlite`. Can be `sqlite`, `postgres`, `mysql`.
@@ -162,14 +167,13 @@ All the configuration parameters have to passed as environment variables.
 - `EXCLUDEDIDENTITIES`: list of VPN or SSH user accounts (identities) that do not require any additional authentication by this app, separated by comma. Optional.
   > The VPN or SSH servers will still query the application when these accounts try to connect, but will always get a positive response.
 - `HOST`: the IP address to listen on. Default: `127.0.0.1`
+- `LOGOURL`: Add your organization logo on top of the webapp pages. Optional. If the app is served over HTTPS (and it should), `LOGOURL` must also be a HTTPS URL.
 - `ORGNAME`: Name that appears on the users OTP authenticator app. Default: `VPN`.
   > It is recommended that you set it to the name of your organization.
 
   > Browser notifications related to VPN connections will use `ORGNAME` in their title by default, unless the call from the VPN server sets a custom `CallerName` field (check `scripts/vpn-webauth.sh`).
 
   > Browser notifications related to SSH connections will contain the hostname and IP address of the remote system the user tries to connect to.
-
-- `LOGOURL`: Add your organization logo on top of the webapp pages. Optional. If the app is served over HTTPS (and it should), `LOGOURL` must also be a HTTPS URL.
 - `ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. 
   > If running this app behind Nginx for example, or using a corporate proxy, you will need to configure them to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-For` is used for this purpose. Default: empty.
   > The source IP address seen by Strongswan must match the source IP address used for the web authentication. If you have both a corporate HTTP proxy for users and a reverse-proxy such as Nginx in front of this app, you will need to configure the corporate proxy to set a header containing the original client IP, and ensure that Nginx passes it to the app. Do not configure both the corporate and the reverse proxies to append to the same header, as the app will only read the its value.
@@ -189,10 +193,6 @@ All the configuration parameters have to passed as environment variables.
 - `OAUTH2CLIENTID`: Google or Microsoft Client ID. **Mandatory**.
 - `OAUTH2CLIENTSECRET`: Google or Microsoft Client Secret. **Mandatory**.
 - `OAUTH2TENANT`: Azure Directory tenant ID. Mandatory if `OAUTH2PROVIDER` is set to `azure`.
-- `REDIRECTDOMAIN`: the base URL that OAuth2 will redirect to after signing in. Default: http://`HOST`:`PORT`
-  > You need to set it to the user-facing endpoint for this application, for example https://vpn.myconpany.com.
-
-  > NOTE: You need to add this app redirect/callback endpoint (`REDIRECTDOMAIN/auth/google/callback` or `REDIRECTDOMAIN/auth/azure/callback`) to the list of allowed callbacks in your Google or Azure credentials configuration console.
 
 ### Multi-Factor Authentication
   - `ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`. If enabled, users will have to choose one of the available MFA options (see below).
@@ -229,7 +229,7 @@ It is also possible to sign in from different browsers and devices by using the 
   - `SSLMODE`: whether and how SSL is enabled. Default: `off`. Can be `auto`, `custom`, `proxy`, `off`.
     > `off` doesn't enforce SSL at all at the application level. It is only recommended for local testing.
 
-    > `auto` automatically generates a private key and a Let'sEncrypt SSL certificate for the domain specified in `REDIRECTDOMAIN`. The generated key and certificates are stored into `SSLAUTOCERTSDIR` and reused during future application restarts.
+    > `auto` automatically generates a private key and a Let'sEncrypt SSL certificate for the domain specified in `BASEURL`. The generated key and certificates are stored into `SSLAUTOCERTSDIR` and reused during future application restarts.
     > NOTE: `auto` will force the application to also listen on port 80 in order to generate the LetsEncrypt certificate. This port is privileged, meaning that you will need to start the application as root using `sudo`, or executing `chmod u+s vpn-webauth` to grant the binary admin permissions. Any user request to port 80 will redirect to the `PORT` HTTPS port.
 
     > `custom` will let you specify a custom certificate and key using `SSLCUSTOMCERTPATH` and `SSLCUSTOMKEYPATH`.

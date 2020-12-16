@@ -185,7 +185,7 @@ func (u *UserController) GetSessionInfo(w http.ResponseWriter, r *http.Request) 
 	}
 
 	userInfo := SessionInfo{
-		AppURL:              u.config.RedirectDomain.String(),
+		AppURL:              u.config.BaseURL.String(),
 		Identity:            email,
 		Issuer:              u.config.OrgName,
 		EnableNotifications: u.config.EnableNotifications,

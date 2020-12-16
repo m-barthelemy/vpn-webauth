@@ -34,7 +34,7 @@ const azureUserInfoURL = "https://graph.microsoft.com/oidc/userinfo"
 func New(db *gorm.DB, config *models.Config) *OAuth2Controller {
 	// Scopes: OAuth 2.0 scopes provide a way to limit the amount of access that is granted to an access token.
 	oAuthConfig = &oauth2.Config{
-		RedirectURL:  fmt.Sprintf("%s/auth/%s/callback", config.RedirectDomain.String(), config.OAuth2Provider),
+		RedirectURL:  fmt.Sprintf("%s/auth/%s/callback", config.BaseURL.String(), config.OAuth2Provider),
 		ClientID:     config.OAuth2ClientID,
 		ClientSecret: config.OAuth2ClientSecret,
 	}

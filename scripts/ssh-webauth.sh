@@ -13,8 +13,7 @@ EXIT_CODE=2
 if [ "$PAM_TYPE" = "open_session" ] && [ -n "${PAM_RHOST}" ]; then
     TMP_RESPONSE_FILE=$(mktemp)
     # Debug from local dev env
-    #REQUEST_BODY="{ \"Identity\": \"${PAM_USER}\", \"SourceIP\": \"${PAM_RHOST}\", \"CallerName\": \"$($HOSTNAME_CMD)\", \"SSHAuthInfo\": \"${SSH_INFO}\" }"
-    REQUEST_BODY="{ \"Identity\": \"${PAM_USER}\", \"SourceIP\": \"127.0.0.1\", \"CallerName\": \"$($HOSTNAME_CMD)\", \"SSHAuthInfo\": \"${SSH_INFO}\" }"
+    REQUEST_BODY="{ \"Identity\": \"${PAM_USER}\", \"SourceIP\": \"${PAM_RHOST}\", \"CallerName\": \"$($HOSTNAME_CMD)\", \"SSHAuthInfo\": \"${SSH_INFO}\" }"
     STATUS_CODE=$(curl -sL -w "%{http_code}" -XPOST -u :${CHECK_ENDPOINT_PASSWORD} -d "${REQUEST_BODY}" -o ${TMP_RESPONSE_FILE} "${CHECK_ENDPOINT_URL}")
     read VALIDATION_URL OTC < ${TMP_RESPONSE_FILE}
 

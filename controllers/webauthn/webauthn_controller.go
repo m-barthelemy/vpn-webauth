@@ -65,8 +65,8 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 
 	webAuthn, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: m.config.OrgName, // Display Name or the site
-		RPID:          m.config.RedirectDomain.Hostname(),
-		RPOrigin:      fmt.Sprintf("%s://%s", m.config.RedirectDomain.Scheme, m.config.RedirectDomain.Hostname()), // The origin URL for WebAuthn requests
+		RPID:          m.config.BaseURL.Hostname(),
+		RPOrigin:      fmt.Sprintf("%s://%s", m.config.BaseURL.Scheme, m.config.BaseURL.Hostname()), // The origin URL for WebAuthn requests
 	})
 	if err != nil {
 		log.Printf("WebAuthNController: failed to create WebAuthn from config: %s", err)
@@ -133,8 +133,8 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 
 	webAuthn, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: m.config.OrgName,
-		RPID:          m.config.RedirectDomain.Hostname(),
-		RPOrigin:      fmt.Sprintf("%s://%s", m.config.RedirectDomain.Scheme, m.config.RedirectDomain.Hostname()), // The origin URL for WebAuthn requests
+		RPID:          m.config.BaseURL.Hostname(),
+		RPOrigin:      fmt.Sprintf("%s://%s", m.config.BaseURL.Scheme, m.config.BaseURL.Hostname()), // The origin URL for WebAuthn requests
 	})
 	if err != nil {
 		log.Printf("WebAuthNController: failed to create WebAuthn from config: %s", err)
@@ -221,8 +221,8 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 
 	webAuthn, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: m.config.OrgName,
-		RPID:          m.config.RedirectDomain.Hostname(),
-		RPOrigin:      fmt.Sprintf("%s://%s", m.config.RedirectDomain.Scheme, m.config.RedirectDomain.Hostname()),
+		RPID:          m.config.BaseURL.Hostname(),
+		RPOrigin:      fmt.Sprintf("%s://%s", m.config.BaseURL.Scheme, m.config.BaseURL.Hostname()),
 	})
 
 	// Generate PublicKeyCredentialRequestOptions and session data
@@ -283,8 +283,8 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 
 	webAuthn, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: m.config.OrgName,
-		RPID:          m.config.RedirectDomain.Hostname(),
-		RPOrigin:      fmt.Sprintf("%s://%s", m.config.RedirectDomain.Scheme, m.config.RedirectDomain.Hostname()),
+		RPID:          m.config.BaseURL.Hostname(),
+		RPOrigin:      fmt.Sprintf("%s://%s", m.config.BaseURL.Scheme, m.config.BaseURL.Hostname()),
 	})
 
 	// TODO: Check 'credential.Authenticator.CloneWarning' when not using touchid

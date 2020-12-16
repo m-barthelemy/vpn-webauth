@@ -14,9 +14,9 @@ import (
 )
 
 func startServer(config *models.Config, handler http.Handler) {
-	domain, _, _ := net.SplitHostPort(config.RedirectDomain.Host)
+	domain, _, _ := net.SplitHostPort(config.BaseURL.Host)
 	if domain == "" {
-		domain = config.RedirectDomain.Host
+		domain = config.BaseURL.Host
 	}
 	certManager := autocert.Manager{
 		Prompt:     autocert.AcceptTOS,

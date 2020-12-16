@@ -133,7 +133,6 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	//log.Printf("••••• Found existing %s session %s for user %s", checkType, session.ID.String(), user.Email)
 	auditEntry := models.ConnectionAuditEntry{
 		Allowed:        allowed,
 		Identity:       sessionIdentity,
@@ -172,14 +171,14 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 
 	if !hasValidBrowserSession {
 		log.Printf("SystemSessionController: No valid session found for user %s from %s", connRequest.Identity, connRequest.SourceIP)
-		http.Error(w, v.config.RedirectDomain.String(), http.StatusUnauthorized)
+		http.Error(w, v.config.BaseURL.String(), http.StatusUnauthorized)
 		if tx := v.db.Save(&auditEntry); tx.Error != nil {
 			log.Printf("SystemSessionController: error saving %s connection audit entry for %s: %s", checkType, connRequest.Identity, tx.Error.Error())
 		}
 		return
 	}
 
-	// Create a new VPNSession
+	// Create a new RemoteSession
 	newSession, sessionCreateError := userManager.CreateSystemSession(checkType, user, sessionIdentity, connRequest.SourceIP)
 	if sessionCreateError != nil {
 		log.Printf("SystemSessionController: error creating %s session: %s", checkType, err.Error())
@@ -224,7 +223,7 @@ func (v *SystemSessionController) checkSSHSession(connRequest ServerConnectionRe
 		}
 
 		log.Printf("SystemSessionController: SSH identity for Unix user '%s' is unknown, sending one-time validation challenge", connRequest.Identity)
-		http.Error(w, fmt.Sprintf("%s/addSSHKey %s", v.config.RedirectDomain, *otc), http.StatusNotAcceptable)
+		http.Error(w, fmt.Sprintf("%s/addSSHKey %s", v.config.BaseURL, *otc), http.StatusNotAcceptable)
 		return nil
 
 	}

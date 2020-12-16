@@ -23,7 +23,7 @@ type Config struct {
 	DbType                  string        // DBTYPE
 	DbDSN                   string        // DBDSN
 	ExcludedIdentities      []string      // EXCLUDEDIDENTITIES
-	RedirectDomain          *url.URL      // REDIRECTDOMAIN
+	BaseURL                 *url.URL      // BASEURL
 	OAuth2ClientID          string        // OAUTH2LIENTID
 	OAuth2ClientSecret      string        // OAUTH2CLIENTSECRET
 	OAuth2Provider          string        // OAUTH2PROVIDER
@@ -81,7 +81,7 @@ func (config *Config) New() Config {
 		OriginalProtoHeader:    "X-Forwarded-Proto",
 	}
 	redirDomain, _ := url.Parse(fmt.Sprintf("http://%s:%v", defaultConfig.Host, defaultConfig.Port))
-	defaultConfig.RedirectDomain = redirDomain
+	defaultConfig.BaseURL = redirDomain
 	// We create a default random key for signing session tokens
 	b := make([]byte, 32) // random ID
 	rand.Read(b)
@@ -94,7 +94,7 @@ func (config *Config) New() Config {
 func (config *Config) Verify() {
 	log.Printf("Remote sessions validity set to %v", config.RemoteSessionValidity)
 	log.Printf("Web sessions validity set to %v", config.WebSessionValidity)
-	log.Printf("Google callback redirect set to %s", config.RedirectDomain)
+	log.Printf("User-facing base URL set to %s", config.BaseURL)
 	if config.OAuth2Provider == "" {
 		log.Fatal("OAUTH2PROVIDER is not set, must be either google or azure")
 	} else {
