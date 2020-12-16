@@ -1,0 +1,35 @@
+{{ define "publicKeys" }}
+<html>
+{{ template "header" . }}
+<body>
+<div class="section"></div>
+<main>
+    <center>
+        <div class="section"></div>
+        <form action="/auth/otp/validate" method="POST" id="otp-form">
+        <div class="container">
+            <div class="z-depth-1 grey lighten-4 row main-container">
+                <img src="{{.LogoURL}}" class="logo"/>
+                <br/><br/>
+                <br/>
+                
+                <div id="error" class="card-panel red accent-3 display-none white"><b>Error</b></div>
+                <br/>
+                <div class="row">
+                    <div>
+                        <a class="btn col s12 waves-effect blue-grey left anchor-btn" href="/">
+                            <i class="material-icons left">home</i>&nbsp;Cancel
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+    </center>
+
+    <div class="section"></div>
+</main>
+</body>
+
+</html>
+{{ end }}
