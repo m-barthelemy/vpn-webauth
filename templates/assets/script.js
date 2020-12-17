@@ -514,8 +514,27 @@ $(document).ready(async function(){
         }
     }
 
+    const keyItem = ({ID, Type, Name, PublicKey, Validated, CreatedAt}) => `
+    <div class="row center">
+            <div class="card">
+                <div class="card-content">
+                    <div class="card-title"><i class="material-icons">person</i>&nbsp;${Name}</div>
+                    <pre class="ssh-key">${PublicKey}</pre>
+                    <small>Created ${new Date(CreatedAt).toLocaleString()}</small>
+                </div>
+                <div class="card-action center">
+                    <a class="btn s6 waves-effect red darken-2 white-text anchor-btn" href="#">
+                        <i class="material-icons left" id="${ID}">delete</i>Delete
+                    </a>
+                </div>
+            </div>
+    </div>
+    `;
     if (!userInfo.EnableSSH) {
         $("[name='ssh-only-section']").hide();
+    }
+    else if (userInfo.PublicKeys != null) {
+        $('#user-ssh-keys').html(userInfo.PublicKeys.map(keyItem).join(''));
     }
 
     $("#login-touchid").click(function() {

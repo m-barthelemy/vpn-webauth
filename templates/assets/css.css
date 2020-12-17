@@ -13,6 +13,7 @@ main {
     display: inline-block;
     padding: 32px 48px 0px 48px;
     border: 1px solid #EEE;
+    max-width: 100%;
 }
 
 .logo {
@@ -72,4 +73,20 @@ main {
 
 .white {
     color: #ffffff;
+}
+
+.card {
+    min-width: 1000px;
+  }
+
+.ssh-key {
+    display: block;
+    overflow-wrap: break-word;
+    font-size: smaller;
+}
+
+/* Align icons with text */
+.material-icons {
+    display: inline-flex;
+    vertical-align: middle;
 }

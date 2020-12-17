@@ -6,15 +6,25 @@
 <main>
     <center>
         <div class="section"></div>
-        <form action="/auth/otp/validate" method="POST" id="otp-form">
         <div class="container">
             <div class="z-depth-1 grey lighten-4 row main-container">
                 <img src="{{.LogoURL}}" class="logo"/>
                 <br/><br/>
+                <h4>Your SSH keys</h4>
                 <br/>
-                
+
+                <div id="user-ssh-keys"></div>
+
+                <br/>
                 <div id="error" class="card-panel red accent-3 display-none white"><b>Error</b></div>
                 <br/>
+                <div class="row">
+                    <div>
+                        <a class="btn col s12 waves-effect blue-grey left anchor-btn" href="/addSSHKey">
+                            <i class="material-icons left">add</i>&nbsp;Add or Validate new key
+                        </a>
+                    </div>
+                </div>
                 <div class="row">
                     <div>
                         <a class="btn col s12 waves-effect blue-grey left anchor-btn" href="/">
@@ -24,7 +34,6 @@
                 </div>
             </div>
         </div>
-    </form>
     </center>
 
     <div class="section"></div>
