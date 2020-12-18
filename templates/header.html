@@ -1,13 +1,13 @@
 {{ define "header" }}
 <head>
     <meta http-equiv="Content-Security-Policy" 
-        content="default-src 'self'; object-src 'none'; media-src 'none'; connect-src 'self'; font-src https://fonts.gstatic.com 'self'; child-src 'self'; style-src 'self'; img-src 'self' {{.LogoURL}}; script-src 'self'; form-action 'self';">
+        content="default-src 'self'; object-src 'none'; media-src 'none'; connect-src 'self'; font-src https://fonts.gstatic.com 'self'; child-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' {{.LogoURL}}; script-src 'self'; form-action 'self';">
     <link href="/assets/material-icons.css" rel="stylesheet">
-    <link rel="stylesheet" type="text/css" href="/assets/materialize-0.97.5.min.css">
+    <link rel="stylesheet" type="text/css" href="/assets/materialize.min.css">
     <link rel="stylesheet" type="text/css" href="/assets/font-awesome.min-4.7.0.css">
     <link rel="stylesheet" type="text/css" href="/assets/css.css">
     <script type="text/javascript" src="/assets/jquery-3.5.1.min.js"></script>
-    <script type="text/javascript" src="/assets/materialize.min-0.97.5.js"></script>
+    <script type="text/javascript" src="/assets/materialize.min.js"></script>
     <script type="text/javascript" src="/assets/script.js"></script>
 </head>
 {{ end }}

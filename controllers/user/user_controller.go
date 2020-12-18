@@ -11,6 +11,7 @@ import (
 
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/gofrs/uuid"
+	"github.com/gorilla/mux"
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"github.com/m-barthelemy/vpn-webauth/services"
 	userManager "github.com/m-barthelemy/vpn-webauth/services"
@@ -257,5 +258,43 @@ func (u *UserController) ValidateSshIdentity(w http.ResponseWriter, r *http.Requ
 		log.Printf("UserController: no matching SSH identity to validate for %s", email)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
+	}
+}
+
+func (u *UserController) DeleteUserIdentity(w http.ResponseWriter, r *http.Request) {
+	var email = r.Context().Value("identity").(string)
+	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
+
+	// Deny if MFA is enforced but User hasn't fully logged in
+	if u.config.EnforceMFA && !sessionHasMFA {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
+
+	idParam := mux.Vars(r)["id"]
+	id := uuid.FromStringOrNil(idParam)
+	if id == uuid.Nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	userManager := userManager.New(u.db, u.config)
+	user, err := userManager.Get(email)
+	if err != nil {
+		log.Printf("UserController: Error fetching user %s: %s", email, err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	for _, identity := range user.Identities {
+		if id == identity.ID {
+			if err := userManager.DeleteIdentity(&identity); err != nil {
+				log.Printf("UserController: Error deleting user %s SSH identity: %s", email, err.Error())
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			http.Error(w, http.StatusText(http.StatusNoContent), http.StatusNoContent)
+			return
+		}
 	}
 }

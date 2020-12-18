@@ -162,6 +162,13 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		),
 	).Methods("POST")
 
+	mux.Handle("/user/identities/{id}",
+		handlers.LoggingHandler(
+			os.Stdout,
+			http.HandlerFunc(sessHandler.SessionMiddleware(tokenSigningKey, userC.DeleteUserIdentity, false)),
+		),
+	).Methods("DELETE")
+
 	mux.Handle("/user/info",
 		handlers.LoggingHandler(
 			os.Stdout,

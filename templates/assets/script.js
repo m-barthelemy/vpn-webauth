@@ -390,6 +390,21 @@ async function validateOneTimePass(otpType, code) {
     }
 }
 
+async function deleteIdentity(id) {
+    const deleteResponse = await fetch(`/user/identities/${id}`, {
+        method: "DELETE",
+        headers: {
+            'Content-Type': 'application/json'
+        },
+    });
+    if (deleteResponse.status == 204 ) {
+        window.location.reload();
+    }
+    else {
+        $("#error").text("there was an error when trying to delete the SSH key");
+        $("#error").show();
+    }
+}
 
 var userInfo = {};
 
@@ -523,8 +538,8 @@ $(document).ready(async function(){
                     <small>Created ${new Date(CreatedAt).toLocaleString()}</small>
                 </div>
                 <div class="card-action center">
-                    <a class="btn s6 waves-effect red darken-2 white-text anchor-btn" href="#">
-                        <i class="material-icons left" id="${ID}">delete</i>Delete
+                    <a class="btn s6 waves-effect red darken-2 white-text deleteIdentity modal-trigger" id="${ID}" href="#deleteIdentityModal">
+                        <i class="material-icons left">delete</i>Delete
                     </a>
                 </div>
             </div>
@@ -534,7 +549,17 @@ $(document).ready(async function(){
         $("[name='ssh-only-section']").hide();
     }
     else if (userInfo.PublicKeys != null) {
+        let idToDelete = "";
         $('#user-ssh-keys').html(userInfo.PublicKeys.map(keyItem).join(''));
+        $(".deleteIdentity").click(function(event) {
+            idToDelete = event.target.id;
+
+            $('.modal').modal();
+        });
+        $("#confirmDelete").click( async function() {
+            console.log("Need to delete " + idToDelete);
+            await deleteIdentity(idToDelete);
+        });
     }
 
     $("#login-touchid").click(function() {

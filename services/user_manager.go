@@ -121,7 +121,11 @@ func (m *UserManager) ValidateIdentity(user *models.User, otc string) (*models.U
 	// Cleanup expired and never validated identities
 	_ = m.db.Delete(&models.UserIdentity{}, "validated = false AND created_at < ?", validity)
 	return &identity, nil
+}
 
+func (m *UserManager) DeleteIdentity(identity *models.UserIdentity) error {
+	tx := m.db.Delete(identity)
+	return tx.Error
 }
 
 // Check that the user exists and has a valid OTP setup.
