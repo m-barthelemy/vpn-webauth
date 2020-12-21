@@ -15,44 +15,44 @@ import (
 // Config holds all the application config values.
 // Not really a classical model since not saved into DB.
 type Config struct {
-	AdminEmail              string        // ADMINEMAIL
-	ConnectionsRetention    int           // CONNECTIONSRETENTION
+	AdminEmail              string        `envconfig:"ADMIN_EMAIL"`
+	ConnectionsRetention    int           `envconfig:"CONNECTIONS_RETENTION"`
 	Debug                   bool          // DEBUG
 	Port                    int           // PORT
 	Host                    string        // HOST
-	DbType                  string        // DBTYPE
-	DbDSN                   string        // DBDSN
-	ExcludedIdentities      []string      // EXCLUDEDIDENTITIES
-	BaseURL                 *url.URL      // BASEURL
-	OAuth2ClientID          string        // OAUTH2LIENTID
-	OAuth2ClientSecret      string        // OAUTH2CLIENTSECRET
-	OAuth2Provider          string        // OAUTH2PROVIDER
-	OAuth2Tenant            string        // OAUTH2TENANT
-	EnableNotifications     bool          // ENABLENOTIFICATIONS
-	EnableSSH               bool          // ENABLESSH
-	EnableVPN               bool          // ENABLEVPN
-	EnforceMFA              bool          // ENFORCEMFA
+	DbType                  string        `envconfig:"DB_TYPE"`
+	DbDSN                   string        `envconfig:"DB_DSN"`
+	ExcludedIdentities      []string      `envconfig:"EXCLUDED_IDENTITIES"`
+	BaseURL                 *url.URL      `envconfig:"BASE_URL"`
+	OAuth2ClientID          string        `envconfig:"OAUTH2_CLIENT_ID"`
+	OAuth2ClientSecret      string        `envconfig:"OAUTH2_CLIENT_SECRET"`
+	OAuth2Provider          string        `envconfig:"OAUTH2_PROVIDER"`
+	OAuth2TenantID          string        `envconfig:"OAUTH2_TENANT_ID"`
+	EnableNotifications     bool          `envconfig:"ENABLE_NOTIFICATIONS"`
+	EnableSSH               bool          `envconfig:"ENABLE_SSH"`
+	EnableVPN               bool          `envconfig:"ENABLE_VPN"`
+	EnforceMFA              bool          `envconfig:"ENFORCE_MFA"`
+	LogoURL                 *url.URL      `envconfig:"LOGO_URL"`
 	MaxBodySize             int64         // not documented
-	MFAOTP                  bool          // MFAOTP
-	OrgName                 string        // ORGNAME
-	MFATouchID              bool          // MFATOUCHID
-	MFAWebauthn             bool          // MFAWEBAUTHN
-	LogoURL                 *url.URL      // LOGOURL
-	SigningKey              string        // SIGNINGKEY
-	EncryptionKey           string        // ENCRYPTIONKEY
-	OriginalIPHeader        string        // ORIGINALIPHEADER
-	OriginalProtoHeader     string        // ORIGINALPROTOHEADER
-	RemoteAuthCheckPassword string        // REMOTEAUTHCHECKPASSWORD
+	MFAOTP                  bool          `envconfig:"MFA_OTP"`
+	MFATouchID              bool          `envconfig:"MFA_TOUCHID"`
+	MFAWebauthn             bool          `envconfig:"MFA_WEBAUTHN"`
+	OrgName                 string        `envconfig:"ORG_NAME"`
+	SigningKey              string        `envconfig:"SIGNING_KEY"`
+	EncryptionKey           string        `envconfig:"ENCRYPTION_KEY"`
+	OriginalIPHeader        string        `envconfig:"ORIGINAL_IP_HEADER"`
+	OriginalProtoHeader     string        `envconfig:"ORIGINAL_PROTO_HEADER"`
+	RemoteAuthCheckPassword string        `envconfig:"REMOTE_AUTH_CHECK_PASSWORD"`
+	RemoteSessionValidity   time.Duration `envconfig:"REMOTE_SESSION_VALIDITY"`
 	SSHAllowedSourceIPs     []string      // SSHALLOWEDSOURCEIPS
-	SSLMode                 string        // SSLMODE
-	SSLAutoCertsDir         string        // SSLAUTOCERTSDIR
-	SSLCustomCertPath       string        // SSLCUSTOMCERTPATH
-	SSLCustomKeyPath        string        // SSLCUSTOMKEYPATH
-	VapidPublicKey          string        // VAPIDPUBLICKEY
-	VapidPrivateKey         string        // VAPIDPRIVATEKEY
-	VPNCheckAllowedIPs      []string      // VPNCHECKALLOWEDIPS
-	RemoteSessionValidity   time.Duration // REMOTESESSIONVALIDITY
-	WebSessionValidity      time.Duration // WEBSESSIONVALIDITY
+	SSLMode                 string        `envconfig:"SSL_MODE"`
+	SSLAutoCertsDir         string        `envconfig:"SSL_AUTO_CERTS_DIR"`
+	SSLCustomCertPath       string        `envconfig:"SSL_CUSTOM_CERT_PATH"`
+	SSLCustomKeyPath        string        `envconfig:"SSL_CUSTOM_KEY_PATH"`
+	VapidPublicKey          string        `envconfig:"VAPID_PUBLIC_KEY"`
+	VapidPrivateKey         string        `envconfig:"VAPID_PRIVATE_KEY"`
+	VPNCheckAllowedIPs      []string      `envconfig:"VPN_CHECK_ALLOWED_IPS"`
+	WebSessionValidity      time.Duration `envconfig:"WEB_SESSION_VALIDITY"`
 	WebSessionProofTimeout  time.Duration // WEBSESSIONPROOFTIMEOUT
 }
 
@@ -98,41 +98,41 @@ func (config *Config) Verify() {
 	log.Printf("Web sessions validity set to %v", config.WebSessionValidity)
 	log.Printf("User-facing base URL set to %s", config.BaseURL)
 	if config.OAuth2Provider == "" {
-		log.Fatal("OAUTH2PROVIDER is not set, must be either google or azure")
+		log.Fatal("OAUTH2_PROVIDER is not set, must be either google or azure")
 	} else {
 		config.OAuth2Provider = strings.ToLower(config.OAuth2Provider)
 		if config.OAuth2Provider != "google" && config.OAuth2Provider != "azure" {
-			log.Fatal("OAUTH2PROVIDER is invalid, must be either google or azure")
+			log.Fatal("OAUTH2_PROVIDER is invalid, must be either google or azure")
 		}
 	}
-	if config.OAuth2Provider == "azure" && config.OAuth2Tenant == "" {
-		log.Fatal("Microsoft/Azure OAuth2 provider requires OAUTH2TENANT to be set")
+	if config.OAuth2Provider == "azure" && config.OAuth2TenantID == "" {
+		log.Fatal("Microsoft/Azure OAuth2 provider requires OAUTH2_TENANT_ID to be set")
 	}
 	if config.OAuth2ClientID == "" {
-		log.Fatal("OAUTH2CLIENTID is not set")
+		log.Fatal("OAUTH2_CLIENT_ID is not set")
 	}
 	if config.OAuth2ClientSecret == "" {
-		log.Fatal("OAUTH2CLIENTSECRET is not set")
+		log.Fatal("OAUTH2_CLIENT_SECRET is not set")
 	}
 	if config.EnforceMFA {
 		if config.EncryptionKey == "" {
-			log.Fatal("ENCRYPTIONKEY is required when OTP is set to true. You can use `openssl rand -hex 16` to generate it")
+			log.Fatal("ENCRYPTION_KEY is required when OTP is set to true. You can use `openssl rand -hex 16` to generate it")
 		} else if len(config.EncryptionKey) != 32 {
-			log.Fatal("ENCRYPTIONKEY must be 32 characters")
+			log.Fatal("ENCRYPTION_KEY must be 32 characters")
 		}
 	}
 	if config.EnableNotifications {
 		if config.AdminEmail == "" {
-			log.Fatal("FATAL: ENABLENOTIFICATIONS is true, so ADMINEMAIL must be set to a valid email address.")
+			log.Fatal("FATAL: ENABLE_NOTIFICATIONS is true, so ADMIN_EMAIL must be set to a valid email address.")
 		}
 		if config.VapidPrivateKey == "" || config.VapidPublicKey == "" {
-			log.Printf("FATAL: ENABLENOTIFICATIONS is true, so VAPIDPRIVATEKEY and VAPIDPUBLICKEY must be defined and valid")
+			log.Printf("FATAL: ENABLE_NOTIFICATIONS is true, so VAPID_PRIVATE_KEY and VAPID_PUBLIC_KEY must be defined and valid")
 			log.Printf("If you have never defined them, here are some fresh values generated just for you.")
 			if privateKey, publicKey, err := webpush.GenerateVAPIDKeys(); err == nil {
-				log.Printf("VAPIDPUBLICKEY=\"%s\"", publicKey)
-				log.Printf("VAPIDPRIVATEKEY=\"%s\"", privateKey)
+				log.Printf("VAPID_PUBLIC_KEY=\"%s\"", publicKey)
+				log.Printf("VAPID_PRIVATE_KEY=\"%s\"", privateKey)
 			}
-			log.Fatal("Add them to the environment variables. VAPIDPRIVATEKEY is sensitive, keep it secret.")
+			log.Fatal("Add them to the environment variables. VAPID_PRIVATE_KEY is sensitive, keep it secret.")
 		}
 	}
 	config.SSLMode = strings.ToLower(config.SSLMode)
@@ -140,7 +140,7 @@ func (config *Config) Verify() {
 		log.Fatal("SSLMODE must be one of off, auto, custom, proxy")
 	}
 	if !config.EnableSSH && !config.EnableVPN {
-		log.Fatal("Both ENABLESSH and ENABLEVPN are disabled, which doesn't make sense.")
+		log.Fatal("Both ENABLE_SSH and ENABLE_VPN are disabled, which doesn't make sense.")
 	}
 
 }

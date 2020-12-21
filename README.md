@@ -88,7 +88,7 @@ You can also build the provided Dockerfile.
  ```
  proxy_set_header X-Forwarded-For $remote_addr;
  ```
- and then set `ORIGINALIPHEADER` to `X-Forwarded-For`.
+ and then set `ORIGINAL_IP_HEADER` to `X-Forwarded-For`.
  
  You should also set a proper database configuration to store your sessions. By default, the app will store them into a Sqlite database in the `/tmp` directory. For a real setup, you can use Mysql or Postgres.
 
@@ -109,7 +109,7 @@ plugins {
 	...
 	ext-auth {
 		load = yes
-		script = /path/to/webauth-check.sh https://this_webapp_host/vpn/check VPNCHECKPASSWORD
+		script = /path/to/webauth-check.sh https://this_webapp_host/vpn/check REMOTE_AUTH_CHECK_PASSWORD
 	}
 	...
 }
@@ -134,14 +134,14 @@ Configure the PAM session module to require and use `ssh-webauth.sh`:
 
 First, we'll configure PAM to use this app in non enforcing mode, in order not to break all your accesses to your remote system in case this app is not properly configured.
 ```
-session optional pam_exec.so stdout quiet /path/to/ssh-webauth.sh https://thisappdomain.tld/check/ssh REMOTEAUTHCHECKPASSWORD
+session optional pam_exec.so stdout quiet /path/to/ssh-webauth.sh https://thisappdomain.tld/check/ssh REMOTE_AUTH_CHECK_PASSWORD
 ```
 
 Ensure that `sshd` uses the PAM authentication subsystem: you must have `UsePAM yes` present in your sshd config file.
 
 Try connecting to your remote system through SSH. Once you have a fully working setup, you can enforce the custom PAM authentication (change `optional` to `required`):
 ```
-session required pam_exec.so stdout quiet /path/to/ssh-webauth.sh https://thisappdomain.tld/check/ssh REMOTEAUTHCHECKPASSWORD
+session required pam_exec.so stdout quiet /path/to/ssh-webauth.sh https://thisappdomain.tld/check/ssh REMOTE_AUTH_CHECK_PASSWORD
 ```
 
 
@@ -149,59 +149,60 @@ session required pam_exec.so stdout quiet /path/to/ssh-webauth.sh https://thisap
 All the configuration parameters have to passed as environment variables.
 
 ### Application
-- `BASEURL`: The user-facing base URL of this application, for example https://auth.mycompany.com
+- `ADMIN_EMAIL`: the email address of an administrator for this app. Mandatory if `ENABLE_NOTIFICATIONS` is set to `true`.
+- `BASE_URL`: The user-facing base URL of this application, for example https://auth.mycompany.com
   > This is used as the base URL that OAuth2 will redirect to after signing in. Default: http://`HOST`:`PORT`.
 
-  > If you set `SSLMODE` to `auto`, the Let's Encrypt certificate will be generated for this domain.
+  > If you set `SSL_MODE` to `auto`, the Let's Encrypt certificate will be generated for this domain.
 
-  > NOTE: You need to add this app redirect/callback endpoint (`BASEURL/auth/google/callback` or `BASEURL/auth/azure/callback`) to the list of allowed callbacks in your Google or Azure credentials configuration console.
+  > NOTE: You need to add this app redirect/callback endpoint (`BASE_URL/auth/google/callback` or `BASE_URL/auth/azure/callback`) to the list of allowed callbacks in your Google or Azure credentials configuration console.
 
-- `CONNECTIONSRETENTION`: how long to keep VPN connections audit logs, in days. Default: `90`.
+- `CONNECTIONS_RETENTION`: how long to keep VPN connections audit logs, in days. Default: `90`.
   > NOTE: The connections audit log cleanup task is only run during the application startup. Also, there is currently no way to view this audit log from the app.
-- `DBTYPE`: the database engine where the sessions will be stored. Default: `sqlite`. Can be `sqlite`, `postgres`, `mysql`.
-- `DBDSN`: the database connection string. Default: `tmp/vpnwa.db`. Check https://gorm.io/docs/connecting_to_the_database.html for examples.
+- `DB_TYPE`: the database engine where the sessions will be stored. Default: `sqlite`. Can be `sqlite`, `postgres`, `mysql`.
+- `DB_DSN`: the database connection string. Default: `tmp/vpnwa.db`. Check https://gorm.io/docs/connecting_to_the_database.html for examples.
   > By default a Sqlite database is created. You probably want to at least change its path. Sqlite is only suitable for testing purposes or for a small number of concurrent users, and will only work with with a single instance of the app. It is recommended to use MySQL or Postgres instead.
 
   > NOTE: the app will automatically create the tables and thus needs to have the privileges to do so.
-- `ENCRYPTIONKEY`: Key used to encrypt sensitive information in the database. Must be 32 characters. **Mandatory** if `ENFORCEMFA` is set to `true`.
-- `EXCLUDEDIDENTITIES`: list of VPN or SSH user accounts (identities) that do not require any additional authentication by this app, separated by comma. Optional.
+- `ENCRYPTION_KEY`: Key used to encrypt sensitive information in the database. Must be 32 characters. **Mandatory** if `ENFORCE_MFA` is set to `true`.
+- `EXCLUDED_IDENTITIES`: list of VPN or SSH user accounts (identities) that do not require any additional authentication by this app, separated by comma. Optional.
   > The VPN or SSH servers will still query the application when these accounts try to connect, but will always get a positive response.
 - `HOST`: the IP address to listen on. Default: `127.0.0.1`
-- `LOGOURL`: Add your organization logo on top of the webapp pages. Optional. If the app is served over HTTPS (and it should), `LOGOURL` must also be a HTTPS URL.
-- `ORGNAME`: Name that appears on the users OTP authenticator app. Default: `VPN`.
+- `LOGO_URL`: Add your organization logo on top of the webapp pages. Optional. If the app is served over HTTPS (and it should), `LOGO_URL` must also be a HTTPS URL.
+- `ORG_NAME`: Name that appears on the users OTP authenticator app. Default: `VPN`.
   > It is recommended that you set it to the name of your organization.
 
-  > Browser notifications related to VPN connections will use `ORGNAME` in their title by default, unless the call from the VPN server sets a custom `CallerName` field (check `scripts/vpn-webauth.sh`).
+  > Browser notifications related to VPN connections will use `ORG_NAME` in their title by default, unless the call from the VPN server sets a custom `CallerName` field (check `scripts/vpn-webauth.sh`).
 
   > Browser notifications related to SSH connections will contain the hostname and IP address of the remote system the user tries to connect to.
-- `ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. 
+- `ORIGINAL_IP_HEADER`: the header to use to fetch the real user/client source IP. Optional. 
   > If running this app behind Nginx for example, or using a corporate proxy, you will need to configure them to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-For` is used for this purpose. Default: empty.
   > The source IP address seen by Strongswan must match the source IP address used for the web authentication. If you have both a corporate HTTP proxy for users and a reverse-proxy such as Nginx in front of this app, you will need to configure the corporate proxy to set a header containing the original client IP, and ensure that Nginx passes it to the app. Do not configure both the corporate and the reverse proxies to append to the same header, as the app will only read the its value.
-- `ORIGINALPROTOHEADER`: the header to use to fetch the real protocol (http, https) used between the clients and the proxy. Default: `X-Forwarded-Proto`.
+- `ORIGINAL_PROTO_HEADER`: the header to use to fetch the real protocol (http, https) used between the clients and the proxy. Default: `X-Forwarded-Proto`.
 - `PORT`: the port to listen to. Default: `8080`
-- `REMOTEAUTHCHECKPASSWORD`: Shared password between the app and the Strongswan/SSH scripts to protect the endpoint checking for valid user web sessions. Optional.
+- `REMOTE_AUTH_CHECK_PASSWORD`: Shared password between the app and the Strongswan/SSH scripts to protect the endpoint checking for valid user web sessions. Optional.
     > If the `/check/...` endpoints or this app are publicly available, it is a good idea to set a password to ensure that only your VPN or SSH servers are allowed to query the app for user sessions.
-- `REMOTESESSIONVALIDITY`: How long to allow VPN/SSH (re)connections after completing the web authentication. During this interval the web authentication status is not reverified. Default: `30m`. Specify custom value as a number and a time unit, for example `1h30m`.
+- `REMOTE_SESSION_VALIDITY`: How long to allow VPN/SSH (re)connections after completing the web authentication. During this interval the web authentication status is not reverified. Default: `30m`. Specify custom value as a number and a time unit, for example `1h30m`.
   > If you enable the web notifications feature, you can set this to a short duration. Doing so can help increase security since new connections will be verified against a valid web session on an online browser more often. However, if you have reports from users complaining that they have frequent VPN connection failures, you may want to increase this value, as some users on slow network connections may have more trouble replying in a timely fashion that their browser is online and holds a valid session.
-- `SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
+- `SIGNING_KEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
   > Regenerating a new key every time the application starts means that all your users web sessions will be invalid and they will have to sign in again if they need a new VPN "session".
   > It is recommended that you create and pass your own key.
-- `WEBSESSIONVALIDITY`: How long a web authentication is valid. During this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `12h`. Specify custom value as a number and a time unit, for example `48h30m`. 
+- `WEB_SESSION_VALIDITY`: How long a web authentication is valid. During this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `12h`. Specify custom value as a number and a time unit, for example `48h30m`. 
 
 ### OAuth2
-- `OAUTH2PROVIDER`: The Oauth2 provider. Can be `google` or `azure`. **Mandatory**.
-- `OAUTH2CLIENTID`: Google or Microsoft Client ID. **Mandatory**.
-- `OAUTH2CLIENTSECRET`: Google or Microsoft Client Secret. **Mandatory**.
-- `OAUTH2TENANT`: Azure Directory tenant ID. Mandatory if `OAUTH2PROVIDER` is set to `azure`.
+- `OAUTH2_PROVIDER`: The Oauth2 provider. Can be `google` or `azure`. **Mandatory**.
+- `OAUTH2_CLIENT_ID`: Google or Microsoft Client ID. **Mandatory**.
+- `OAUTH2_CLIENT_SECRET`: Google or Microsoft Client Secret. **Mandatory**.
+- `OAUTH2_TENANT_ID`: Azure Directory tenant ID. Mandatory if `OAUTH2_PROVIDER` is set to `azure`.
 
 ### Multi-Factor Authentication
-  - `ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`. If enabled, users will have to choose one of the available MFA options (see below).
-  - `MFAOTP`: Whether to enable OTP token authentication after OAuth2 login. Default: `true`. 
-  - `MFATOUCHID`: Whether to enable Apple TouchID/FaceID and Windows Hello biometrics authentication after OAuth2 login, if a compatible device is detected. Default: `true`.
+  - `ENFORCE_MFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`. If enabled, users will have to choose one of the available MFA options (see below).
+  - `MFA_OTP`: Whether to enable OTP token authentication after OAuth2 login. Default: `true`. 
+  - `MFA_TOUCHID`: Whether to enable Apple TouchID/FaceID and Windows Hello biometrics authentication after OAuth2 login, if a compatible device is detected. Default: `true`.
     > With compatible devices and operating systems, this is certainly the fastest, most convenient and most secure additional authentication. 
     > This feature complies with the definiton of "Something you are" of the common three authentication factors.
     > NOTE: TouchID/FaceID feature is available in MacOS >= 11.x and iOS >= 14.x. The option will only be shown to the user if a compatible OS is detected.
-  - `MFAWEBAUTHN`: Whether to enable strong authentication using security devices such as Fido keys after OAuth2 login. Default: `true`.
+  - `MFA_WEBAUTHN`: Whether to enable strong authentication using security devices such as Fido keys after OAuth2 login. Default: `true`.
 
 Webauthn additional authentications, including TouchID, are tied to a specific device and browser.
 In case a user wants to be able to sign in from multiple browsers or devices, they have the option of generating a one-time 6 digits code to register a new device. This code is valid for 5 minutes and will be disabled after 3 failed attempts. 
@@ -209,7 +210,7 @@ In case a user wants to be able to sign in from multiple browsers or devices, th
 It is also possible to sign in from different browsers and devices by using the OTP (authenticator app) feature.
 
 ### SSH
- - `ENABLESSH`: whether to enable additional web authentication through this app for SSH connections. Default: `false`. This feature requires SSH keys based  authentication.
+ - `ENABLE_SSH`: whether to enable additional web authentication through this app for SSH connections. Default: `false`. This feature requires SSH keys based  authentication.
    > When they SSH into a remote system configured to use this app, if their SSH key is not recognized, they will receive a one-time code and will be instructed to enter it into this app in order to automatically register their SSH public key.
 
    > NOTE: If this option is disabled, SSH keys will be ignored by the app. In that case, the only way to link a user web session to an SSH connection is that the SSH username matches the web identity (email address).
@@ -219,25 +220,25 @@ It is also possible to sign in from different browsers and devices by using the 
   This app is compatible with multiple SSH authentications (for example, when SSHD is configured with `AuthenticationMethods "publickey,keyboard-interactive"`).
 
 ### VPN
-  - `ENABLEVPN`: whether to enable additional web authentication through this app for VPN connections. Default: `false`.
-  - `VPNCHECKALLOWEDIPS`: Comma-separated list of IPs allowed to query the check endpoint. Optional. Default: empty, anyone can use the endpoint.
-    > NOTE: For this to work as expected, the VPN server needs to connect **directly** to the check endpoint, without any corporate or forward proxy. `ORIGINALIPHEADER` is ignored for requests coming from your VPN server.
+  - `ENABLE_VPN`: whether to enable additional web authentication through this app for VPN connections. Default: `false`.
+  - `VPN_CHECK_ALLOWED_IPS`: Comma-separated list of IPs allowed to query the check endpoint. Optional. Default: empty, anyone can use the endpoint.
+    > NOTE: For this to work as expected, the VPN server needs to connect **directly** to the check endpoint, without any corporate or forward proxy. `ORIGINAL_IP_HEADER` is ignored for requests coming from your VPN server.
     > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
 
 ### SSL
-  - `SSLMODE`: whether and how SSL is enabled. Default: `off`. Can be `auto`, `custom`, `proxy`, `off`.
+  - `SSL_MODE`: whether and how SSL is enabled. Default: `off`. Can be `auto`, `custom`, `proxy`, `off`.
     > `off` doesn't enforce SSL at all at the application level. It is only recommended for local testing.
 
-    > `auto` automatically generates a private key and a Let'sEncrypt SSL certificate for the domain specified in `BASEURL`. The generated key and certificates are stored into `SSLAUTOCERTSDIR` and reused during future application restarts.
+    > `auto` automatically generates a private key and a Let'sEncrypt SSL certificate for the domain specified in `BASE_URL`. The generated key and certificates are stored into `SSL_AUTO_CERTS_DIR` and reused during future application restarts.
     > NOTE: `auto` will force the application to also listen on port 80 in order to generate the LetsEncrypt certificate. This port is privileged, meaning that you will need to start the application as root using `sudo`, or executing `chmod u+s vpn-webauth` to grant the binary admin permissions. Any user request to port 80 will redirect to the `PORT` HTTPS port.
 
-    > `custom` will let you specify a custom certificate and key using `SSLCUSTOMCERTPATH` and `SSLCUSTOMKEYPATH`.
+    > `custom` will let you specify a custom certificate and key using `SSL_CUSTOM_CERT_PATH` and `SSL_CUSTOM_KEY_PATH`.
 
     > `proxy` delegates the responsibility of providing SSL termination to an external component or proxy. However, unlike `off`, it sets the `Secure` flag for the cookies generated by the application and adds an HSTS HTTP header.
-  - `SSLCUSTOMCERTPATH`: path to the SSL certificate. Optional. Default: `/ssl/key.pem`. If needed, this file can contain any additional certificate required to build the full chain, _after_ the leaf certificate.
-  - `SSLCUSTOMKEYPATH`: path to the SSL certificate private key. Optional. Default: `/ssl/cert.pem`.
-  - `SSLAUTOCERTSDIR`: used to store automatically manage certificates when `SSLMODE` is set to `auto`. Default: `/tmp`. Should be changed to a more persistent path. The directory must be writeable.
+  - `SSL_CUSTOM_CERT_PATH`: path to the SSL certificate. Optional. Default: `/ssl/key.pem`. If needed, this file can contain any additional certificate required to build the full chain, _after_ the leaf certificate.
+  - `SSL_CUSTOM_KEY_PATH`: path to the SSL certificate private key. Optional. Default: `/ssl/cert.pem`.
+  - `SSL_AUTO_CERTS_DIR`: used to store automatically manage certificates when `SSL_MODE` is set to `auto`. Default: `/tmp`. Should be changed to a more persistent path. The directory must be writeable.
 
 
 ### Notifications & Session continuity
@@ -245,7 +246,7 @@ These 2 features can improve the user experience. After registering or signing i
 
 If they accept, when they attempt a remote connection without a valid web session, they will receive a notification letting them know that they need to sign in for the remote VPN or SSH connection to be authorized.
 
- Additionally, if their remote (VPN or SSH) session is expired (`REMOTESESSIONVALIDITY`) but they still have a valid web session (`WEBSESSIONVALIDITY`), their next attempt to connect to the VPN will try to transparently ask the browser used to sign in to prove that it still holds a valid session. If so, the VPN or SSH connection will be automatically allowed, without any user intervention or visible notification.
+ Additionally, if their remote (VPN or SSH) session is expired (`REMOTE_SESSION_VALIDITY`) but they still have a valid web session (`WEB_SESSION_VALIDITY`), their next attempt to connect to the VPN will try to transparently ask the browser used to sign in to prove that it still holds a valid session. If so, the VPN or SSH connection will be automatically allowed, without any user intervention or visible notification.
 
 > NOTE: automatic remote sessions renewal is a best effort feature; the browser must be running, even without this app opened, and must reply with a "proof of session and IP" quickly enough. This is because Strongswan will be waiting in blocking mode for the app to reply whether the user is allowed. 
 Network latency and distance between end users and the app could negatively impact their ability to use the feature.
@@ -254,18 +255,18 @@ By default, the app stops waiting for a browser "proof of session" after 600ms.
 &nbsp;
 
 
-- `ENABLENOTIFICATIONS`: whether to enable desktop notifications and session continuity. Default: `true`.
-- `VAPIDPUBLICKEY` and `VAPIDPRIVATEKEY`: a key pair to authenticate and authorize browser desktop notifications. Mandatory if `ENABLENOTIFICATIONS` is set to `true`. 
+- `ENABLE_NOTIFICATIONS`: whether to enable desktop notifications and session continuity. Default: `true`.
+- `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`: a key pair to authenticate and authorize browser desktop notifications. Mandatory if `ENABLE_NOTIFICATIONS` is set to `true`. 
 
-   > If they are not set, a new key pair will be dynamically generated and suggested before the app startup fails. If you use the suggested key pair, ensure the suggested `VAPIDPRIVATEKEY` is kept secret and has not been shared or logged. Once set, the keys must not change otherwise all existing users subscriptions to notifications will be invalid.
+   > If they are not set, a new key pair will be dynamically generated and suggested before the app startup fails. If you use the suggested key pair, ensure the suggested `VAPID_PRIVATE_KEY` is kept secret and has not been shared or logged. Once set, the keys must not change otherwise all existing users subscriptions to notifications will be invalid.
 
    > NOTE: you can also generate your own set of keys using the following commands:
    ```
    # Generate private key
    openssl ecparam -name prime256v1 -genkey -noout -out vapid_private.pem
-   # Output private key in a format suitable for VAPIDPRIVATEKEY:
+   # Output private key in a format suitable for VAPID_PRIVATE_KEY:
    openssl ec -in vapid_private.pem -outform DER|tail -c +8|head -c 32|base64|tr -d '=' |tr '/+' '_-'
-   # Output public key in a format suitable for VAPIDPUBLICKEY:
+   # Output public key in a format suitable for VAPID_PUBLIC_KEY:
    openssl ec -in vapid_private.pem -pubout -outform DER|tail -c 65|base64|tr -d '=' |tr '/+' '_-' 
 
    ```
