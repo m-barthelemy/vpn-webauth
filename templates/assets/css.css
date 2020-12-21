@@ -80,7 +80,7 @@ main {
   }
 
 .ssh-key {
-    display: block;
+    display: inline;
     overflow-wrap: break-word;
     font-size: smaller;
 }

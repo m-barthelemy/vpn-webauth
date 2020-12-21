@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # IMPORTANT: Make sure this script belongs to root and is not writeable
 # example: chmod 500 /path/to/this/script.sh and then chattr +i /path/to/this/script.sh

@@ -43,6 +43,7 @@ type Config struct {
 	OriginalIPHeader        string        // ORIGINALIPHEADER
 	OriginalProtoHeader     string        // ORIGINALPROTOHEADER
 	RemoteAuthCheckPassword string        // REMOTEAUTHCHECKPASSWORD
+	SSHAllowedSourceIPs     []string      // SSHALLOWEDSOURCEIPS
 	SSLMode                 string        // SSLMODE
 	SSLAutoCertsDir         string        // SSLAUTOCERTSDIR
 	SSLCustomCertPath       string        // SSLCUSTOMCERTPATH
@@ -74,6 +75,7 @@ func (config *Config) New() Config {
 		MFAOTP:                 true,
 		MFATouchID:             true,
 		MFAWebauthn:            true,
+		SSHAllowedSourceIPs:    []string{},
 		SSLMode:                "off",
 		SSLAutoCertsDir:        "/tmp",
 		SSLCustomCertPath:      "/ssl/cert.pem",

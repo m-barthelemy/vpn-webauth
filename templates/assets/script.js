@@ -55,7 +55,7 @@ function urlBase64ToUint8Array(base64String) {
         .replace(/_/g, '/');
 
     const rawData = atob(base64);
-    var outputArray = new Uint8Array(rawData.length);
+    let outputArray = new Uint8Array(rawData.length);
 
     for (var i = 0; i < rawData.length; ++i) {
         outputArray[i] = rawData.charCodeAt(i);
@@ -307,7 +307,7 @@ function bufferDecode(value) {
 
 // Remove all occurrences of an item from an array
 function removeAllFromArray(arr, value) {
-    var i = 0;
+    let i = 0;
     while (i < arr.length) {
         if (arr[i] === value) {
             arr.splice(i, 1);
@@ -318,9 +318,8 @@ function removeAllFromArray(arr, value) {
     return arr;
 }
 
-  
 function startListenSSE() {
-    console.log("Enable SSE fallback for VPN connection notifications");
+    console.log("Enable SSE fallback for receiving proof of auth requests");
     const source = new EventSource('/events');
     source.onopen = function() {
         console.log('Connection to SSE stream has been opened');
@@ -333,7 +332,6 @@ function startListenSSE() {
         if (stream.data) {
             const event = JSON.parse(stream.data);
             if (event.Action == "Auth") {
-                console.log("RECEIVED AUTH EVENT");
                 SendAuthProof(event);
             }
         }
@@ -406,8 +404,8 @@ async function deleteIdentity(id) {
     }
 }
 
-var userInfo = {};
 
+var userInfo = {};
 // main
 $(document).ready(async function(){
     const searchParams = new URLSearchParams(window.location.search);
@@ -480,7 +478,8 @@ $(document).ready(async function(){
         if (userInfo.FullyAuthenticated && page == "/") {
             window.location.href = "/success";
         }
-        else if (!userInfo.FullyAuthenticated && (page == "/success" || page == "/addSSHKey")) {
+        else if (!userInfo.FullyAuthenticated 
+            && (page == "/success" || page == "/addSSHKey" || page == "/publicKeys" || page == "/addDevice")) {
             window.location.href = "/";
         }
     }
@@ -529,21 +528,22 @@ $(document).ready(async function(){
         }
     }
 
+    // publicKeys page
     const keyItem = ({ID, Type, Name, PublicKey, Validated, CreatedAt}) => `
-    <div class="row center">
-            <div class="card">
-                <div class="card-content">
-                    <div class="card-title"><i class="material-icons">person</i>&nbsp;${Name}</div>
-                    <pre class="ssh-key">${PublicKey}</pre>
-                    <small>Created ${new Date(CreatedAt).toLocaleString()}</small>
+        <div class="row center">
+                <div class="card">
+                    <div class="card-content">
+                        <div class="card-title"><i class="material-icons">person</i>&nbsp;${Name}</div>
+                        <pre class="ssh-key">${PublicKey.match(/.{1,120}/g).join('<br/>')}</pre>
+                        <small><br/>Created ${new Date(CreatedAt).toLocaleString()}</small>
+                    </div>
+                    <div class="card-action center">
+                        <a class="btn s6 waves-effect red darken-2 white-text deleteIdentity modal-trigger" id="${ID}" href="#deleteIdentityModal">
+                            <i class="material-icons left">delete</i>Delete
+                        </a>
+                    </div>
                 </div>
-                <div class="card-action center">
-                    <a class="btn s6 waves-effect red darken-2 white-text deleteIdentity modal-trigger" id="${ID}" href="#deleteIdentityModal">
-                        <i class="material-icons left">delete</i>Delete
-                    </a>
-                </div>
-            </div>
-    </div>
+        </div>
     `;
     if (!userInfo.EnableSSH) {
         $("[name='ssh-only-section']").hide();
@@ -553,14 +553,13 @@ $(document).ready(async function(){
         $('#user-ssh-keys').html(userInfo.PublicKeys.map(keyItem).join(''));
         $(".deleteIdentity").click(function(event) {
             idToDelete = event.target.id;
-
             $('.modal').modal();
         });
         $("#confirmDelete").click( async function() {
-            console.log("Need to delete " + idToDelete);
             await deleteIdentity(idToDelete);
         });
     }
+
 
     $("#login-touchid").click(function() {
         webAuthNLogin(false);
