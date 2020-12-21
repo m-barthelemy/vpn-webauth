@@ -286,9 +286,9 @@ func (u *UserController) DeleteUserIdentity(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	for _, identity := range user.Identities {
+	for idx, identity := range user.Identities {
 		if id == identity.ID {
-			if err := userManager.DeleteIdentity(&identity); err != nil {
+			if err := userManager.DeleteIdentity(&user.Identities[idx]); err != nil {
 				log.Printf("UserController: Error deleting user %s SSH identity: %s", email, err.Error())
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return

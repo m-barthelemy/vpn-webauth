@@ -42,7 +42,7 @@ func New(db *gorm.DB, config *models.Config) *OAuth2Controller {
 		oAuthConfig.Endpoint = google.Endpoint
 		oAuthConfig.Scopes = []string{"https://www.googleapis.com/auth/userinfo.email"}
 	} else if config.OAuth2Provider == "azure" {
-		oAuthConfig.Endpoint = microsoft.AzureADEndpoint(config.OAuth2Tenant)
+		oAuthConfig.Endpoint = microsoft.AzureADEndpoint(config.OAuth2TenantID)
 		oAuthConfig.Scopes = []string{"openid", "email"}
 	}
 
