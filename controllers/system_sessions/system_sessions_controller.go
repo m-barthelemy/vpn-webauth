@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/gorilla/mux"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
@@ -25,14 +26,35 @@ type SystemSessionController struct {
 	utils                *utils.Utils
 }
 
+var vpnAllowedRanges []*net.IPNet
+var sshAllowedRanges []*net.IPNet
+
 // New creates an instance of the controller and sets its DB handle
-func New(db *gorm.DB, config *models.Config, notificationsManager *services.NotificationsManager) *SystemSessionController {
+func New(db *gorm.DB, config *models.Config, notificationsManager *services.NotificationsManager) (*SystemSessionController, error) {
+	if len(config.SSHAllowedSourceIPs) > 0 {
+		for _, allowedRange := range config.SSHAllowedSourceIPs {
+			_, allowedsubnet, err := net.ParseCIDR(allowedRange)
+			if err != nil {
+				return nil, err
+			}
+			sshAllowedRanges = append(sshAllowedRanges, allowedsubnet)
+		}
+	}
+	if len(config.VPNCheckAllowedIPs) > 0 {
+		for _, allowedRange := range config.VPNCheckAllowedIPs {
+			_, allowedsubnet, err := net.ParseCIDR(allowedRange)
+			if err != nil {
+				return nil, err
+			}
+			vpnAllowedRanges = append(vpnAllowedRanges, allowedsubnet)
+		}
+	}
 	return &SystemSessionController{
 		db:                   db,
 		config:               config,
 		utils:                utils.New(config),
 		notificationsManager: notificationsManager,
-	}
+	}, nil
 }
 
 // ServerConnectionRequest is what is received from the Strongswan `ext-auth` script
@@ -48,19 +70,11 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 	start := time.Now() // report time taken to verify user for debugging purposes
 	_, password, _ := r.BasicAuth()
 	if password != v.config.RemoteAuthCheckPassword {
-		log.Print("SystemSessionController: password does not match REMOTEAUTHCHECKPASSWORD")
-		http.Error(w, "Invalid REMOTEAUTHCHECKPASSWORD", http.StatusForbidden)
+		log.Print("SystemSessionController: password does not match REMOTE_AUTH_CHECK_PASSWORD")
+		http.Error(w, "Invalid REMOTE_AUTH_CHECK_PASSWORD", http.StatusForbidden)
 		return
 	}
-	callerIP, _, _ := net.SplitHostPort(r.RemoteAddr)
-	// TODO: how does that apply to SSH connections?
-	if len(v.config.VPNCheckAllowedIPs) > 0 {
-		if !contains(v.config.VPNCheckAllowedIPs, callerIP) {
-			log.Printf("SystemSessionController: source IP %s is not in VPNCHECKALLOWEDIPS allowed list", callerIP)
-			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
-			return
-		}
-	}
+
 	var connRequest ServerConnectionRequest
 	err := json.NewDecoder(r.Body).Decode(&connRequest)
 	if err != nil {
@@ -77,6 +91,7 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	callerIP, _, _ := net.SplitHostPort(r.RemoteAddr)
 	params := mux.Vars(r)
 	checkType := params["type"] // "vpn" or "ssh"
 	if checkType != "vpn" && checkType != "ssh" {
@@ -85,18 +100,51 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if checkType == "vpn" && !v.config.EnableVPN {
-		log.Print("SystemSessionController: Received VPN request but ENABLEVPN is disabled")
+		log.Print("SystemSessionController: Received VPN request but ENABLE_VPN is disabled")
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	} else if checkType == "ssh" {
 		if !v.config.EnableSSH {
-			log.Print("SystemSessionController: Received SSH request but ENABLESSH is disabled")
+			log.Print("SystemSessionController: Received SSH request but ENABLE_SSH is disabled")
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
 		if connRequest.SSHAuthInfo == "" {
 			log.Printf("SystemSessionController: Received SSH request for '%s' from %s but SSH key is empty", connRequest.Identity, callerIP)
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+	}
+
+	if checkType == "vpn" && len(vpnAllowedRanges) > 0 {
+		// This checks if the VPN source IP is allowed to call the endpoint
+		allowed := false
+		ip := net.ParseIP(callerIP)
+		for _, allowedRange := range vpnAllowedRanges {
+			if allowedRange.Contains(ip) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			log.Printf("SystemSessionController: source IP %s is not in VPN_CHECK_ALLOWED_IPS allowed list", callerIP)
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+
+	} else if checkType == "ssh" && len(sshAllowedRanges) > 0 {
+		// This checks if the SSH client source IP is allowed
+		allowed := false
+		ip := net.ParseIP(connRequest.SourceIP)
+		for _, allowedRange := range sshAllowedRanges {
+			if allowedRange.Contains(ip) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			log.Printf("SystemSessionController: source IP %s is not in SSH_ALLOWED_SOURCE_IPS list", callerIP)
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
 	}
@@ -165,8 +213,22 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 	} else {
 		connectionName = fmt.Sprintf("🖥️ %s (%s)", connRequest.CallerName, callerIP)
 	}
-	_, notifUniqueID, err := v.notificationsManager.NotifyUser(checkType, connectionName, user, connRequest.SourceIP)
-	hasValidBrowserSession := v.notificationsManager.WaitForBrowserProof(checkType, user, connRequest.SourceIP, *notifUniqueID)
+
+	hasValidBrowserSession := false
+	var notifUniqueID *uuid.UUID
+	var notifErr error
+	if checkType == "vpn" { // For VPN session check, the browser response must come from the same source IP the user tries to connect to the VPN from.
+		_, notifUniqueID, notifErr = v.notificationsManager.NotifyUser(checkType, connectionName, user, connRequest.SourceIP)
+		hasValidBrowserSession = v.notificationsManager.WaitForBrowserProof(checkType, user, connRequest.SourceIP, *notifUniqueID)
+	} else {
+		_, notifUniqueID, notifErr = v.notificationsManager.NotifyUser(checkType, connectionName, user, "0.0.0.0")
+		hasValidBrowserSession = v.notificationsManager.WaitForBrowserProof(checkType, user, "0.0.0.0", *notifUniqueID)
+	}
+	if notifErr != nil {
+		log.Printf("SystemSessionController: error notifying browser for %s: %s", user.Email, notifErr.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 	auditEntry.Allowed = hasValidBrowserSession
 
 	if !hasValidBrowserSession {
@@ -225,7 +287,6 @@ func (v *SystemSessionController) checkSSHSession(connRequest ServerConnectionRe
 		log.Printf("SystemSessionController: SSH identity for Unix user '%s' is unknown, sending one-time validation challenge", connRequest.Identity)
 		http.Error(w, fmt.Sprintf("%s/addSSHKey %s", v.config.BaseURL, *otc), http.StatusNotAcceptable)
 		return nil
-
 	}
 	user := sshIdentity.User
 	if user == nil {

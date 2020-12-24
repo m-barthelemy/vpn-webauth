@@ -44,7 +44,7 @@ type Config struct {
 	OriginalProtoHeader     string        `envconfig:"ORIGINAL_PROTO_HEADER"`
 	RemoteAuthCheckPassword string        `envconfig:"REMOTE_AUTH_CHECK_PASSWORD"`
 	RemoteSessionValidity   time.Duration `envconfig:"REMOTE_SESSION_VALIDITY"`
-	SSHAllowedSourceIPs     []string      // SSHALLOWEDSOURCEIPS
+	SSHAllowedSourceIPs     []string      `envconfig:"SSH_ALLOWED_SOURCE_IPS"`
 	SSLMode                 string        `envconfig:"SSL_MODE"`
 	SSLAutoCertsDir         string        `envconfig:"SSL_AUTO_CERTS_DIR"`
 	SSLCustomCertPath       string        `envconfig:"SSL_CUSTOM_CERT_PATH"`

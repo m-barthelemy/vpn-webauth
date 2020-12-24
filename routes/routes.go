@@ -193,7 +193,10 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		),
 	)
 
-	ssC := systemSessionController.New(db, config, notificationsManager)
+	ssC, err := systemSessionController.New(db, config, notificationsManager)
+	if err != nil {
+		log.Fatalf("Error starting remote sessions controller: %s", err.Error())
+	}
 	mux.Handle("/check/{type}",
 		handlers.LoggingHandler(
 			os.Stdout,

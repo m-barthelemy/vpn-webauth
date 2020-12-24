@@ -126,7 +126,7 @@ func (n *NotificationsManager) WaitForBrowserProof(connectionType string, user *
 	}
 
 	hasValidBrowserSession := false
-	// Background task that we can kill it after some time to avoid Strongswan hanging for too long
+	// Background task that we can kill after some time to avoid Strongswan hanging for too long
 	go func() {
 		eventBus.Subscribe(fmt.Sprintf("%s:%s", user.Email, sourceIP), checkWebSessions)
 		eventBus.WaitAsync()

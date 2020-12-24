@@ -217,14 +217,19 @@ It is also possible to sign in from different browsers and devices by using the 
 
    > It is highly recommended that you use SSH keys authentication for your users and that you enable this option in the app. 
    
+- `SSH_ALLOWED_SOURCE_IPS`: The source IP ranges of the users/clients allowed to SSH into your remote systems. Optional. Default: empty.
+  > Some organizations only allow SSH through a VPN or private networks. In that case, the source IP of the users trying to establish SSH connections could be different from their source IP as seen by the web authentication if it is not hosted on a private network or behind the same VPN.
+  This would make the app to refuse the SSH connection attempt. Im such a situation, you can set a list of source IP ranges allowed to establish SSH connections despite not matching the source IP used during the web authentication to this app.
+  
+   
   This app is compatible with multiple SSH authentications (for example, when SSHD is configured with `AuthenticationMethods "publickey,keyboard-interactive"`).
 
 ### VPN
   - `ENABLE_VPN`: whether to enable additional web authentication through this app for VPN connections. Default: `false`.
-  - `VPN_CHECK_ALLOWED_IPS`: Comma-separated list of IPs allowed to query the check endpoint. Optional. Default: empty, anyone can use the endpoint.
-    > NOTE: For this to work as expected, the VPN server needs to connect **directly** to the check endpoint, without any corporate or forward proxy. `ORIGINAL_IP_HEADER` is ignored for requests coming from your VPN server.
-    > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
-    > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
+  - `VPN_CHECK_ALLOWED_IPS`: Comma-separated list of IP CIDRs allowed to query the check endpoint. Optional. Default: empty, anyone can use the endpoint.
+    > If set, this should be the list of your VPN servers source IP ranges (example: `10.0.1.199/32`)
+    > NOTE: For this to work as expected, the VPN server needs to connect **directly** to the check endpoint, without any corporate or forward proxy. `ORIGINAL_IP_HEADER` is ignored for requests coming from your VPN server. If set, must be a list of CIDRs (example: 10.10.0.0/24)
+    
 
 ### SSL
   - `SSL_MODE`: whether and how SSL is enabled. Default: `off`. Can be `auto`, `custom`, `proxy`, `off`.
