@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt"
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
