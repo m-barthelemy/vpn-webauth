@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
@@ -35,7 +36,7 @@ func NewNotificationsManager(db *gorm.DB, config *models.Config, bus *EventBus.B
 	return &NotificationsManager{db: db, config: config, bus: bus}
 }
 
-func (n *NotificationsManager) NotifyUser(connectionType string, connectionName string, user *models.User, sourceIP string) (bool, *uuid.UUID, error) {
+func (n *NotificationsManager) NotifyUser(connectionType string, connectionName string, user *models.User) (bool, *uuid.UUID, error) {
 	var subscriptions []models.UserSubscription
 	minUsedAt := time.Now().AddDate(0, -3, 0)
 	if result := n.db.Where("user_id = ? AND last_used_at > ?", user.ID.String(), minUsedAt).Find(&subscriptions); result.Error != nil {
@@ -96,8 +97,8 @@ func (n *NotificationsManager) NotifyUser(connectionType string, connectionName 
 
 	// Also send to clients using SSE fallback
 	msg := sse.SSEAuthRequestMessage{
-		SourceIP: sourceIP,
-		UserId:   user.ID,
+		//SourceIP: sourceIP,
+		UserId: user.ID,
 		Message: sse.SSEMessage{
 			Action: "Auth",
 			Nonce:  notifId.String(),
@@ -112,23 +113,25 @@ func (n *NotificationsManager) NotifyUser(connectionType string, connectionName 
 
 // WaitForBrowserProof waits for browser to reply with a request having a valid session token, and a body
 // containing the same nonce value that was sent with the Push or SSE notification.
-func (n *NotificationsManager) WaitForBrowserProof(connectionType string, user *models.User, sourceIP string, nonce uuid.UUID) bool {
+func (n *NotificationsManager) WaitForBrowserProof(connectionType string, user *models.User, nonce uuid.UUID, allowedRanges []*net.IPNet) bool {
 	channel := make(chan bool, 1)
 	eventBus := *n.bus
 
-	checkWebSessions := func(id uuid.UUID) {
-		if id == nonce {
+	checkWebSessions := func(sourceIP string) {
+		/*if id == nonce {
 			channel <- true
 		} else {
 			log.Printf("NotificationsManager: invalid browser response for %s: nonce doesn't match expected value", user.Email)
 			channel <- false
-		}
+		}*/
+		println("•••• WaitForBrowserProof(): received browser proof from sourceIP ", sourceIP)
+		channel <- true
 	}
 
 	hasValidBrowserSession := false
 	// Background task that we can kill after some time to avoid Strongswan hanging for too long
 	go func() {
-		eventBus.Subscribe(fmt.Sprintf("%s:%s", user.Email, sourceIP), checkWebSessions)
+		eventBus.Subscribe(fmt.Sprintf("%s:%s", user.Email, nonce.String()), checkWebSessions)
 		eventBus.WaitAsync()
 	}()
 	select {
@@ -142,12 +145,12 @@ func (n *NotificationsManager) WaitForBrowserProof(connectionType string, user *
 		log.Printf("NotificationsManager: No active web session replied on time for user %s", user.Email)
 	}
 	close(channel)
-	eventBus.Unsubscribe(fmt.Sprintf("%s:%s", user.Email, sourceIP), checkWebSessions)
+	eventBus.Unsubscribe(fmt.Sprintf("%s:%s", user.Email, nonce.String()), checkWebSessions)
 
 	return hasValidBrowserSession
 }
 
 func (n *NotificationsManager) PublishBrowserProof(identity string, sourceIP string, nonce uuid.UUID) {
 	eventBus := *n.bus
-	eventBus.Publish(fmt.Sprintf("%s:%s", identity, sourceIP), nonce)
+	eventBus.Publish(fmt.Sprintf("%s:%s", identity, nonce.String()), sourceIP)
 }

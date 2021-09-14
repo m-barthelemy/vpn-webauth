@@ -37,9 +37,9 @@ type SSEMessage struct {
 }
 
 type SSEAuthRequestMessage struct {
-	UserId   uuid.UUID
-	SourceIP string
-	Message  SSEMessage
+	UserId uuid.UUID
+	//SourceIP string
+	Message SSEMessage
 }
 
 type SSEBroker struct {
@@ -50,7 +50,7 @@ type SSEBroker struct {
 
 var sseEnd = []byte("\n\n")
 
-func (b *SSEBroker) publish(clientId string, sourceIP string, message SSEMessage) bool {
+func (b *SSEBroker) publish(clientId string, message SSEMessage) bool {
 	b.clientsMutex.Lock()
 	defer b.clientsMutex.Unlock()
 	found := false
@@ -58,7 +58,7 @@ func (b *SSEBroker) publish(clientId string, sourceIP string, message SSEMessage
 	for s, clientStatus := range b.clientsChannels {
 		if clientId != "" {
 			// Push to specific client
-			if clientStatus.userID == clientId && clientStatus.sourceIP == sourceIP {
+			if clientStatus.userID == clientId { //&& clientStatus.sourceIP == sourceIP {
 				s <- data
 				s <- sseEnd
 				found = true
@@ -72,7 +72,7 @@ func (b *SSEBroker) publish(clientId string, sourceIP string, message SSEMessage
 }
 
 func (b *SSEBroker) eventBusPublishMessage(authRequest SSEAuthRequestMessage) {
-	b.publish(authRequest.UserId.String(), authRequest.SourceIP, authRequest.Message)
+	b.publish(authRequest.UserId.String(), authRequest.Message)
 }
 
 func (b *SSEBroker) subscribe(clientStatus ClientAuthorizationStatus) chan []byte {
@@ -122,7 +122,7 @@ func (s *SSEController) Start() {
 		eventBus.Subscribe("sse", s.broker.eventBusPublishMessage)
 		for {
 			// Try keeping the connection alive by sending a periodic message
-			s.broker.publish("", "", SSEMessage{Action: "ping"})
+			s.broker.publish("", SSEMessage{Action: "ping"})
 			time.Sleep(28e9) // 28s
 		}
 	}()

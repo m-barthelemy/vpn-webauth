@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/gorilla/mux"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
@@ -214,16 +213,8 @@ func (v *SystemSessionController) CheckSession(w http.ResponseWriter, r *http.Re
 		connectionName = fmt.Sprintf("🖥️ %s (%s)", connRequest.CallerName, callerIP)
 	}
 
-	hasValidBrowserSession := false
-	var notifUniqueID *uuid.UUID
-	var notifErr error
-	if checkType == "vpn" { // For VPN session check, the browser response must come from the same source IP the user tries to connect to the VPN from.
-		_, notifUniqueID, notifErr = v.notificationsManager.NotifyUser(checkType, connectionName, user, connRequest.SourceIP)
-		hasValidBrowserSession = v.notificationsManager.WaitForBrowserProof(checkType, user, connRequest.SourceIP, *notifUniqueID)
-	} else {
-		_, notifUniqueID, notifErr = v.notificationsManager.NotifyUser(checkType, connectionName, user, "0.0.0.0")
-		hasValidBrowserSession = v.notificationsManager.WaitForBrowserProof(checkType, user, "0.0.0.0", *notifUniqueID)
-	}
+	_, notifUniqueID, notifErr := v.notificationsManager.NotifyUser(checkType, connectionName, user)
+	hasValidBrowserSession := v.notificationsManager.WaitForBrowserProof(checkType, user, *notifUniqueID, []*net.IPNet{})
 	if notifErr != nil {
 		log.Printf("SystemSessionController: error notifying browser for %s: %s", user.Email, notifErr.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
