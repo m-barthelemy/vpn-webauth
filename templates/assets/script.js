@@ -495,7 +495,7 @@ $(document).ready(async function(){
         };
     }
 
-    // If notifications are enabled and user allowed them, enable either
+    // If notifications are enabled and the user allowed them, enable either
     // Service Worker or SSE.
     if (userInfo.EnableNotifications) {
         console.log(`Notification.permission=${Notification.permission}`);
