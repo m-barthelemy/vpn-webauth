@@ -71,7 +71,7 @@ func (m *UserManager) CheckVpnSession(identity string, ip string) (*models.User,
 		}
 	}
 
-	sessionResult := m.db.Order("created_at desc").Where("email = ? AND source_ip = ?", identity, ip).First(&session)
+	sessionResult := m.db.Order("created_at DESC").Where("email = ? AND source_ip = ?", identity, ip).First(&session)
 	if sessionResult.Error != nil {
 		if errors.Is(sessionResult.Error, gorm.ErrRecordNotFound) {
 			return &user, nil, false, nil

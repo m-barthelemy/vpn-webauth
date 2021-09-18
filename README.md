@@ -1,13 +1,9 @@
-## What is it?
+# What is it?
 
-This is quick (and dirty) web application allowing to add a second round of authentication to a Strongswan VPN.
-It doesn't replace, and in fact requires, a normal authentication process using passwords or certificates.
+This is quick (and dirty) web application allowing to add a second round of authentication to a Strongswan VPN using OAuth2.
+It doesn't replace, and in fact requires, the normal Strongswan authentication process using passwords or certificates.
 
-Traditionally, simple IPSec VPN authentication methods involve deploying certificates to the client, or using a login + password.
-
-While IKEv2 permits, in theory, the use of a second round of authentication, default VPN clients installed on OS such as MacOs and Windows have very little compatibility with it.
-
-This project uses the `ext-auth` Strongswan plugin to provide an additional layer of authentication via a user web login and optional 2FA.
+This project uses the `ext-auth` Strongswan plugin to hook itself into the authentication flow and provide an additional layer of authentication using OAuth2 (**Google/Gsuite** or **Microsoft Azure**) and optional 2FA.
 This can help to protect your organization aganist VPN credentials or certificates being leaked or stolen.
 
 It can also help achieve compliance with some security standards requiring MFA to be implemented for VPNs giving access to sensitive environments.
@@ -15,7 +11,7 @@ It can also help achieve compliance with some security standards requiring MFA t
 This tool compatible with all VPN clients and operating systems.
 
 
-## How does it work?
+# How does it work?
 
  - The user registers to the webapp (_before_ connecting to the VPN)
  - They authenticate using OAuth2 (for now, Google and Azure Directory are supported)
@@ -23,11 +19,14 @@ This tool compatible with all VPN clients and operating systems.
  - A "session" is created with the user email, their source IP address and the time when they completed the web authentication
  - They now connect to the VPN. Strongswan's `ext-auth` plugin calls this webapp to check if the user has successfully completed a web authentication recently and from the same source IP address. If not, the connection is rejected.
 
- If a user enables this app to send them notifications, they will generally be transparently allowed automatically to connect to the VPN once their VPN session expires, or if they connect from a different location/source IP, as long as their web authentication through this app is valid.
+## Transparent OAuth2 auth validation using notifications
+ If a user enables this app to send them notifications, they will be transparently allowed to connect to the VPN once their VPN session expires, if they connect from a different location/source IP, or if they got disconnected due to network issues, as long as their web authentication through this app is valid.
 
  If they need to sign in again, they will receive a clickable notification taking them to the app, as long as their browser is running. Without a running browser or if they refused to allow notifications from the app, they can still sign in _before_ connecting to the VPN.
 
-## What does it look like?
+ With Chrome and Firefox, users do **not** need to have this application open in order to transparently (re)validate their VPN web authentication, as long as the browser is running.
+
+# What does it look like?
 Home/welcome screen:
 
 <img width="742" alt="Screen Shot 2020-11-24 at 8 37 32 AM" src="https://user-images.githubusercontent.com/2519084/100031318-4d974800-2e30-11eb-95f9-73a143b05b09.png">
@@ -53,18 +52,21 @@ Successful sign-in:
 <img width="615" alt="Screen Shot 2020-12-04 at 9 04 54 AM" src="https://user-images.githubusercontent.com/2519084/101108589-d328ae00-360f-11eb-8367-812057910879.png">
 
 
+Unsuccessful VPN connection notification, when OAuth2 re-authentication via browser is needed:
 
-## Limitations
+<img width="283" alt="Screen Shot 2021-09-18 at 11 41 39 AM" src="https://user-images.githubusercontent.com/2519084/133871478-194d7af6-ee3c-40f5-a332-508d16e20ef7.png">
+
+# Limitations
 - The user identity reported by Strongswan **must** match the email reported by the web authentication. However, if the Strongswan identity is the first part of the email address (without @domain.tld), you can modify the `webauth-check.sh` script to add the domain.
 - If a user successfully authenticates using this app, someone else on the same local network would be able to reuse the web session, provided they have the user's Strongswan credentials. This by design, since the app matches a web auth with a Strongswan connection only using the Strongswan identity and the source IP address.
-- Since the web authentication has to happen before connecting to the VPN, is probably needs to be hosted in a less protected part of your environment.
+- Since the web authentication has to happen before connecting to the VPN, this app probably needs to be hosted in a less protected part of your environment.
 - There is currently no way to reset a user account if they have lost or changed their 2FA device. However, all you need to do is manually delete the User record in the database (`DELETE FROM users WHERE email='user@domain.tld'`).
 - Strongswan blocks during the call to the `ext-auth` plugin. Since checking the user web authentication against this app is fast, this shouldn't be an issue, unless you have a high number of users connecting almost simultaneously.
 - There is currently no limit on how many attempts a user can make at entering a 2FA OTP code or using a Webauthn device.
 
- ## Setup
+ # Setup
 
- ### Build
+ ## Build
 The easiest way to use this project is to download the precompiled binaries generated with each release at https://github.com/m-barthelemy/vpn-webauth/releases for your system.
 
 Alternatively, you can build the project yourself:
@@ -74,18 +76,21 @@ go get github.com/m-barthelemy/vpn-webauth
 
 You can also build the provided Dockerfile.
 
- ### Deploy
- You probably want to ensure this web app is served over HTTPS: while the OAuth2 flow will be protected by the provider, this app will receive information back from it, and if additional 2FA is required, the code has to be sent to the server.
+ 
 
- ### Run
- If you run the application behind a proxy such as Nginx, you need to make sure that the app receives the **real** user source IP address.
+ ## Run
+ 
+ 
+ ### Deployment considerations
+ You probably want to ensure this web app is served over HTTPS: while the OAuth2 flow will be protected by the provider, this app will receive information back from it, and if additional 2FA is required, the code has to be sent to the server.
+ The app can optionally generate a Let'sEncrypt certificate automatically and use it to provide HTTPS encryption for users (see `SSLMODE` below). However, in a real production deployment scenario, you probably want to have a proxy such as Nginx habndling the SSL/TLS termination.
+
+If you run the application behind a proxy such as Nginx, you need to make sure that the app receives the **real** user source IP address.
  With Nginx, you can for example add the following directive to your configuration:
  ```
  proxy_set_header X-Forwarded-For $remote_addr;
  ```
- and then set `ORIGINALIPHEADER` to `X-Forwarded-For`.
- 
- You should also set a proper database configuration to store your sessions. By default, the app will store them into a Sqlite database in the `/tmp` directory. For a real setup, you can use Mysql or Postgres.
+ and then set the `ORIGINALIPHEADER` environment variable to `X-Forwarded-For`.
 
  ### Strongswan
  Make sure that Strongswan was build with the `ext-auth` module. While this is an [official module](https://wiki.strongswan.org/projects/strongswan/wiki/Ext-auth), it is not enabled in all Linux distributions (Ubuntu and Debian don't ship it for example):
@@ -119,14 +124,23 @@ It expects the following JSON encoded body data:
 }
 ```
 
- ## Configuration options
+
+### Database
+This app requires a database to store the VPN users, their web sessions and their browser notifications subscriptions.
+The database is configured by setting the `DBTYPE` and `DBDSN` environment variables.
+
+
+
+ # Configuration options
 All the configuration parameters have to passed as environment variables.
-### Application
+## Application
 - `CONNECTIONSRETENTION`: how long to keep VPN connections audit logs, in days. Default: `90`.
   > NOTE: The connections audit log cleanup task is only run during the application startup. Also, there is currently no way to view this audit log from the app.
 - `DBTYPE`: the database engine where the sessions will be stored. Default: `sqlite`. Can be `sqlite`, `postgres`, `mysql`.
 - `DBDSN`: the database connection string. Default: `tmp/vpnwa.db`. Check https://gorm.io/docs/connecting_to_the_database.html for examples.
   > By default a Sqlite database is created. You probably want to at least change its path. Sqlite is only suitable for testing purposes or for a small number of concurrent users, and will only work with with a single instance of the app. It is recommended to use MySQL or Postgres instead.
+
+Postgres example: `DBDSN="host=127.0.0.1 user=vpnwa password='' database=vpnwa port=5432"`
 
   > NOTE: the app will automatically create the tables and thus needs to have the privileges to do so.
 - `ENCRYPTIONKEY`: Key used to encrypt sensitive information in the database. Must be 32 characters. **Mandatory** if `ENFORCEMFA` is set to `true`.
@@ -145,7 +159,7 @@ All the configuration parameters have to passed as environment variables.
   > It is recommended that you create and pass your own key.
 - `WEBSESSIONVALIDITY`: How long a web authentication is valid. During this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `12h`. Specify custom value as a number and a time unit, for example `48h30m`. 
 
-### OAuth2
+## OAuth2
 - `OAUTH2PROVIDER`: The Oauth2 provider. Can be `google` or `azure`. **Mandatory**.
 - `OAUTH2CLIENTID`: Google or Microsoft Client ID. **Mandatory**.
 - `OAUTH2CLIENTSECRET`: Google or Microsoft Client Secret. **Mandatory**.
@@ -155,7 +169,7 @@ All the configuration parameters have to passed as environment variables.
 
   > NOTE: You need to add this app redirect/callback endpoint (`REDIRECTDOMAIN/auth/google/callback` or `REDIRECTDOMAIN/auth/azure/callback`) to the list of allowed callbacks in your Google or Azure credentials configuration console.
 
-### Multi-Factor Authentication
+## Multi-Factor Authentication
   - `ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`. If enabled, users will have to choose one of the available MFA options (see below).
   - `MFAOTP`: Whether to enable OTP token authentication after OAuth2 login. Default: `true`. 
   - `MFATOUCHID`: Whether to enable Apple TouchID/FaceID and Windows Hello biometrics authentication after OAuth2 login, if a compatible device is detected. Default: `true`.
@@ -169,14 +183,14 @@ In case a user wants to be able to sign in from multiple browsers or devices, th
 
 It is also possible to sign in from different browsers and devices by using the OTP (authenticator app) feature.
 
-### VPN
+## VPN
   - `VPNCHECKPASSWORD`: Shared password between the app and the Strongswan `ext-auth` script to protect the endpoint checking for valid user "sessions". Optional.
     > If the `/vpn/check` endpoint is publicly available, it is a good idea to set a password to ensure that only your VPN server is allowed to query the app for user sessions. Make sure you also set it in your `ext-auth` configuration.
   - `VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication. During this interval the web authentication status is not reverified. Default: `30m`. Specify custom value as a number and a time unit, for example `1h30m`.
     > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
 
-### SSL
+## SSL
   - `SSLMODE`: whether and how SSL is enabled. Default: `off`. Can be `auto`, `custom`, `proxy`, `off`.
     > `off` doesn't enforce SSL at all at the application level. It is only recommended for local testing.
 

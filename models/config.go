@@ -132,7 +132,7 @@ func (config *Config) Verify() {
 	}
 	config.SSLMode = strings.ToLower(config.SSLMode)
 	if config.SSLMode != "off" && config.SSLMode != "auto" && config.SSLMode != "custom" && config.SSLMode != "proxy" {
-		log.Fatal("SSLMODE must be one of off, auto, custom, proxy")
+		log.Fatal("SSLMODE must be one of: off, auto, custom, proxy")
 	}
 
 }
