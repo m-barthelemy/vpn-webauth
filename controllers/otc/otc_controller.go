@@ -10,8 +10,7 @@ import (
 	"time"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
-	dataProtector "github.com/m-barthelemy/vpn-webauth/services"
-	userManager "github.com/m-barthelemy/vpn-webauth/services"
+	services "github.com/m-barthelemy/vpn-webauth/services"
 	"github.com/m-barthelemy/vpn-webauth/utils"
 	"gorm.io/gorm"
 )
@@ -49,7 +48,7 @@ func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *
 	}
 
 	var user *models.User
-	userManager := userManager.New(c.db, c.config)
+	userManager := services.NewUserManager(c.db, c.config)
 	user, err := userManager.Get(email)
 	if err != nil {
 		log.Printf("SingleUseCodeController: Error fetching user %s: %s", email, err.Error())
@@ -102,7 +101,7 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
 	var user *models.User
-	userManager := userManager.New(c.db, c.config)
+	userManager := services.NewUserManager(c.db, c.config)
 	user, err := userManager.Get(email)
 	if err != nil {
 		log.Printf("SingleUseCodeController: Error fetching user %s: %s", email, err.Error())
@@ -132,7 +131,7 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 		return
 	}
 
-	dp := dataProtector.NewDataProtector(c.config)
+	dp := services.NewDataProtector(c.config)
 	decryptedData, err := dp.Decrypt(codeMFA.Data)
 	if err != nil {
 		log.Printf("SingleUseCodeController: Unable to decrypt %s single-use code: %s", user.Email, err.Error())

@@ -58,6 +58,7 @@ Unsuccessful VPN connection notification, when OAuth2 re-authentication via brow
 
 # Limitations
 - The user identity reported by Strongswan **must** match the email reported by the web authentication. However, if the Strongswan identity is the first part of the email address (without @domain.tld), you can modify the `webauth-check.sh` script to add the domain.
+This means that you must have indivisual, per-user Strongswan authentication (certificates or credentials).
 - If a user successfully authenticates using this app, someone else on the same local network would be able to reuse the web session, provided they have the user's Strongswan credentials. This by design, since the app matches a web auth with a Strongswan connection only using the Strongswan identity and the source IP address.
 - Since the web authentication has to happen before connecting to the VPN, this app probably needs to be hosted in a less protected part of your environment.
 - There is currently no way to reset a user account if they have lost or changed their 2FA device. However, all you need to do is manually delete the User record in the database (`DELETE FROM users WHERE email='user@domain.tld'`).

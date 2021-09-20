@@ -60,7 +60,7 @@ func (n *NotificationsManager) NotifyUser(user *models.User, sourceIP string) (b
 	}
 
 	notified := false
-	userManager := New(n.db, n.config) // UGLY
+	userManager := NewUserManager(n.db, n.config)
 	for i, subscription := range subscriptions {
 		pushSubscriptionRaw, err := dp.Decrypt(subscription.Data)
 		if err != nil {

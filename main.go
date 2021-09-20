@@ -8,7 +8,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"github.com/m-barthelemy/vpn-webauth/routes"
-	userManager "github.com/m-barthelemy/vpn-webauth/services"
+	services "github.com/m-barthelemy/vpn-webauth/services"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
@@ -60,7 +60,7 @@ func main() {
 	}
 
 	// Delete old VPN connections log entries
-	userManager := userManager.New(db, &config)
+	userManager := services.NewUserManager(db, &config)
 	if err := userManager.CleanupConnectionsLog(); err != nil {
 		log.Printf("Could not delete old VPN connections log entries: %s", err.Error())
 	}

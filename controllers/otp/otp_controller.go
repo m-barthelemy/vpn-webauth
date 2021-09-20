@@ -12,8 +12,7 @@ import (
 	"github.com/pquerna/otp/totp"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
-	dataProtector "github.com/m-barthelemy/vpn-webauth/services"
-	userManager "github.com/m-barthelemy/vpn-webauth/services"
+	services "github.com/m-barthelemy/vpn-webauth/services"
 
 	"github.com/m-barthelemy/vpn-webauth/utils"
 
@@ -40,7 +39,7 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
-	userManager := userManager.New(u.db, u.config)
+	userManager := services.NewUserManager(u.db, u.config)
 	user, err := userManager.Get(email)
 	if err != nil {
 		log.Printf("OTPController: Error fetching user %s: %s", email, err.Error())
@@ -86,7 +85,7 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	dp := dataProtector.NewDataProtector(u.config)
+	dp := services.NewDataProtector(u.config)
 	otpSecret, err := dp.Decrypt(otpMFA.Data)
 	if err != nil {
 		log.Printf("OTPController: Error decrypting user TOTP secret for %s: %s", user.Email, err)
@@ -131,7 +130,7 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 
-	userManager := userManager.New(u.db, u.config)
+	userManager := services.NewUserManager(u.db, u.config)
 	user, err := userManager.Get(email)
 	if err != nil {
 		log.Printf("OTPController: Error fetching user: %s", err.Error())
@@ -153,7 +152,7 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dp := dataProtector.NewDataProtector(u.config)
+	dp := services.NewDataProtector(u.config)
 	otpSecret, err := dp.Decrypt(otpMFA.Data)
 	if err != nil {
 		log.Printf("OTPController: Error fetching user TOTP secret: %s", err)

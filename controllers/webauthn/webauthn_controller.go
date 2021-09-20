@@ -14,8 +14,7 @@ import (
 	"github.com/duo-labs/webauthn/webauthn"
 	"github.com/gofrs/uuid"
 	"github.com/m-barthelemy/vpn-webauth/models"
-	dataProtector "github.com/m-barthelemy/vpn-webauth/services"
-	userManager "github.com/m-barthelemy/vpn-webauth/services"
+	services "github.com/m-barthelemy/vpn-webauth/services"
 	"github.com/m-barthelemy/vpn-webauth/utils"
 
 	"gorm.io/gorm"
@@ -42,7 +41,7 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
 	var user *models.User
-	userManager := userManager.New(m.db, m.config)
+	userManager := services.NewUserManager(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
 		log.Printf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
@@ -116,7 +115,7 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	userManager := userManager.New(m.db, m.config)
+	userManager := services.NewUserManager(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
 		log.Printf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
@@ -200,7 +199,7 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	userManager := userManager.New(m.db, m.config)
+	userManager := services.NewUserManager(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
 		log.Printf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
@@ -255,7 +254,7 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Ensure User exists
-	userManager := userManager.New(m.db, m.config)
+	userManager := services.NewUserManager(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
 		log.Printf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
@@ -326,7 +325,7 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 }
 
 func (m *WebAuthNController) getAvailableCredentials(user models.User, webAuthnType string, onlyValidated bool) (map[uuid.UUID]webauthn.Credential, error) {
-	dp := dataProtector.NewDataProtector(m.config)
+	dp := services.NewDataProtector(m.config)
 	availableCredentials := make(map[uuid.UUID]webauthn.Credential)
 	if user.MFAs == nil {
 		return nil, errors.New("User doesn't have Webauthn credentials")
@@ -357,7 +356,7 @@ func (m *WebAuthNController) createWebauthNCookie(name string, value interface{}
 	if err != nil {
 		return err
 	}
-	dp := dataProtector.NewDataProtector(m.config)
+	dp := services.NewDataProtector(m.config)
 	encryptedData, err := dp.Encrypt(string(data[:]))
 	if err != nil {
 		return err
@@ -384,7 +383,7 @@ func (m *WebAuthNController) getWebauthNCookie(name string, w http.ResponseWrite
 		return nil, err
 	}
 
-	dp := dataProtector.NewDataProtector(m.config)
+	dp := services.NewDataProtector(m.config)
 	decryptedData, err := dp.Decrypt(session.Value)
 	if err != nil {
 		return nil, err
