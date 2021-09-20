@@ -1,23 +1,18 @@
 package controllers
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
-	userManager "github.com/m-barthelemy/vpn-webauth/services"
+	services "github.com/m-barthelemy/vpn-webauth/services"
+	//oAuthManager "github.com/m-barthelemy/vpn-webauth/services"
 	"github.com/m-barthelemy/vpn-webauth/utils"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
-	"golang.org/x/oauth2/microsoft"
 	"gorm.io/gorm"
 )
 
@@ -26,24 +21,17 @@ type OAuth2Controller struct {
 	config *models.Config
 }
 
-var oAuthConfig *oauth2.Config
+var oAuthProvider services.OAuth2Provider
 
-const googleUserInfoURL = "https://www.googleapis.com/oauth2/v2/userinfo?access_token="
-const azureUserInfoURL = "https://graph.microsoft.com/oidc/userinfo"
 
 func New(db *gorm.DB, config *models.Config) *OAuth2Controller {
 	// Scopes: OAuth 2.0 scopes provide a way to limit the amount of access that is granted to an access token.
-	oAuthConfig = &oauth2.Config{
-		RedirectURL:  fmt.Sprintf("%s/auth/%s/callback", config.RedirectDomain.String(), config.OAuth2Provider),
-		ClientID:     config.OAuth2ClientID,
-		ClientSecret: config.OAuth2ClientSecret,
-	}
+	
 	if config.OAuth2Provider == "google" {
-		oAuthConfig.Endpoint = google.Endpoint
-		oAuthConfig.Scopes = []string{"https://www.googleapis.com/auth/userinfo.email"}
+		oAuthProvider = services.NewGoogleProvider(config.RedirectDomain.String(), "", config.OAuth2ClientID, config.OAuth2ClientSecret)
+		
 	} else if config.OAuth2Provider == "azure" {
-		oAuthConfig.Endpoint = microsoft.AzureADEndpoint(config.OAuth2Tenant)
-		oAuthConfig.Scopes = []string{"openid", "email"}
+		oAuthProvider = services.NewMicrosoftProvider(config.RedirectDomain.String(), "", config.OAuth2ClientID, config.OAuth2ClientSecret)
 	}
 
 	return &OAuth2Controller{db: db, config: config}
@@ -61,13 +49,7 @@ func (g *OAuth2Controller) OAuth2BeginLogin(w http.ResponseWriter, r *http.Reque
 	}
 
 	oauthState := g.generateStateCookie("oauthstate", w)
-
-	url := oAuthConfig.AuthCodeURL(oauthState)
-	if g.config.OAuth2Provider == "google" {
-		// `select_account` forces displaying the Google account selection step, in case the user has multiple
-		//  accounts registered on their device.
-		url += "&prompt=select_account"
-	}
+	url := oAuthProvider.GetURL(oauthState)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
@@ -87,12 +69,7 @@ func (g *OAuth2Controller) OAuth2Callback(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	var oauthUser OAuth2User
-	if g.config.OAuth2Provider == "google" {
-		oauthUser, err = getUserDataFromGoogle(r.FormValue("code"))
-	} else if g.config.OAuth2Provider == "azure" {
-		oauthUser, err = getUserDataFromAzure(r.FormValue("code"))
-	}
+	oauthUser, err := oAuthProvider.GetUserInfo(r.FormValue("code"))
 	if err != nil {
 		log.Printf("OAuth2Controller: Error fetching user info from %s: %s", err, g.config.OAuth2Provider)
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
@@ -111,7 +88,7 @@ func (g *OAuth2Controller) OAuth2Callback(w http.ResponseWriter, r *http.Request
 }
 
 func (g *OAuth2Controller) afterFirstAuthStep(email string, w http.ResponseWriter, r *http.Request) {
-	userManager := userManager.New(g.db, g.config)
+	userManager := services.NewUserManager(g.db, g.config)
 	user, err := userManager.CheckOrCreate(email)
 	if err != nil {
 		log.Print(err.Error())
@@ -196,55 +173,4 @@ func (g *OAuth2Controller) generateStateCookie(name string, w http.ResponseWrite
 	http.SetCookie(w, &cookie)
 
 	return state
-}
-
-type OAuth2User struct {
-	Id            string `json:"sub"`
-	Email         string `json:"email"`
-	EmailVerified string `json:"email_verified"`
-}
-
-func getUserDataFromGoogle(code string) (OAuth2User, error) {
-	var user OAuth2User
-
-	token, err := oAuthConfig.Exchange(context.Background(), code)
-	if err != nil {
-		return user, fmt.Errorf("OAuth2Controller: exchange code is wrong: %s", err.Error())
-	}
-	response, err := http.Get(googleUserInfoURL + token.AccessToken)
-	if err != nil {
-		return user, fmt.Errorf("OAuth2Controller: failed to get user info: %s", err.Error())
-	}
-	defer response.Body.Close()
-	contents, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return user, fmt.Errorf("OAuth2Controller: failed to read response: %s", err.Error())
-	}
-
-	err = json.Unmarshal(contents, &user)
-	return user, err
-}
-
-func getUserDataFromAzure(code string) (OAuth2User, error) {
-	var user OAuth2User
-
-	token, err := oAuthConfig.Exchange(context.Background(), code)
-	if err != nil {
-		return user, fmt.Errorf("OAuth2Controller: exchange code is wrong: %s", err.Error())
-	}
-	client := http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequest("GET", azureUserInfoURL, nil)
-	req.Header.Set("authorization", "Bearer "+token.AccessToken)
-	response, err := client.Do(req)
-	if err != nil {
-		return user, fmt.Errorf("OAuth2Controller: failed to get user info: %s", err.Error())
-	}
-	defer response.Body.Close()
-	contents, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return user, fmt.Errorf("OAuth2Controller: failed to read response: %s", err.Error())
-	}
-
-	err = json.Unmarshal(contents, &user)
-	return user, err
 }

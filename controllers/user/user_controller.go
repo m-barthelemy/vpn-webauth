@@ -12,8 +12,7 @@ import (
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/gofrs/uuid"
 	"github.com/m-barthelemy/vpn-webauth/models"
-	"github.com/m-barthelemy/vpn-webauth/services"
-	userManager "github.com/m-barthelemy/vpn-webauth/services"
+	services "github.com/m-barthelemy/vpn-webauth/services"
 	"github.com/m-barthelemy/vpn-webauth/utils"
 	"gorm.io/gorm"
 )
@@ -46,7 +45,7 @@ func (u *UserController) GetPushSubscriptionKey(w http.ResponseWriter, r *http.R
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
-	userManager := userManager.New(u.db, u.config)
+	userManager := services.NewUserManager(u.db, u.config)
 	user, err := userManager.Get(email)
 	if err != nil {
 		log.Printf("UserController: Error fetching user %s: %s", email, err.Error())
@@ -69,7 +68,7 @@ func (u *UserController) RegisterPushSubscription(w http.ResponseWriter, r *http
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
-	userManager := userManager.New(u.db, u.config)
+	userManager := services.NewUserManager(u.db, u.config)
 	user, err := userManager.Get(email)
 	if err != nil {
 		log.Printf("UserController: Error fetching user %s: %s", email, err.Error())
@@ -144,7 +143,7 @@ func (u *UserController) RefreshAuth(w http.ResponseWriter, r *http.Request) {
 
 func (u *UserController) Logout(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
-	userManager := userManager.New(u.db, u.config)
+	userManager := services.NewUserManager(u.db, u.config)
 	if err := userManager.DeleteSession(w); err != nil {
 		log.Printf("UserController: Error deleting %s token: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

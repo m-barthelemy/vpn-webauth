@@ -8,8 +8,7 @@ import (
 	"time"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
-	"github.com/m-barthelemy/vpn-webauth/services"
-	userManager "github.com/m-barthelemy/vpn-webauth/services"
+	services "github.com/m-barthelemy/vpn-webauth/services"
 	"github.com/m-barthelemy/vpn-webauth/utils"
 	"gorm.io/gorm"
 )
@@ -59,7 +58,7 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userManager := userManager.New(v.db, v.config)
+	userManager := services.NewUserManager(v.db, v.config)
 	user, session, allowed, err := userManager.CheckVpnSession(connRequest.Identity, connRequest.SourceIP)
 	if err != nil {
 		log.Printf("VpnController: Error checking user session: %s", err.Error())

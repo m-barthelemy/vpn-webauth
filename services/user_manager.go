@@ -18,7 +18,7 @@ type UserManager struct {
 }
 
 // New creates an instance of UserManager and sets its DB handle
-func New(db *gorm.DB, config *models.Config) *UserManager {
+func NewUserManager(db *gorm.DB, config *models.Config) *UserManager {
 	return &UserManager{db: db, config: config}
 }
 
