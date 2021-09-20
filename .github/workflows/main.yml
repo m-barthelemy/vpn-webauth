@@ -13,7 +13,7 @@ jobs:
     - name: Check suspicious constructs
       uses: actions/setup-go@v2
       with:
-        go-version: '^1.15'
+        go-version: '^1.16'
     - name: Run go vet
       run: go vet ./...
   security:
@@ -24,7 +24,7 @@ jobs:
     - name: Setup
       uses: actions/setup-go@v2
       with:
-        go-version: '^1.15'
+        go-version: '^1.16'
     - name: Run gosec
       run: go get; go get github.com/securego/gosec/cmd/gosec; gosec -severity medium ./... # https://github.com/securego/gosec
 #  buildable:
