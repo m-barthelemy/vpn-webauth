@@ -40,6 +40,8 @@ type Config struct {
 	EncryptionKey          string        // ENCRYPTIONKEY
 	OriginalIPHeader       string        // ORIGINALIPHEADER
 	OriginalProtoHeader    string        // ORIGINALPROTOHEADER
+	RadiusPort             int           // RADIUSPORT
+	RadiusSecret           string        // RADIUSSECRET
 	SSLMode                string        // SSLMODE
 	SSLAutoCertsDir        string        // SSLAUTOCERTSDIR
 	SSLCustomCertPath      string        // SSLCUSTOMCERTPATH

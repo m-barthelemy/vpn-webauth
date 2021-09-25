@@ -3,9 +3,11 @@ module github.com/m-barthelemy/vpn-webauth
 go 1.16
 
 require (
+	github.com/BurntSushi/toml v0.4.1 // indirect
 	github.com/SherClockHolmes/webpush-go v1.1.2
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/bombsimon/wsl v1.2.8 // indirect
+	github.com/bronze1man/radius v0.0.0-20190516032554-afd8baec892d // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/cloudflare/cfssl v1.4.1 // indirect
 	github.com/coreos/bbolt v1.3.3 // indirect
@@ -19,6 +21,7 @@ require (
 	github.com/golangci/golangci-lint v1.21.0 // indirect
 	github.com/golangci/revgrep v0.0.0-20180812185044-276a5c0a1039 // indirect
 	github.com/google/certificate-transparency-go v1.1.0 // indirect
+	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/monologue v0.0.0-20191105172128-0324c8b45f6f // indirect
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/gorilla/handlers v1.5.1
@@ -46,14 +49,16 @@ require (
 	go.uber.org/zap v1.13.0 // indirect
 	golang.org/x/crypto v0.0.0-20200709230013-948cd5f35899
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
-	golang.org/x/tools v0.0.0-20201120032337-6d151481565c // indirect
+	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/tools v0.1.6-0.20210908190839-cf92b39a962c // indirect
 	google.golang.org/grpc/examples v0.0.0-20201117005946-20636e76a99a // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	gorm.io/driver/mysql v1.0.3
 	gorm.io/driver/postgres v1.0.5
 	gorm.io/driver/sqlite v1.1.3
 	gorm.io/gorm v1.20.6
-	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab // indirect
+	honnef.co/go/tools v0.2.0 // indirect
+	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab
 	mvdan.cc/unparam v0.0.0-20191111180625-960b1ec0f2c2 // indirect
 	sigs.k8s.io/yaml v1.1.0 // indirect
 	sourcegraph.com/sqs/pbtypes v1.0.0 // indirect

@@ -46,7 +46,6 @@ func (p *GoogleProvider) GetURL(state string) string {
 	// `select_account` forces displaying the Google account selection step, in case the user has multiple
 	//  accounts registered on their device.
 	url += "&prompt=select_account"
-	println(fmt.Sprintf("URL = %s", url))
 	return url
 }
 
