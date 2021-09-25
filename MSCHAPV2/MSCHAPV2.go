@@ -191,11 +191,11 @@ type ReplySuccessPacketRequest struct {
 	Message                string
 }
 
-/*func ReplySuccessPacket(req *ReplySuccessPacketRequest) (p *SuccessPacket) {
+func ReplySuccessPacket(req *ReplySuccessPacketRequest) (p *SuccessPacket) {
 	Auth := GenerateAuthenticatorResponse(req.Password, req.Response.NTResponse, req.Response.PeerChallenge, req.AuthenticatorChallenge, req.Username)
 	return &SuccessPacket{
 		Identifier: req.Response.Identifier,
 		Auth:       Auth,
 		Message:    req.Message,
 	}
-}*/
+}

@@ -108,21 +108,21 @@ func main() {
 //test
 type radiusService struct{}
 
+// TODO: protect/lock for concurrent access
+var sessions = make(map[[18]byte][16]byte)
+
 // Check https://github.com/keysonZZZ/kmg/blob/master/third/kmgRadius/Auth.go
 // for EAP and MSCHAP challenge response
 func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
-	eap := request.GetEAPMessage()
+	/*eap := request.GetEAPMessage()
 	if eap != nil {
 		log.Printf("Message kind is EAP, type %s, identifier %d, data size %d", eap.Type.String(), eap.Identifier, len(eap.Data))
-		log.Printf("EAP Packet: %s", eap.String())
-		mschapv2, err := radius.MsChapV2PacketFromEap(eap)
-		if err != nil {
-			log.Printf("EAP packet is not MS-CHAPv2")
-		}
-		log.Printf("MS-CHAPv2 packet: %s", mschapv2.String())
+		log.Printf("EAP Packet: %s", eap.String()) 
 
-	}
+	}*/
+	
 	// A pretty print of the request.
+	log.Printf("---------------------------------------------------------")
 	log.Printf("[Authenticate] %s\n", request.String())
 	npac := request.Reply()
 	switch request.Code {
@@ -134,31 +134,33 @@ func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			npac.AddAVP(radius.AVP{Type: radius.ReplyMessage, Value: []byte("only EAP is supported")})
 			return npac
 		}
-		log.Printf("Message kind is EAP, type %s, identifier %d, data size %d", eap.Type.String(), eap.Identifier, len(eap.Data))
+		
+		log.Printf("[ >>>>>>>> EAP Begin] Message kind is EAP, type %s, identifier %d, data size %d", eap.Type.String(), eap.Identifier, len(eap.Data))
 		log.Printf("EAP Packet: %s", eap.String())
 		switch eap.Type {
 		case radius.EapTypeIdentity:
-			npac.Code = radius.AccessChallenge
 			//mschapV2Challenge := make([]byte, 16)
 			mschapV2Challenge := [16]byte{}
 			_, err := rand.Read(mschapV2Challenge[:])
 			if err != nil {
-				log.Fatalf("unable to generate random data for MS-CHAPv2 challenge: %+v", err)
+				log.Fatalf("unable to generate random data for MS-CHAPv2 challenge: %s", err)
 				npac.Code = radius.AccessReject
 				return npac
 			}
-			sessionId := make([]byte, 18)
-			_, err = rand.Read(sessionId)
+			sessionId := [18]byte{} //make([]byte, 18)
+			_, err = rand.Read(sessionId[:])
 			if err != nil {
-				log.Fatalf("unable to generate random data for MS-CHAPv2 session ID: %+v", err)
+				log.Fatalf("unable to generate random data for MS-CHAPv2 session ID: %s", err)
 				npac.Code = radius.AccessReject
 				return npac
 			}
+			sessions[sessionId] = mschapV2Challenge
 			// TODO: store session ID
 
+			npac.Code = radius.AccessChallenge
 			npac.SetAVP(radius.AVP{
 				Type:  radius.State,
-				Value: sessionId,
+				Value: sessionId[:],
 			})
 
 			challengeP := MSCHAPV2.ChallengePacket{
@@ -188,15 +190,80 @@ func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			return npac
 
 		case radius.EapTypeMSCHAPV2:
-			log.Fatalf("••••••••••• EAP packet type radius.EapTypeMSCHAPV2 not supported")
+			mschapv2, err := radius.MsChapV2PacketFromEap(eap)
+			if err != nil {
+				log.Fatalf("[MsCHAPv2] unable to parse expected EAP packet as MS-CHAPv2")
+			}
+			log.Printf("[MsCHAPv2] Received '%s' OpCode", mschapv2.OpCode.String())
+			//log.Printf("[MsCHAPv2] Packet dump: %s", mschapv2.String())
+			if mschapv2.OpCode != radius.MsChapV2OpCodeResponse {
+				log.Fatalf("[MsCHAPv2] Invalid request: expected %s, but got %s", radius.MsChapV2OpCodeResponse.String(), mschapv2.OpCode.String())
+				npac.Code = radius.AccessReject
+				return npac
+			}
+
+			log.Printf("[MsCHAPv2] RESPONSE!!!!")
+			stateAVP := request.GetAVP(radius.State)
+
+			sessionId := [18]byte{}
+			copy(stateAVP.Value, sessionId[:])
+			//sessionId = stateAVP.Value[:]
+			// TODO: Check and validate session
+			log.Printf("[MsCHAPv2] State AVP value is %s, State/Session ID is %s, challenge: %s", stateAVP.Value, sessionId, sessions[sessionId])
+
+			msChapV2Packet, err := MSCHAPV2.Decode(eap.Data)
+			if err != nil {
+				log.Fatalf("[MsCHAPv2] unable to decode packet: %s", err)
+				npac.Code = radius.AccessReject
+				return npac
+			}
+			log.Printf(">>>> Successfully decoded msChapV2Packet: %s", msChapV2Packet.String())
+			//radius.MSCHAPV2Packet
+			//msChapV2Packet := eap.(*radius.MSCHAPV2Packet).MSCHAPV2
+			
+			//nTResponse := msChapV2Packet.(*MSCHAPV2.ResponsePacket).NTResponse
+
+			// DEBUG
+			var fakeChallenge [16]byte
+			for k, v := range sessions {
+				log.Printf("SESSIONS: key %s, value %s", k, v)
+				fakeChallenge = v
+			}
+			log.Printf("SESSIONS: FAKECHALLENGE = %s", fakeChallenge)
+
+			successPacket := MSCHAPV2.ReplySuccessPacket(&MSCHAPV2.ReplySuccessPacketRequest{
+				AuthenticatorChallenge: fakeChallenge, //sessions[sessionId],
+				Response:               msChapV2Packet.(*MSCHAPV2.ResponsePacket),
+				Username:               []byte(request.GetUsername()),
+				Password:               []byte("mamie"),
+				Message:                "success",
+			})
+
+			challengeResponseEAPPacket := radius.EapPacket{
+				Identifier: eap.Identifier,
+				Code:       radius.EapCodeRequest,
+				Type:       radius.EapTypeMSCHAPV2,
+				Data:       successPacket.Encode(),
+			}
+
+			npac.AddAVP(radius.AVP{
+				Type:  radius.AttributeType(radius.EAPMessage),
+				Value: challengeResponseEAPPacket.Encode(),
+			})
+
+			log.Printf("Sending Access-Challenge again in response to radius.EapTypeMSCHAPV2 Response")
+			npac.Code = radius.AccessAccept
+			//npac.Code = radius.AccessChallenge
+			return npac
 		default:
 			log.Fatalf("•••••• Received unsupported EAP packet type %s", eap.Type.String())
+			npac.Code = radius.AccessReject
+			return npac
 		}
-		mschapv2, err := radius.MsChapV2PacketFromEap(eap)
+		/*mschapv2, err := radius.MsChapV2PacketFromEap(eap)
 		if err != nil {
 			log.Printf("EAP packet is not MS-CHAPv2")
-		}
-		log.Printf("MS-CHAPv2 packet: %s", mschapv2.String())
+		}*/
 
 		// check username and password
 		if request.GetUsername() == "matthieu.barthelemy" { //&& request.GetPassword() == "a" {
@@ -215,9 +282,10 @@ func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			npac.AddAVP(radius.AVP{Type: radius.ReplyMessage, Value: []byte("you dick!")})
 		}
 	case radius.AccessChallenge:
-		fmt.Printf("Received AccessChallenge")
+		fmt.Printf("********>>>>>>> Received AccessChallenge")
 	case radius.AccountingRequest:
 		// accounting start or end
+		fmt.Printf("********>>>>>>> Received AccountingResponse")
 		npac.Code = radius.AccountingResponse
 	default:
 		npac.Code = radius.AccessAccept
