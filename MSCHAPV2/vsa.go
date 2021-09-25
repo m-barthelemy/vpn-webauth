@@ -3,6 +3,7 @@ package MSCHAPV2
 
 import (
 	"crypto"
+	// #nosec
 	_ "crypto/md5"
 	"crypto/rand"
 	"encoding/binary"

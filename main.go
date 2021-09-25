@@ -98,7 +98,7 @@ func main() {
 		log.Println("stopping server...")
 		s.Stop()
 	case err := <-errChan:
-		log.Println("[ERR] %v", err.Error())
+		log.Printf("[ERR] %s", err)
 	}
 
 	startServer(&config, routes.New(&config, db))
@@ -305,6 +305,7 @@ func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					Type:  radius.AttributeType(radius.EAPMessage),
 					Value: successPacket.Encode(),
 				})
+				log.Printf("[MsCHAPv2] User %s allowed to connect to %s", request.GetUsername(), request.GetNASIdentifier())
 				npac.Code = radius.AccessAccept
 				return npac
 			default:
@@ -322,22 +323,6 @@ func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			log.Printf("EAP packet is not MS-CHAPv2")
 		}*/
 
-		// check username and password
-		if request.GetUsername() == "matthieu.barthelemy" { //&& request.GetPassword() == "a" {
-			log.Printf("Username valid")
-			//npac.Code = radius.AccessAccept
-			//npac.Code = radius.AccessChallenge
-
-			//request.SetAVP()
-			//eap := npac.GetEAPMessage()
-			//log.Printf("EAP authentication type %s", eap.String())
-			// add Vendor-specific attribute - Vendor Cisco (code 9) Attribute h323-remote-address (code 23)
-			//npac.AddVSA(radius.VSA{Vendor: 9, Type: 23, Value: []byte("10.20.30.40")})
-			//npac.AddAVP(radius.AVP{Type: radius.ReplyMessage, Value: []byte("Welcome!")})
-		} else {
-			npac.Code = radius.AccessReject
-			npac.AddAVP(radius.AVP{Type: radius.ReplyMessage, Value: []byte("you dick!")})
-		}
 	case radius.AccessChallenge:
 		fmt.Printf("********>>>>>>> Received AccessChallenge")
 	case radius.AccountingRequest:
