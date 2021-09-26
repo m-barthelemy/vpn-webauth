@@ -27,55 +27,55 @@ var generateAuthenticatorResponseMagic2 = []byte{0x50, 0x61, 0x64, 0x20, 0x74, 0
 //    Password = "clientPass" 密码的输入格式比较奇怪.utf16?
 // 			   = 63 00 6C 00 69 00 65 00 6E 00
 // 				 74 00 50 00 61 00 73 00 73 00
-func GenerateAuthenticatorResponse(Password []byte, NTResponse [24]byte, PeerChallenge [16]byte,
-	AuthenticatorChallenge [16]byte, UserName []byte) [20]byte {
-	// TODO: Ensure this also works for passowrds containing any unicode char
-	utf16Password := make([]byte, len(Password)*2)
-	for i := range Password {
-		utf16Password[i*2] = Password[i]
+func GenerateAuthenticatorResponse(password []byte, ntResponse [24]byte, peerChallenge [16]byte,
+	authenticatorChallenge [16]byte, userName []byte) [20]byte {
+	// TODO: Ensure this also works for passwords containing any unicode char
+	utf16Password := make([]byte, len(password)*2)
+	for i := range password {
+		utf16Password[i*2] = password[i]
 	}
 
 	// Hash the password with MD4
-	PasswordHash := md4(utf16Password) //ntPasswordHash
+	passwordHash := md4(utf16Password) //ntPasswordHash
 
 	// Now hash the hash
-	PasswordHashHash := md4(PasswordHash) //hashNtPasswordHash
+	passwordHashHash := md4(passwordHash) //hashNtPasswordHash
 
 	h := crypto.SHA1.New()
-	h.Write(PasswordHashHash)
-	h.Write(NTResponse[:])
+	h.Write(passwordHashHash)
+	h.Write(ntResponse[:])
 	h.Write(generateAuthenticatorResponseMagic1)
-	Digest := h.Sum(nil)
+	digest := h.Sum(nil)
 
-	Challenge := challengeHash(PeerChallenge, AuthenticatorChallenge, UserName)
+	challenge := challengeHash(peerChallenge, authenticatorChallenge, userName)
 
 	h = crypto.SHA1.New()
-	h.Write(Digest)
-	h.Write(Challenge)
+	h.Write(digest)
+	h.Write(challenge)
 	h.Write(generateAuthenticatorResponseMagic2)
-	Digest = h.Sum(nil)
+	digest = h.Sum(nil)
 
 	out := [20]byte{}
-	copy(out[:], Digest)
+	copy(out[:], digest)
 	return out
 }
 
-func md4(Password []byte) []byte {
+func md4(password []byte) []byte {
 	h := crypto.MD4.New()
-	h.Write(Password)
+	h.Write(password)
 	return h.Sum(nil)
 }
 
-func challengeHash(PeerChallenge [16]byte, AuthenticatorChallenge [16]byte, UserName []byte) []byte {
+func challengeHash(peerChallenge [16]byte, authenticatorChallenge [16]byte, userName []byte) []byte {
 	h := crypto.SHA1.New()
-	h.Write(PeerChallenge[:])
-	h.Write(AuthenticatorChallenge[:])
-	h.Write(UserName)
-	Digest := h.Sum(nil)
+	h.Write(peerChallenge[:])
+	h.Write(authenticatorChallenge[:])
+	h.Write(userName)
+	digest := h.Sum(nil)
 
-	Challenge := make([]byte, 8)
-	copy(Challenge, Digest[:8])
-	return Challenge
+	challenge := make([]byte, 8)
+	copy(challenge, digest[:8])
+	return challenge
 }
 
 // "Deriving MPPE Keys From MS-CHAP V2 Credentials", Section 4.3
@@ -114,27 +114,27 @@ var msCHAPV2GetSendAndRecvKeyMagic3 = [84]byte{0x4f, 0x6e, 0x20, 0x74, 0x68, 0x6
 	0x20, 0x74, 0x68, 0x65, 0x20, 0x73, 0x65, 0x6e, 0x64, 0x20,
 	0x6b, 0x65, 0x79, 0x2e}
 
-func msCHAPV2GetSendAndRecvKeyGetMasterKey(passwordHashHash []byte, NTResponse [24]byte) (masterkey [16]byte) {
+func msCHAPV2GetSendAndRecvKeyGetMasterKey(passwordHashHash []byte, ntResponse [24]byte) (masterkey [16]byte) {
 	// Secure Hash Standard Federal Information Processing Standards Publication 180-1 -> SHA1
 	h := crypto.SHA1.New()
 	h.Write(passwordHashHash)
-	h.Write(NTResponse[:])
+	h.Write(ntResponse[:])
 	h.Write(msCHAPV2GetSendAndRecvKeyMagic1[:])
 	Digest := h.Sum(nil)
 	copy(masterkey[:], Digest[:16])
 	return
 }
 
-func msCHAPV2GetSendAndRecvKeyGetAsymetricStartKey(masterkey [16]byte, sessionKeyLength int, IsSend bool, IsServer bool) (sessionKey []byte) {
+func msCHAPV2GetSendAndRecvKeyGetAsymetricStartKey(masterkey [16]byte, sessionKeyLength int, isSend bool, isServer bool) (sessionKey []byte) {
 	var s [84]byte
-	if IsSend {
-		if IsServer {
+	if isSend {
+		if isServer {
 			s = msCHAPV2GetSendAndRecvKeyMagic3
 		} else {
 			s = msCHAPV2GetSendAndRecvKeyMagic2
 		}
 	} else {
-		if IsServer {
+		if isServer {
 			s = msCHAPV2GetSendAndRecvKeyMagic2
 		} else {
 			s = msCHAPV2GetSendAndRecvKeyMagic3
@@ -145,8 +145,8 @@ func msCHAPV2GetSendAndRecvKeyGetAsymetricStartKey(masterkey [16]byte, sessionKe
 	h.Write(msCHAPV2GetSendAndRecvKeySHSpad1[:])
 	h.Write(s[:])
 	h.Write(msCHAPV2GetSendAndRecvKeySHSpad2[:])
-	Digest := h.Sum(nil)
-	sessionKey = Digest[:sessionKeyLength]
+	digest := h.Sum(nil)
+	sessionKey = digest[:sessionKeyLength]
 	return sessionKey
 }
 
@@ -154,18 +154,18 @@ func msCHAPV2GetSendAndRecvKeyGetAsymetricStartKey(masterkey [16]byte, sessionKe
 //    Password = "clientPass" 密码的输入格式已经修正
 // 			   = 63 00 6C 00 69 00 65 00 6E 00
 // 				 74 00 50 00 61 00 73 00 73 00
-func MsCHAPV2GetSendAndRecvKey(Password []byte, NTResponse [24]byte) (sendKey []byte, recvKey []byte) {
-	// TODO: Ensure this also works for passowrds containing any unicode char
-	utf16Password := make([]byte, len(Password)*2)
-	for i := range Password {
-		utf16Password[i*2] = Password[i]
+func MsCHAPV2GetSendAndRecvKey(password []byte, ntResponse [24]byte) (sendKey []byte, recvKey []byte) {
+	// TODO: Ensure this also works for passwords containing any unicode char
+	utf16Password := make([]byte, len(password)*2)
+	for i := range password {
+		utf16Password[i*2] = password[i]
 	}
-	PasswordHash := md4(utf16Password)
-	PasswordHashHash := md4(PasswordHash)
+	passwordHash := md4(utf16Password)
+	passwordHashHash := md4(passwordHash)
 
-	masterKey := msCHAPV2GetSendAndRecvKeyGetMasterKey(PasswordHashHash, NTResponse)
-	MasterSendKey := msCHAPV2GetSendAndRecvKeyGetAsymetricStartKey(masterKey, 16, true, true)
-	MasterReceiveKey := msCHAPV2GetSendAndRecvKeyGetAsymetricStartKey(masterKey, 16, false, true)
+	masterKey := msCHAPV2GetSendAndRecvKeyGetMasterKey(passwordHashHash, ntResponse)
+	masterSendKey := msCHAPV2GetSendAndRecvKeyGetAsymetricStartKey(masterKey, 16, true, true)
+	masterReceiveKey := msCHAPV2GetSendAndRecvKeyGetAsymetricStartKey(masterKey, 16, false, true)
 
-	return MasterSendKey, MasterReceiveKey
+	return masterSendKey, masterReceiveKey
 }

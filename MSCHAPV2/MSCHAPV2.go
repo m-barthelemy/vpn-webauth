@@ -185,7 +185,7 @@ type ReplySuccessPacketRequest struct {
 	AuthenticatorChallenge [16]byte
 	Response               *ResponsePacket
 	Username               []byte
-	Password               []byte
+	Password               []byte // The client password
 	Message                string
 }
 

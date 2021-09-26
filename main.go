@@ -122,13 +122,6 @@ var sessions = make(map[[18]byte]*RadiusSession)
 // Check https://github.com/keysonZZZ/kmg/blob/master/third/kmgRadius/Auth.go
 // for EAP and MSCHAP challenge response
 func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
-	/*eap := request.GetEAPMessage()
-	if eap != nil {
-		log.Printf("Message kind is EAP, type %s, identifier %d, data size %d", eap.Type.String(), eap.Identifier, len(eap.Data))
-		log.Printf("EAP Packet: %s", eap.String())
-
-	}*/
-
 	// A pretty print of the request.
 	fmt.Println("---------------------------------------------------------")
 	log.Printf("[Authenticate] %s\n", request.String())
@@ -147,7 +140,6 @@ func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 		log.Printf("[EAP] Packet: %s", eap.String())
 		switch eap.Type {
 		case radius.EapTypeIdentity:
-			//mschapV2Challenge := make([]byte, 16)
 			mschapV2Challenge := [16]byte{}
 			_, err := rand.Read(mschapV2Challenge[:])
 			if err != nil {
@@ -155,7 +147,7 @@ func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 				npac.Code = radius.AccessReject
 				return npac
 			}
-			sessionId := [18]byte{} //make([]byte, 18)
+			sessionId := [18]byte{}
 			_, err = rand.Read(sessionId[:])
 			if err != nil {
 				log.Printf("unable to generate random data for MS-CHAPv2 session ID: %s", err)
@@ -183,8 +175,7 @@ func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 				Identifier: eap.Identifier,
 				Code:       radius.EapCodeRequest,
 				Type:       radius.EapTypeMSCHAPV2,
-				//Data:       challengeP.Data,
-				Data: challengeP.Encode(),
+				Data:       challengeP.Encode(),
 			}
 
 			npac.AddAVP(radius.AVP{
@@ -208,7 +199,7 @@ func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			sessionId := [18]byte{}
 			if stateAVP != nil {
 				copy(sessionId[:], stateAVP.Value)
-				log.Printf("[MsCHAPv2] Received State/Session ID %s", sessionId)
+				log.Printf("[MsCHAPv2] Received State/Session ID %v", sessionId)
 			}
 
 			switch msChapV2Packet.OpCode() {
@@ -230,7 +221,7 @@ func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					AuthenticatorChallenge: sessions[sessionId].Challenge,
 					Response:               msChapV2Packet.(*MSCHAPV2.ResponsePacket),
 					Username:               []byte(request.GetUsername()),
-					Password:               []byte(userPassword), // The client password
+					Password:               []byte(userPassword),
 					//Message:                "success",
 				})
 
@@ -246,8 +237,7 @@ func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					Value: challengeResponseEAPPacket.Encode(),
 				})
 
-				log.Printf("[Radius] Sending Access-Challenge again in response to radius.EapTypeMSCHAPV2 Response")
-				//npac.Code = radius.AccessAccept
+				log.Printf("[Radius] Sending Access-Challenge again in response to %s", MSCHAPV2.OpCodeResponse.String())
 				npac.Code = radius.AccessChallenge
 				return npac
 
@@ -305,7 +295,7 @@ func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					Type:  radius.AttributeType(radius.EAPMessage),
 					Value: successPacket.Encode(),
 				})
-				log.Printf("[MsCHAPv2] User %s allowed to connect to %s", request.GetUsername(), request.GetNASIdentifier())
+				log.Printf("[Radius] Sending Access-Accept response to NAS '%s' for user '%s'", request.GetNASIdentifier(), request.GetUsername())
 				npac.Code = radius.AccessAccept
 				return npac
 			default:
@@ -314,14 +304,10 @@ func (p radiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 				return npac
 			}
 		default:
-			log.Printf("•••••• Received unsupported EAP packet type %s", eap.Type.String())
+			log.Printf("[Radius] Received unsupported EAP packet type %s", eap.Type.String())
 			npac.Code = radius.AccessReject
 			return npac
 		}
-		/*mschapv2, err := radius.MsChapV2PacketFromEap(eap)
-		if err != nil {
-			log.Printf("EAP packet is not MS-CHAPv2")
-		}*/
 
 	case radius.AccessChallenge:
 		fmt.Printf("********>>>>>>> Received AccessChallenge")
