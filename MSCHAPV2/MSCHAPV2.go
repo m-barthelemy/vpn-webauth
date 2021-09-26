@@ -12,51 +12,49 @@ import (
 type Packet interface {
 	String() string
 	OpCode() OpCode
-	Encode() (b []byte)
+	Encode() (data []byte)
 }
 
-func Decode(b []byte) (p Packet, err error) {
-	if len(b) == 1 {
-		//eap - mschapv2 的一种特殊情况,只有opcode,其他啥也没有
+func Decode(data []byte) (p Packet, err error) {
+	if len(data) == 1 {
 		return &SimplePacket{
-			Code: OpCode(b[0]),
+			Code: OpCode(data[0]),
 		}, nil
 	}
-	if len(b) < 4 {
-		return nil, fmt.Errorf("[MSCHAPV2.Decode] protocol error 1, len(b)[%d] < 2", len(b))
+	if len(data) < 4 {
+		return nil, fmt.Errorf("data bytes length is %d, must be at least 4", len(data))
 	}
-	code := OpCode(b[0])
-	Identifier := uint8(b[1])
+	code := OpCode(data[0])
+	Identifier := uint8(data[1])
 	switch code {
 	case OpCodeChallenge:
-		if len(b) < 21 {
-			return nil, fmt.Errorf("[MsChapV2PacketFromEap] protocol error 2 Challenge packet len is less than 21 ")
+		if len(data) < 21 {
+			return nil, fmt.Errorf("challenge packet length is less than 21")
 		}
 		resp := &ChallengePacket{}
-		copy(resp.Challenge[:], b[5:21])
-		resp.Name = string(b[21:])
+		copy(resp.Challenge[:], data[5:21])
+		resp.Name = string(data[21:])
 		resp.Identifier = Identifier
 		return resp, nil
 	case OpCodeResponse:
-		if len(b) < 53 {
-			return nil, fmt.Errorf("[MsChapV2PacketFromEap] protocol error 3 Response packet len is less than 53 ")
+		if len(data) < 53 {
+			return nil, fmt.Errorf("response packet length is less than 53 ")
 		}
 		resp := &ResponsePacket{}
-		copy(resp.PeerChallenge[:], b[5:21])
-		copy(resp.NTResponse[:], b[29:53])
-		resp.Name = string(b[54:])
+		copy(resp.PeerChallenge[:], data[5:21])
+		copy(resp.NTResponse[:], data[29:53])
+		resp.Name = string(data[54:])
 		resp.Identifier = Identifier
 		return resp, nil
 	case OpCodeSuccess:
 		resp := &SuccessPacket{}
-		hex.Decode(resp.Auth[:], b[6:46])
-		resp.Message = string(b[49:])
+		hex.Decode(resp.Auth[:], data[6:46])
+		resp.Message = string(data[49:])
 		resp.Identifier = Identifier
 		return resp, nil
 	default:
-		return nil, fmt.Errorf("[MsChapV2PacketFromEap] can not parse opcode:%s", p.OpCode)
+		return nil, fmt.Errorf("unknown opcode '%s'", code)
 	}
-	return p, nil
 }
 
 type OpCode uint8
@@ -98,16 +96,16 @@ func (p *ChallengePacket) String() string {
 func (p *ChallengePacket) OpCode() OpCode {
 	return OpCodeChallenge
 }
-func (p *ChallengePacket) Encode() (b []byte) {
+func (p *ChallengePacket) Encode() (data []byte) {
 	len := 4 + 1 + 16 + len(p.Name)
-	b = make([]byte, len)
-	b[0] = byte(p.OpCode())
-	b[1] = byte(p.Identifier)
-	binary.BigEndian.PutUint16(b[2:4], uint16(len))
-	b[4] = 16
-	copy(b[5:21], p.Challenge[:])
-	copy(b[21:], p.Name)
-	return b
+	data = make([]byte, len)
+	data[0] = byte(p.OpCode())
+	data[1] = byte(p.Identifier)
+	binary.BigEndian.PutUint16(data[2:4], uint16(len))
+	data[4] = 16
+	copy(data[5:21], p.Challenge[:])
+	copy(data[21:], p.Name)
+	return data
 }
 
 type ResponsePacket struct {
@@ -123,20 +121,20 @@ func (p *ResponsePacket) String() string {
 func (p *ResponsePacket) OpCode() OpCode {
 	return OpCodeResponse
 }
-func (p *ResponsePacket) Encode() (b []byte) {
+func (p *ResponsePacket) Encode() (data []byte) {
 	len := 4 + 1 + 49 + len(p.Name)
-	b = make([]byte, len)
-	b[0] = byte(p.OpCode())
-	b[1] = byte(p.Identifier)
-	binary.BigEndian.PutUint16(b[2:4], uint16(len))
-	b[4] = 49
-	copy(b[5:21], p.PeerChallenge[:])
-	copy(b[29:53], p.NTResponse[:])
-	copy(b[54:], p.Name)
-	return b
+	data = make([]byte, len)
+	data[0] = byte(p.OpCode())
+	data[1] = byte(p.Identifier)
+	binary.BigEndian.PutUint16(data[2:4], uint16(len))
+	data[4] = 49
+	copy(data[5:21], p.PeerChallenge[:])
+	copy(data[29:53], p.NTResponse[:])
+	copy(data[54:], p.Name)
+	return data
 }
 
-// look like "S=<auth_string> M=<message>"
+// Looks like "S=<auth_string> M=<message>" once encoded
 type SuccessPacket struct {
 	Identifier uint8
 	Auth       [20]byte // the binary format of auth_string
@@ -150,19 +148,19 @@ func (p *SuccessPacket) String() string {
 func (p *SuccessPacket) OpCode() OpCode {
 	return OpCodeSuccess
 }
-func (p *SuccessPacket) Encode() (b []byte) {
+func (p *SuccessPacket) Encode() (data []byte) {
 	len := 4 + 2 + 40 + 3 + len(p.Message)
-	b = make([]byte, len)
-	b[0] = byte(p.OpCode())
-	b[1] = byte(p.Identifier)
-	binary.BigEndian.PutUint16(b[2:4], uint16(len))
-	copy(b[4:6], "S=")
-	hex.Encode(b[6:46], p.Auth[:])
-	out := bytes.ToUpper(b[6:46])
-	copy(b[6:46], out)
-	copy(b[46:49], " M=")
-	copy(b[49:], p.Message)
-	return b
+	data = make([]byte, len)
+	data[0] = byte(p.OpCode())
+	data[1] = byte(p.Identifier)
+	binary.BigEndian.PutUint16(data[2:4], uint16(len))
+	copy(data[4:6], "S=")
+	hex.Encode(data[6:46], p.Auth[:])
+	out := bytes.ToUpper(data[6:46])
+	copy(data[6:46], out)
+	copy(data[46:49], " M=")
+	copy(data[49:], p.Message)
+	return data
 }
 
 type SimplePacket struct {
@@ -177,10 +175,10 @@ func (p *SimplePacket) String() string {
 	return fmt.Sprintf("Code: %s", p.OpCode())
 }
 
-func (p *SimplePacket) Encode() (b []byte) {
-	b = make([]byte, 1)
-	b[0] = byte(p.OpCode())
-	return b
+func (p *SimplePacket) Encode() (data []byte) {
+	data = make([]byte, 1)
+	data[0] = byte(p.OpCode())
+	return data
 }
 
 type ReplySuccessPacketRequest struct {

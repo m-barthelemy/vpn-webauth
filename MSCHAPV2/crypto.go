@@ -9,6 +9,7 @@ import (
 	_ "golang.org/x/crypto/md4"
 )
 
+// https://datatracker.ietf.org/doc/html/rfc2759#section-8.7
 var generateAuthenticatorResponseMagic1 = []byte{0x4D, 0x61, 0x67, 0x69, 0x63, 0x20, 0x73, 0x65, 0x72, 0x76,
 	0x65, 0x72, 0x20, 0x74, 0x6F, 0x20, 0x63, 0x6C, 0x69, 0x65,
 	0x6E, 0x74, 0x20, 0x73, 0x69, 0x67, 0x6E, 0x69, 0x6E, 0x67,
@@ -21,28 +22,23 @@ var generateAuthenticatorResponseMagic2 = []byte{0x50, 0x61, 0x64, 0x20, 0x74, 0
 	0x6E}
 
 // RFC2759 section 8.7 page 9
-// return binary form of the result
-// in the hash example password is utf-16 encode.
+// Return binary form of the result
+// in the hash example password is utf-16 encoded.
 //    Password = "clientPass" 密码的输入格式比较奇怪.utf16?
 // 			   = 63 00 6C 00 69 00 65 00 6E 00
 // 				 74 00 50 00 61 00 73 00 73 00
 func GenerateAuthenticatorResponse(Password []byte, NTResponse [24]byte, PeerChallenge [16]byte,
 	AuthenticatorChallenge [16]byte, UserName []byte) [20]byte {
-	//TODO 解决中文密码的问题
+	// TODO: Ensure this also works for passowrds containing any unicode char
 	utf16Password := make([]byte, len(Password)*2)
 	for i := range Password {
 		utf16Password[i*2] = Password[i]
 	}
-	/*
-	 * Hash the password with MD4
-	 */
 
+	// Hash the password with MD4
 	PasswordHash := md4(utf16Password) //ntPasswordHash
 
-	/*
-	 * Now hash the hash
-	 */
-
+	// Now hash the hash
 	PasswordHashHash := md4(PasswordHash) //hashNtPasswordHash
 
 	h := crypto.SHA1.New()
@@ -64,7 +60,6 @@ func GenerateAuthenticatorResponse(Password []byte, NTResponse [24]byte, PeerCha
 	return out
 }
 
-// it is md4 hash
 func md4(Password []byte) []byte {
 	h := crypto.MD4.New()
 	h.Write(Password)
@@ -83,6 +78,8 @@ func challengeHash(PeerChallenge [16]byte, AuthenticatorChallenge [16]byte, User
 	return Challenge
 }
 
+// "Deriving MPPE Keys From MS-CHAP V2 Credentials", Section 4.3
+// https://datatracker.ietf.org/doc/html/draft-ietf-pppext-mschapv2-keys-00.txt#section-4.3
 var msCHAPV2GetSendAndRecvKeySHSpad1 = [40]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -158,7 +155,7 @@ func msCHAPV2GetSendAndRecvKeyGetAsymetricStartKey(masterkey [16]byte, sessionKe
 // 			   = 63 00 6C 00 69 00 65 00 6E 00
 // 				 74 00 50 00 61 00 73 00 73 00
 func MsCHAPV2GetSendAndRecvKey(Password []byte, NTResponse [24]byte) (sendKey []byte, recvKey []byte) {
-	//TODO 解决中文密码的问题
+	// TODO: Ensure this also works for passowrds containing any unicode char
 	utf16Password := make([]byte, len(Password)*2)
 	for i := range Password {
 		utf16Password[i*2] = Password[i]
