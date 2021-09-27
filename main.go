@@ -100,6 +100,9 @@ func main() {
 type RadiusService struct{}
 
 const radiusSecret = "mamiemamie"
+
+// [rfc3579] 4.3.3.  Dictionary Attacks: secret should be at least 16 characters
+// TODO: require at least 24 chars
 const userPassword = "mamie est conne"
 
 type RadiusSession struct {
@@ -140,7 +143,15 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 		log.Printf("[EAP] Received message kind is EAP, type %s, identifier %d, data size %d", eap.Type.String(), eap.Identifier, len(eap.Data))
 		log.Printf("[EAP] Packet: %s", eap.String())
 
-		// 2.6.2.  Role Reversal
+		// [rfc3579] 3.2.  Message-Authenticator
+		messageAuthenticator := request.GetAVP(radius.MessageAuthenticator)
+		if messageAuthenticator.Value == nil {
+			log.Printf("[Radius] Received EAP packet without %s attribute, discarding", radius.MessageAuthenticator.String())
+			return npac
+		}
+		// if we have a Message-Authenticator, it is automatically validated before service.RadiusHandle is called.
+
+		// [rfc3579] 2.6.2.  Role Reversal
 		if eap.Code == radius.EapCodeRequest {
 			log.Printf("[EAP] Received unsupported packet type %s", eap.Code.String())
 			npac.Code = radius.AccessReject
@@ -156,6 +167,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			})
 			return npac
 		}
+
 		switch eap.Type {
 		case radius.EapTypeIdentity:
 			//sendMSCHAPv2Challenge(userName, eap, npac)
