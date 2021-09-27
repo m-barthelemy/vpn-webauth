@@ -13,6 +13,7 @@ require (
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.17+incompatible // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
+	github.com/dreadl0ck/tlsx v1.0.0 // indirect
 	github.com/duo-labs/webauthn v0.0.0-20200714211715-1daaee874e43
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/gogo/protobuf v1.3.1 // indirect
@@ -22,6 +23,7 @@ require (
 	github.com/golangci/revgrep v0.0.0-20180812185044-276a5c0a1039 // indirect
 	github.com/google/certificate-transparency-go v1.1.0 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
+	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/monologue v0.0.0-20191105172128-0324c8b45f6f // indirect
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/gorilla/handlers v1.5.1
