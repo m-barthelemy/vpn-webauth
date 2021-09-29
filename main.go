@@ -3,16 +3,18 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/tls"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/bronze1man/radius"
 	"github.com/dreadl0ck/tlsx"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"github.com/m-barthelemy/vpn-webauth/MSCHAPV2"
 
 	//"github.com/bronze1man/radius/MSCHAPV2"
@@ -84,9 +86,41 @@ func main() {
 		rad.Start()
 	}()*/
 
-	s := radius.NewServer("0.0.0.0:5022", radiusSecret, &RadiusService{})
+	// TLS "proxy" used for EAP-TLS handshake
+	tmpfile, err := ioutil.TempFile("", "eap-tls-handshake")
+	if err != nil {
+		log.Fatalf("[EAP-TLS] failed to create temporary file for handshake server: %v", err)
+	}
+	socketPath := tmpfile.Name()
+	os.Remove(socketPath)
+
+	// Start a TLS listener
+	log.Println("starting TLS handshake service...")
+	handshakeServer, err := tls.Listen("unix", socketPath, getTLSServerConfig())
+	if err != nil {
+		log.Fatalf("[EAP-TLS] failed to bind unix socket %q for TLS handshake server: %v", socketPath, err)
+	}
+
+	// Start a background thread reading the conn
 	go func() {
-		fmt.Println("Starting Radius listener...")
+		for {
+			conn, err := handshakeServer.Accept()
+			if err != nil {
+				log.Printf("[EAP-TLS] unable to accept handshake server client connection: %s", err)
+				return
+			}
+			conn.Write([]byte("@"))
+			//log.Printf("[EAP-TLS] TLS established")
+			err = conn.Close()
+			if err != nil {
+				log.Printf("[EAP-TLS] unable to close handshake server client conn after successful TLS handshake: %s", err)
+			}
+		}
+	}()
+
+	s := radius.NewServer("0.0.0.0:5022", radiusSecret, &RadiusService{handshakeSocketPath: socketPath})
+	go func() {
+		log.Println("Starting Radius listener...")
 		err := s.ListenAndServe()
 		if err != nil {
 			log.Fatalf("Unable to start Radius listener: %s", err)
@@ -97,7 +131,9 @@ func main() {
 }
 
 //test
-type RadiusService struct{}
+type RadiusService struct {
+	handshakeSocketPath string
+}
 
 const radiusSecret = "mamiemamie"
 
@@ -296,26 +332,23 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			}
 
 		case 13: // EAP-TLS
-			// We provide a very minimal, stripped-down implementation of EAP-TLS and TLS handshake.
-			// - TLS is currently limited to version 1.2 only.
-			// - No downgrade/fallback support. In practice, any recent client will be fine with this.
-			// - Supported cipher suites is limited to a few known secure ones (as of 2021)
-			// - Only supports RSA ciphers for now.
-			// - TLS compression is not supported
-			log.Println("[Radius] Received EAP-TLS packet")
-			supportedCiphers := []tlsx.CipherSuite{
-				0xCC13, // TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
-				0xCCA8, // TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
-				0xC030, // TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
-				0xC028, // TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384
-				0xC02F, // TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-				0xC027, // TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256
+			sessionId, err := CheckRadiusSession(request)
+			if err != nil {
+				npac.Code = radius.AccessReject
+				return npac
 			}
+			/*conf := &tls.Config{
+				InsecureSkipVerify: true,
+			}*/
 
-			goPacketOpts := gopacket.DecodeOptions{
-				SkipDecodeRecovery:       true,
-				DecodeStreamsAsDatagrams: false,
+			//conn, err := tls.Dial("unix", p.handshakeSocketPath, conf)
+			conn, err := net.Dial("unix", p.handshakeSocketPath)
+			if err != nil {
+				log.Printf("[EAP-TLS] unable to connect to TLS handshake server: %s", err)
+				npac.Code = radius.AccessReject
+				return npac
 			}
+			defer conn.Close()
 			eapData := request.GetEAPMessage().Data
 			if len(eapData) < 5 {
 				log.Printf("[EAP-TLS] invalid EAP TLS record: too small")
@@ -324,88 +357,166 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			}
 
 			tlsPacket := eapData[5:]
-			if len(tlsPacket) < 5 {
-				log.Printf("[EAP-TLS] invalid TLS record: too small")
+			written, err := conn.Write(tlsPacket)
+			if err != nil {
+				log.Printf("[EAP-TLS] ubable to send ClientHello: %s", err)
 				npac.Code = radius.AccessReject
 				return npac
 			}
+			log.Printf("[EAP-TLS] wrote ClientHello, %d bytes", written)
+			reply := make([]byte, 64*1024)
+			read, err := conn.Read(reply)
+			if err != nil {
+				log.Printf("[EAP-TLS] ubable to read ServerHello: %s", err)
+				npac.Code = radius.AccessReject
+				return npac
+			}
+			log.Printf("[EAP-TLS] read ServerHello, %d bytes", read)
+			serverHello := tlsx.ServerHello{}
+			err = serverHello.Unmarshal(reply[:read])
+			if err != nil {
+				log.Printf("[EAP-TLS] bogus ServerHello: %s", err)
+			}
+			log.Printf("[EAP-TLS] ServerHello: %s", serverHello.String())
+			cipher := serverHello.CipherSuite
+			log.Printf("[EAP-TLS] ServerHello: selected Cipher suite %s", tlsx.CipherSuite(cipher).String())
 
-			pkg := gopacket.NewPacket(tlsPacket, layers.LayerTypeTLS, goPacketOpts)
-			if pkg.ErrorLayer() != nil {
-				log.Printf("[EAP-TLS] invalid TLS record: %s", pkg.ErrorLayer().Error())
-				npac.Code = radius.AccessReject
-				return npac
+			npac.Code = radius.AccessChallenge
+			npac.SetAVP(radius.AVP{
+				Type:  radius.State,
+				Value: sessionId[:],
+			})
+			radiusServHelloPacket := radius.EapPacket{
+				Identifier: eap.Identifier,
+				Code:       radius.EapCodeRequest,
+				Data:       reply[:read],
 			}
-			tlsLayer := pkg.Layer(layers.LayerTypeTLS)
-			if tlsLayer == nil {
-				log.Printf("[EAP-TLS] invalid TLS record")
-				npac.Code = radius.AccessReject
-				return npac
-			}
+			npac.AddAVP(radius.AVP{
+				Type:  radius.AttributeType(radius.EAPMessage),
+				Value: radiusServHelloPacket.Encode(),
+			})
+			return npac
 
-			tls, _ := tlsLayer.(*layers.TLS)
-			if tls.Handshake != nil && len(tls.Handshake) > 0 && tls.Handshake[0].TLSRecordHeader.ContentType == layers.TLSHandshake {
-				clientHello := tlsx.ClientHello{}
-				err := clientHello.Unmarshal(tlsPacket)
-				if err != nil {
-					log.Printf("[EAP-TLS] unable to decode ClientHello: %s", err)
+			/*
+				// We provide a very minimal, stripped-down implementation of EAP-TLS and TLS handshake.
+				// - TLS is currently limited to version 1.2 only.
+				// - No downgrade/fallback support. In practice, any recent client will be fine with this.
+				// - Supported cipher suites is limited to a few known secure ones (as of 2021)
+				// - Only supports RSA ciphers for now.
+				log.Println("[Radius] Received EAP-TLS packet")
+				supportedCiphers := []tlsx.CipherSuite{
+					0xCC13, // TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+					0xCCA8, // TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+					0xC030, // TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+					0xC028, // TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384
+					0xC02F, // TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+					0xC027, // TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256
+				}
+
+				goPacketOpts := gopacket.DecodeOptions{
+					SkipDecodeRecovery:       true,
+					DecodeStreamsAsDatagrams: false,
+				}
+				eapData := request.GetEAPMessage().Data
+				if len(eapData) < 5 {
+					log.Printf("[EAP-TLS] invalid EAP TLS record: too small")
 					npac.Code = radius.AccessReject
 					return npac
 				}
-				log.Printf("[EAP-TLS] ClientHello %+v", clientHello.String())
-				// TODO: This doesn't work for TLS 1.3. Fix when we imp,ement support for 1.3
-				log.Printf("[EAP-TLS] received %s client handshake", clientHello.HandshakeVersion.String())
 
-				if clientHello.HandshakeVersion < tlsx.VerTLS12 {
-					log.Printf("[EAP-TLS] Client doesn't support %s", tlsx.VerTLS12.String())
+				tlsPacket := eapData[5:]
+				if len(tlsPacket) < 5 {
+					log.Printf("[EAP-TLS] invalid TLS record: too small")
 					npac.Code = radius.AccessReject
 					return npac
 				}
-				supportsNullCompression := false
-				for _, compressionMethod := range clientHello.CompressMethods {
-					if compressionMethod == 0 {
-						supportsNullCompression = true
+
+				pkg := gopacket.NewPacket(tlsPacket, layers.LayerTypeTLS, goPacketOpts)
+				if pkg.ErrorLayer() != nil {
+					log.Printf("[EAP-TLS] invalid TLS record: %s", pkg.ErrorLayer().Error())
+					npac.Code = radius.AccessReject
+					return npac
+				}
+				tlsLayer := pkg.Layer(layers.LayerTypeTLS)
+				if tlsLayer == nil {
+					log.Printf("[EAP-TLS] invalid TLS record")
+					npac.Code = radius.AccessReject
+					return npac
+				}
+
+				tls, _ := tlsLayer.(*layers.TLS)
+				if tls.Handshake != nil && len(tls.Handshake) > 0 && tls.Handshake[0].TLSRecordHeader.ContentType == layers.TLSHandshake {
+					clientHello := tlsx.ClientHello{}
+					err := clientHello.Unmarshal(tlsPacket)
+					if err != nil {
+						log.Printf("[EAP-TLS] unable to decode ClientHello: %s", err)
+						npac.Code = radius.AccessReject
+						return npac
 					}
-				}
-				if !supportsNullCompression {
-					log.Printf("[EAP-TLS] Client doesn't support uncompressed connections")
-					npac.Code = radius.AccessReject
-					return npac
-				}
-				if clientHello.SessionIDLen == 0 || clientHello.SessionIDLen > 32 {
-					log.Printf("[EAP-TLS] Client sent invalid Session ID (length %d)", clientHello.SessionIDLen)
-					npac.Code = radius.AccessReject
-					return npac
-				}
-				var cipher *tlsx.CipherSuite
-				for _, ourCipher := range supportedCiphers {
-					for _, clientCipher := range clientHello.CipherSuites {
-						if ourCipher == clientCipher {
-							cipher = &ourCipher
+					log.Printf("[EAP-TLS] ClientHello %+v", clientHello.String())
+					// TODO: This doesn't work for TLS 1.3. Fix when we imp,ement support for 1.3
+					log.Printf("[EAP-TLS] received %s client handshake", clientHello.HandshakeVersion.String())
+
+					if clientHello.HandshakeVersion < tlsx.VerTLS12 {
+						log.Printf("[EAP-TLS] Client doesn't support %s", tlsx.VerTLS12.String())
+						npac.Code = radius.AccessReject
+						return npac
+					}
+
+					// [rfc5216] 2.4 During the EAP-TLS conversation the EAP peer and server MUST
+					// NOT request or negotiate compression
+					supportsNullCompression := false
+					for _, compressionMethod := range clientHello.CompressMethods {
+						if compressionMethod == 0 {
+							supportsNullCompression = true
+						}
+					}
+					if !supportsNullCompression {
+						log.Printf("[EAP-TLS] Client doesn't support uncompressed connections")
+						npac.Code = radius.AccessReject
+						return npac
+					}
+
+					if clientHello.SessionIDLen == 0 || clientHello.SessionIDLen > 32 {
+						log.Printf("[EAP-TLS] Client sent invalid Session ID (length %d)", clientHello.SessionIDLen)
+						//npac.Code = radius.AccessReject
+						//return npac
+					}
+					var cipher *tlsx.CipherSuite
+					for _, ourCipher := range supportedCiphers {
+						for _, clientCipher := range clientHello.CipherSuites {
+							if ourCipher == clientCipher {
+								cipher = &ourCipher
+								break
+							}
+						}
+						if cipher != nil {
 							break
 						}
 					}
-					if cipher != nil {
-						break
+					if cipher == nil {
+						log.Printf("[EAP-TLS] Client doesn't support any of our ciphers %v", supportedCiphers)
+						npac.Code = radius.AccessReject
+						return npac
 					}
-				}
-				if cipher == nil {
-					log.Printf("[EAP-TLS] Client doesn't support any of our ciphers %v", supportedCiphers)
-					npac.Code = radius.AccessReject
-					return npac
-				}
-				log.Printf("[EAP-TLS] Will use cipher suite %s", cipher.String())
-				serverHello := tlsx.ServerHello{
-					SupportedVersion:  uint16(tlsx.VerTLS12),
-					SessionID:         clientHello.SessionID,
-					Random:            make([]byte, 32),
-					CompressionMethod: 0,
-					CipherSuite:       uint16(*cipher),
-				}
+					log.Printf("[EAP-TLS] Will use cipher suite %s", cipher.String())
+					serverHello := tlsx.ServerHello{
+						SupportedVersion:             uint16(tlsx.VerTLS12),
+						SecureRenegotiationSupported: false,
+						TicketSupported:              false,
+						OCSPStapling:                 false,
+						SessionID:                    clientHello.SessionID,
+						Random:                       make([]byte, 32),
+						CompressionMethod:            0,
+						CipherSuite:                  uint16(*cipher),
+					}
+					log.Printf("our ServerHello is %s", serverHello.String())
 
-			}
+
+				}*/
 
 			//log.Printf("££££££££££ tls=%+v", tls)
+			println(">> EAP-TLS")
 		default:
 			log.Printf("[Radius] Received unsupported EAP packet type %s", eap.Type.String())
 			npac.Code = radius.AccessReject
@@ -424,13 +535,61 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 	return npac
 }
 
+func getTLSServerConfig() *tls.Config {
+
+	serverCert, err := tls.LoadX509KeyPair("/tmp/server.crt", "/tmp/server.key")
+	//serverCert, err := tls.X509KeyPair(serverChain, serverKey)
+	if err != nil {
+		log.Printf("[EAP-TLS] error getting VPN server certificate or key: %s", err)
+	}
+
+	/*roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(ca) {
+		log.Println("failed to add CA to root pool")
+	}*/
+
+	return &tls.Config{
+		MinVersion:               tls.VersionTLS12,
+		PreferServerCipherSuites: true,
+		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		},
+		Certificates: []tls.Certificate{
+			serverCert,
+		},
+		//ClientCAs:  roots,
+		ClientAuth: tls.RequireAndVerifyClientCert,
+	}
+}
+
+func CheckRadiusSession(request *radius.Packet) (*[18]byte, error) {
+	sessionId := [18]byte{}
+	stateAVP := request.GetAVP(radius.State)
+	if stateAVP != nil {
+		copy(sessionId[:], stateAVP.Value)
+		log.Printf("[EAP-TLS] Received State/Session ID %v", sessionId)
+		if _, ok := sessions[sessionId]; !ok {
+			log.Printf("Invalid State/Session ID %s", sessionId)
+			return nil, fmt.Errorf("Invalid State/Session ID %s", sessionId)
+		}
+	} else {
+		return nil, fmt.Errorf("No State/Session ID")
+	}
+	return &sessionId, nil
+}
 func sendMSCHAPv2Challenge(userName string, eap *radius.EapPacket, npac *radius.Packet) {
 	mschapV2Challenge := [16]byte{}
 	_, err := rand.Read(mschapV2Challenge[:])
 	if err != nil {
 		log.Printf("unable to generate random data for MS-CHAPv2 challenge: %s", err)
 		npac.Code = radius.AccessReject
-		//return npac
 		return
 	}
 	sessionId := [18]byte{}
@@ -438,7 +597,6 @@ func sendMSCHAPv2Challenge(userName string, eap *radius.EapPacket, npac *radius.
 	if err != nil {
 		log.Printf("unable to generate random data for MS-CHAPv2 session ID: %s", err)
 		npac.Code = radius.AccessReject
-		//return npac
 		return
 	}
 
@@ -515,12 +673,11 @@ func sendTLSRequest(userName string, eap *radius.EapPacket, npac *radius.Packet,
 	npac.Code = radius.AccessChallenge
 
 	sessionId := [18]byte{}
-
 	var hasSession bool = false
 	stateAVP := request.GetAVP(radius.State)
 	if stateAVP != nil {
 		copy(sessionId[:], stateAVP.Value)
-		log.Printf("[MsCHAPv2] Received State/Session ID %v", sessionId)
+		log.Printf("[EAP-TLS] Received State/Session ID %v", sessionId)
 		if _, ok := sessions[sessionId]; !ok {
 			log.Printf("Invalid State/Session ID %s", sessionId)
 			npac.Code = radius.AccessReject
