@@ -420,7 +420,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 
 				// TODO: also support splitting ServerHello into multiple Radius packets if > 4k
 				const maxAttrSize = 240 // max size of a Radius attribute data
-				eapId := eap.Identifier //+ 1
+				eapId := eap.Identifier + 1
 				for pos := 0; pos < read; pos = pos + maxAttrSize {
 					until := pos + maxAttrSize
 					if read-pos < maxAttrSize {
