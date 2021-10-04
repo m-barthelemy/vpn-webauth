@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/BurntSushi/toml v0.4.1 // indirect
+	github.com/ReneKroon/ttlcache/v2 v2.8.1 // indirect
 	github.com/SherClockHolmes/webpush-go v1.1.2
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/bombsimon/wsl v1.2.8 // indirect
