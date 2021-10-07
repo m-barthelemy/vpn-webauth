@@ -484,7 +484,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					if eapState.BufferPos == 0 && packetRead == 0 {
 						maxAttrSize = 243
 					} else if packetRead == 0 {
-						maxAttrSize = 243 //247
+						maxAttrSize = 247
 					} else if thisEapPacketSize-packetRead < maxAttrSize {
 						maxAttrSize = thisEapPacketSize - packetRead
 					} else {
@@ -500,8 +500,8 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 						flagByte := flagStr.AsByteSlice()
 						data[0] = flagByte[0]
 						log.Printf("[EAP-TLS] DEBUG: preparing EAP Packet, first byte = %08b", data[0])
-						//binary.BigEndian.PutUint32(data[1:5], uint32(len(eapState.TlsBuffer)))
-						binary.BigEndian.PutUint32(data[1:5], uint32(thisEapPacketSize))
+						binary.BigEndian.PutUint32(data[1:5], uint32(len(eapState.TlsBuffer)))
+						//binary.BigEndian.PutUint32(data[1:5], uint32(thisEapPacketSize))
 						copy(data[5:], eapState.TlsBuffer[pos:(pos+maxAttrSize)])
 
 						radiusServHelloPacket := radius.EapPacket{
@@ -515,23 +515,23 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 						binary.BigEndian.PutUint16(eapResponseData[2:4], uint16(thisEapPacketSize+5))
 
 					} else if packetRead == 0 {
-						//data = make([]byte, maxAttrSize+1)
-						data = make([]byte, maxAttrSize+5)
+						data = make([]byte, maxAttrSize+1)
+						//data = make([]byte, maxAttrSize+5)
 						var flagStr bitString
 						if addFragmentBit {
-							//flagStr = bitString("01000000")
-							flagStr = bitString("11000000")
+							flagStr = bitString("01000000")
+							//flagStr = bitString("11000000")
 						} else {
-							//flagStr = bitString("00000000")
-							flagStr = bitString("10000000")
+							flagStr = bitString("00000000")
+							//flagStr = bitString("10000000")
 						}
 						flagByte := flagStr.AsByteSlice()
 						data[0] = flagByte[0]
 						log.Printf("[EAP-TLS] DEBUG: preparing EAP Packet, first byte = %08b", data[0])
-						binary.BigEndian.PutUint32(data[1:5], uint32(thisEapPacketSize))
+						//binary.BigEndian.PutUint32(data[1:5], uint32(thisEapPacketSize))
 						//binary.BigEndian.PutUint32(data[1:5], uint32(len(eapState.TlsBuffer)))
-						//copy(data[1:], eapState.TlsBuffer[pos:(pos+maxAttrSize)])
-						copy(data[5:], eapState.TlsBuffer[pos:(pos+maxAttrSize)])
+						copy(data[1:], eapState.TlsBuffer[pos:(pos+maxAttrSize)])
+						//copy(data[5:], eapState.TlsBuffer[pos:(pos+maxAttrSize)])
 
 						radiusServHelloPacket := radius.EapPacket{
 							Identifier: eapId,
