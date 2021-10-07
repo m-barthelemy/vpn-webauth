@@ -510,7 +510,9 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 							Type:       13,
 							Data:       data, //reply[pos:until],
 						}
+
 						eapResponseData = radiusServHelloPacket.Encode()
+						binary.BigEndian.PutUint16(eapResponseData[2:4], uint16(thisEapPacketSize+5))
 
 					} else if packetRead == 0 {
 						//data = make([]byte, maxAttrSize+1)
@@ -538,6 +540,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 							Data:       data, //reply[pos:until],
 						}
 						eapResponseData = radiusServHelloPacket.Encode()
+						binary.BigEndian.PutUint16(eapResponseData[2:4], uint16(thisEapPacketSize+5))
 						//eapResponseData = data
 
 					} else {
