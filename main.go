@@ -500,6 +500,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 						flagByte := flagStr.AsByteSlice()
 						data[0] = flagByte[0]
 						log.Printf("[EAP-TLS] DEBUG: preparing EAP Packet, first byte = %08b", data[0])
+						//log.Printf("[DEBUG] TLS buffer beginning = %v", eapState.TlsBuffer[:5])
 						binary.BigEndian.PutUint32(data[1:5], uint32(len(eapState.TlsBuffer)))
 						//binary.BigEndian.PutUint32(data[1:5], uint32(thisEapPacketSize))
 						copy(data[5:], eapState.TlsBuffer[pos:(pos+maxAttrSize)])
@@ -512,7 +513,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 						}
 
 						eapResponseData = radiusServHelloPacket.Encode()
-						binary.BigEndian.PutUint16(eapResponseData[2:4], uint16(thisEapPacketSize+5))
+						binary.BigEndian.PutUint16(eapResponseData[2:4], uint16(thisEapPacketSize+5+5))
 
 					} else if packetRead == 0 {
 						data = make([]byte, maxAttrSize+1)
@@ -528,7 +529,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 						flagByte := flagStr.AsByteSlice()
 						data[0] = flagByte[0]
 						log.Printf("[EAP-TLS] DEBUG: preparing EAP Packet, first byte = %08b", data[0])
-						//binary.BigEndian.PutUint32(data[1:5], uint32(thisEapPacketSize))
+						binary.BigEndian.PutUint32(data[1:5], uint32(thisEapPacketSize))
 						//binary.BigEndian.PutUint32(data[1:5], uint32(len(eapState.TlsBuffer)))
 						copy(data[1:], eapState.TlsBuffer[pos:(pos+maxAttrSize)])
 						//copy(data[5:], eapState.TlsBuffer[pos:(pos+maxAttrSize)])
@@ -540,12 +541,12 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 							Data:       data, //reply[pos:until],
 						}
 						eapResponseData = radiusServHelloPacket.Encode()
-						binary.BigEndian.PutUint16(eapResponseData[2:4], uint16(thisEapPacketSize+5))
+						binary.BigEndian.PutUint16(eapResponseData[2:4], uint16(thisEapPacketSize+5+1))
 						//eapResponseData = data
 
 					} else {
 						log.Printf("Adding EAP data without wrapping into EAP packet")
-						/*data = make([]byte, until-pos+1)
+						/*data = make([]byte, maxAttrSize+1)
 						var flagStr bitString
 						if addFragmentBit {
 							flagStr = bitString("01000000")
@@ -554,11 +555,20 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 						}
 						flagByte := flagStr.AsByteSlice()
 						data[0] = flagByte[0]
-						copy(data[1:], reply[pos:until])
-						eapResponseData = data*/
+						copy(data[1:], eapState.TlsBuffer[pos:(pos+maxAttrSize)])
+						radiusServHelloPacket := radius.EapPacket{
+							Identifier: eapId,
+							Code:       radius.EapCodeRequest,
+							Type:       13,
+							Data:       data, //reply[pos:until],
+						}
+						eapResponseData = radiusServHelloPacket.Encode()*/
+
+						//eapResponseData = data
 						data = make([]byte, maxAttrSize)
 						copy(data, eapState.TlsBuffer[pos:(pos+maxAttrSize)])
 						eapResponseData = data //eapState.TlsBuffer[pos:(pos + maxAttrSize)]
+
 					}
 
 					log.Printf("[EAP-TLS] DEBUG: copied data from %d to %d, radius attr data size=%d", pos, pos+maxAttrSize, len(eapResponseData))
