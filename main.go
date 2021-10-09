@@ -214,11 +214,13 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			log.Printf("[RADIUS] request contains an invalid EAP message (length < 5)")
 			npac.Code = radius.AccessReject
 			return npac
-		} else if len(checkEapAvp.Value) == 253 { // we may have a big EAP packet split into multiple AVPs
+		} else if len(checkEapAvp.Value) == 253 {
+			// We may have a big EAP packet split into multiple AVPs
 			totalEapMsgSize := binary.BigEndian.Uint16(checkEapAvp.Value[2:4])
-			log.Printf("[EAP] DEBUG: received EAP message with multiple fragments (%d total length)", totalEapMsgSize)
+			log.Printf("[EAP] DEBUG: received EAP message (%d total length) split into multiple Radius AVPs", totalEapMsgSize)
 			binary.BigEndian.PutUint16(checkEapAvp.Value[2:4], uint16(253))
 			var err error
+			// The first AVP contains the EAP packet header
 			eap, err = radius.EapDecode(checkEapAvp.Value)
 			if err != nil {
 				log.Printf("[EAP] unable to parse first EAP fragment: %s", err)
@@ -229,9 +231,10 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			for _, avp := range request.AVPs {
 				if avp.Type == radius.EAPMessage {
 					if !eapAVPStarted {
-						//eap.Data = append(eap.Data, avp.Value[5:]...)
 						eapAVPStarted = true
 					} else {
+						log.Printf(">>>>>>>>>> Current EAP packet data len=%d, adding %d bytes", len(eap.Data), len(avp.Value))
+						// Subsequent EAP AVPs contain raw data to be concatenated to the first AVP
 						eap.Data = append(eap.Data, avp.Value...)
 					}
 				}
@@ -264,7 +267,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 
 		// [rfc3579] 2.6.2. Role Reversal
 		if eap.Code == radius.EapCodeRequest {
-			log.Printf("[EAP] Received unsupported packet type %s", eap.Code.String())
+			log.Printf("[EAP] Received unsupported packet type '%s', rejecting", eap.Code.String())
 			npac.Code = radius.AccessReject
 			rejectResponseEAPPacket := radius.EapPacket{
 				Identifier: eap.Identifier,
@@ -622,7 +625,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					}
 					eapState.TlsBuffer = make([]byte, tlsRecordSize)
 
-				} else {
+				} else if eapState.Step != TlsClientKeyExchange {
 					eapState.TlsBuffer = make([]byte, len(eap.Data))
 				}
 
@@ -634,7 +637,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 
 				// We assume that if we have lengthIncluded or hasMoreFragments or both, then the first byte is an EAP-TLS fragmentation header
 				// Otherwise we assume that the is no fragmentation byte and that the TLS record starts at pos 0. But is that correct?
-				if lengthIncluded || hasMoreFragments {
+				if lengthIncluded || hasMoreFragments || eap.Data[0] == 0 {
 					tlsDataPos += 1
 				}
 
@@ -642,15 +645,15 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			}
 
 			if eapState.Step == TlsClientKeyExchange {
-				log.Printf(">>>> TLS buffer size=%d, pos=%d, tlsDataPos=%d, tlsDataLen=%d", len(eapState.TlsBuffer), eapState.BufferPos, tlsDataPos, eap.Data[tlsDataPos:])
-				copy(eapState.TlsBuffer[eapState.BufferPos:len(eap.Data[tlsDataPos:])], eap.Data[tlsDataPos:])
-				eapState.BufferPos += len(eap.Data) - tlsDataPos
+				log.Printf(">>>> TLS buffer size=%d, pos=%d, tlsDataPos=%d, tlsDataLen=%d", len(eapState.TlsBuffer), eapState.BufferPos, tlsDataPos, len(eap.Data[tlsDataPos:]))
+				copied := copy(eapState.TlsBuffer[eapState.BufferPos:], eap.Data[tlsDataPos:])
+				eapState.BufferPos += copied
 				sessions[*sessionId].EapTlsState = eapState
 
 				hasMoreFragments := (eap.Data[0] & (1 << 6)) != 0
 				if hasMoreFragments {
 					if eapState.BufferPos >= len(eapState.TlsBuffer) {
-						log.Print("[EAP-TLS] 💥 client wants to send more TLS data than accounced, rejecting")
+						log.Print("[EAP-TLS] 💥 client wants to send more TLS data than announced, rejecting")
 						npac.Code = radius.AccessReject
 						return npac
 					}
@@ -674,7 +677,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					log.Printf("[EAP-TLS] DEBUG: more EAP fragments expected from client, sending ACK")
 					return npac
 				} else {
-					log.Printf("[EAP-TLS] DEBUG: received client_key_exchange from client")
+					log.Printf("[EAP-TLS] DEBUG: no more EAP fragments expected from client, received client_key_exchange, %d/%d bytes", eapState.BufferPos, len(eapState.TlsBuffer))
 				}
 
 				tlsPacket = eapState.TlsBuffer
