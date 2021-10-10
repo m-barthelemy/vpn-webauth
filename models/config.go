@@ -18,7 +18,10 @@ type Config struct {
 	AdminEmail             string        // ADMINEMAIL
 	ConnectionsRetention   int           // CONNECTIONSRETENTION
 	Debug                  bool          // DEBUG
+	EAPMode                string        // EAPMODE
 	EAPMSCHAPv2Password    string        // EAPMSCHAPV2PASSWORD
+	EAPTLSCertificatePath  string        // EAPTLSCERTIFICATEPATH
+	EAPTLSKeyPath          string        // EAPTLSKEYPATH
 	Port                   int           // PORT
 	Host                   string        // HOST
 	DbType                 string        // DBTYPE
@@ -139,6 +142,9 @@ func (config *Config) Verify() {
 	if config.EnableRadiusEAP {
 		if config.RadiusSecret == "" {
 			log.Fatal("ENABLERADIUSEAP is true, so RADIUSSECRET must be set")
+		}
+		if config.EAPMode != "mschapv2" && config.EAPMode != "tls" {
+			log.Fatal("ENABLERADIUSEAP is true, so EAPMODE must be set to either 'mschapv2' or 'tls'")
 		}
 	}
 	config.SSLMode = strings.ToLower(config.SSLMode)

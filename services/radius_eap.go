@@ -95,7 +95,7 @@ func (r *RadiusService) Start() {
 	socketPath := tmpfile.Name()
 	os.Remove(socketPath)
 
-	// Start a TLS listener
+	// Start the "TLS handshake proxy" in charge of EAP-TLS connections
 	log.Println("starting TLS handshake service...")
 	tlsConfig := getTLSServerConfig()
 	handshakeServer, err := tls.Listen("unix", socketPath, tlsConfig)
