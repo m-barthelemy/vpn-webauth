@@ -301,8 +301,12 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 
 		switch eap.Type {
 		case radius.EapTypeIdentity:
-			//sendMSCHAPv2Challenge(userName, eap, npac)
-			sendTLSRequest(userName, eap, npac, request)
+			if r.config.EAPMode == "mschapv2" {
+				sendMSCHAPv2Challenge(userName, eap, npac)
+			} else if r.config.EAPMode == "tls" {
+				sendTLSRequest(userName, eap, npac, request)
+			}
+
 			log.Printf("[EAP] Sending MSCHAPv2 or TLS-Start request as a response to EAP identity request")
 			return npac
 
