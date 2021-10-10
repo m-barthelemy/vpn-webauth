@@ -92,15 +92,15 @@ func (r *RadiusService) Start() {
 	if err != nil {
 		log.Fatalf("[EAP-TLS] failed to create temporary file for handshake server: %v", err)
 	}
-	socketPath := tmpfile.Name()
-	os.Remove(socketPath)
+	r.handshakeSocketPath = tmpfile.Name()
+	os.Remove(r.handshakeSocketPath)
 
 	// Start the "TLS handshake proxy" in charge of EAP-TLS connections
 	log.Println("starting TLS handshake service...")
 	tlsConfig := getTLSServerConfig()
-	handshakeServer, err := tls.Listen("unix", socketPath, tlsConfig)
+	handshakeServer, err := tls.Listen("unix", r.handshakeSocketPath, tlsConfig)
 	if err != nil {
-		log.Fatalf("[TLS] failed to bind unix socket %q for TLS handshake server: %v", socketPath, err)
+		log.Fatalf("[TLS] failed to bind unix socket %q for TLS handshake server: %v", r.handshakeSocketPath, err)
 	}
 
 	// Start a background thread reading the conn
@@ -119,7 +119,7 @@ func (r *RadiusService) Start() {
 	}()
 
 	radiusAddr := fmt.Sprintf("0.0.0.0:%d", r.config.RadiusPort)
-	s := radius.NewServer(radiusAddr, r.config.RadiusSecret, &RadiusService{handshakeSocketPath: socketPath})
+	s := radius.NewServer(radiusAddr, r.config.RadiusSecret, r)
 
 	go func() {
 		log.Printf("[RADIUS] Starting listener (%s)...", radiusAddr)
@@ -772,8 +772,8 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 	return npac
 }
 
-func getTLSServerConfig() *tls.Config {
-	serverCert, err := tls.LoadX509KeyPair("/tmp/server.crt", "/tmp/server.key")
+func (r *RadiusService) getTLSServerConfig() *tls.Config {
+	serverCert, err := tls.LoadX509KeyPair(r.config.EAPTLSCertificatePath, r.config.EAPTLSKeyPath)
 	if err != nil {
 		log.Fatalf("[EAP-TLS] error getting VPN server certificate or key: %s", err)
 	}

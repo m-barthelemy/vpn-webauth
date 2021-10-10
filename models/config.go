@@ -146,6 +146,12 @@ func (config *Config) Verify() {
 		if config.EAPMode != "mschapv2" && config.EAPMode != "tls" {
 			log.Fatal("ENABLERADIUSEAP is true, so EAPMODE must be set to either 'mschapv2' or 'tls'")
 		}
+		if config.EAPMode == "mschapv2" && config.EAPMSCHAPv2Password == "" {
+			log.Fatal("EAPMODE is set to 'mschapv2', so EAPMSCHAPV2PASSWORD must be set")
+		}
+		if config.EAPMode == "tls" && (config.EAPTLSCertificatePath == "" || config.EAPTLSKeyPath == "") {
+			log.Fatal("EAPMODE is set to 'tls', so EAPTLSCERTIFICATEPATH and EAPTLSKEYPATH must be set")
+		}
 	}
 	config.SSLMode = strings.ToLower(config.SSLMode)
 	if config.SSLMode != "off" && config.SSLMode != "auto" && config.SSLMode != "custom" && config.SSLMode != "proxy" {
