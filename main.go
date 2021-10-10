@@ -96,6 +96,9 @@ func main() {
 	if len(radiusSecret) < minRadiusSecretLength {
 		log.Fatalf("[RADIUS] secret must be at least %d characters", minRadiusSecretLength)
 	}
+	sessions.SetTTL(sessionTimeout)
+	sessions.SkipTTLExtensionOnHit(true)
+
 	// TLS "proxy" used for EAP-TLS handshake
 	tmpfile, err := ioutil.TempFile("", "eap-tls-handshake")
 	if err != nil {
@@ -128,7 +131,7 @@ func main() {
 	}()
 
 	s := radius.NewServer("0.0.0.0:5022", radiusSecret, &RadiusService{handshakeSocketPath: socketPath})
-	sessions.SetTTL(time.Duration(60 * time.Second))
+
 	go func() {
 		log.Println("Starting Radius listener...")
 		err := s.ListenAndServe()
@@ -195,6 +198,9 @@ const radiusSecret = "mamiemamiemamiem"
 // TODO: require at least 24 chars
 const userPassword = "mamie est conne"
 
+// This is the maximum time a client has to complete the full authentication
+const sessionTimeout = 64 * time.Second
+
 // Protect ourselves against suspicously big records
 const maxTlsRecordSize = 64 * 1024
 const eapHeaderSize = 5
@@ -231,9 +237,7 @@ const (
 	TlsAuthentication    EapTlsStep = 3
 )
 
-// TODO: protect/lock for concurrent access
-//var sessions = make(map[[32]byte]*RadiusSession)
-var sessions ttlcache.SimpleCache = ttlcache.NewCache()
+var sessions ttlcache.Cache = *ttlcache.NewCache()
 
 // Check https://github.com/keysonZZZ/kmg/blob/master/third/kmgRadius/Auth.go
 // for EAP and MSCHAP challenge response
@@ -377,17 +381,15 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			}
 			log.Printf("[MsCHAPv2] Received request with OpCode %s", msChapV2Packet.OpCode().String())
 
-			var sessionId string
+			sessionId, session, err := checkRadiusSession(request)
+			if err != nil {
+				log.Printf("Invalid State/Session ID %s", sessionId)
+				npac.Code = radius.AccessReject
+				return npac
+			}
 
 			switch msChapV2Packet.OpCode() {
 			case MSCHAPV2.OpCodeResponse:
-				sessionId, session, err := checkRadiusSession(request)
-				if err != nil {
-					log.Printf("Invalid State/Session ID %s", sessionId)
-					npac.Code = radius.AccessReject
-					return npac
-				}
-
 				session.NTResponse = msChapV2Packet.(*MSCHAPV2.ResponsePacket).NTResponse
 
 				npac.SetAVP(radius.AVP{
@@ -420,13 +422,6 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 				return npac
 
 			case MSCHAPV2.OpCodeSuccess:
-				sessionId, session, err := checkRadiusSession(request)
-				if err != nil {
-					log.Printf("Invalid State/Session ID %s", sessionId)
-					npac.Code = radius.AccessReject
-					return npac
-				}
-
 				npac.AddAVP(radius.AVP{
 					Type:  radius.AttributeType(radius.UserName),
 					Value: []byte(request.GetUsername()),
@@ -476,11 +471,13 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 				})
 				log.Printf("[Radius] Sending Access-Accept response to NAS '%s' for user '%s'", request.GetNASIdentifier(), request.GetUsername())
 				npac.Code = radius.AccessAccept
+				sessions.Remove(sessionId)
 				return npac
 
 			default:
 				log.Printf("[MsCHAPv2] 💥 Invalid request OpCode %s", msChapV2Packet.OpCode().String())
 				npac.Code = radius.AccessReject
+				sessions.Remove(sessionId)
 				return npac
 			}
 
@@ -784,7 +781,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 				log.Printf("[EAP-TLS] sending TLS finished, %d bytes", read)
 				eapState.Step = TlsAuthentication
 				session.EapTlsState = eapState
-				sessions.SetWithTTL(sessionId, session, 60*time.Second)
+				sessions.SetWithTTL(sessionId, session, sessionTimeout)
 			} else if eapState.Step == TlsAuthentication {
 				tlsAuthResponse := make([]byte, 2048)
 				read, err := eapState.TlsServerConn.Read(tlsAuthResponse)
@@ -810,6 +807,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					Value: acceptRejectPacket.Encode(),
 				})
 				eapState.TlsServerConn.Close()
+				sessions.Remove(sessionId)
 			}
 
 			return npac
@@ -862,11 +860,10 @@ func getTLSServerConfig() *tls.Config {
 	if err != nil {
 		log.Fatalf("[EAP-TLS] failed to parse clients CA certificate: " + err.Error())
 	}
-	//log.Printf("[EAP-TLS] will present ourselves as a TLS server with cert %s")
 	log.Printf("[EAP-TLS] will accept client certificates signed by CA %s", cert.Subject.String())
 	validityDays := cert.NotAfter.Sub(time.Now()).Hours() / 24
 	if validityDays < 30 {
-		log.Printf("WARNING: CA certificate expires in %d days", math.Round(validityDays))
+		log.Printf("WARNING: CA certificate expires in %f days", math.Round(validityDays))
 	}
 	return &tls.Config{
 		MinVersion:                  tls.VersionTLS12,
@@ -889,15 +886,14 @@ func sendMSCHAPv2Challenge(userName string, eap *radius.EapPacket, npac *radius.
 		npac.Code = radius.AccessReject
 		return
 	}
-	sessionIdRaw := make([]byte, 32)
-	_, err = rand.Read(sessionIdRaw)
+
+	sessionId, err := createSessionId()
 	if err != nil {
-		log.Printf("unable to generate random data for MS-CHAPv2 session ID: %s", err)
+		log.Printf("[EAP-TLS] 💥 unable to generate session ID: %s", err)
 		npac.Code = radius.AccessReject
 		return
 	}
 
-	sessionId := string(sessionIdRaw)
 	session := &RadiusSession{
 		Challenge: mschapV2Challenge,
 	}
@@ -905,7 +901,7 @@ func sendMSCHAPv2Challenge(userName string, eap *radius.EapPacket, npac *radius.
 	npac.Code = radius.AccessChallenge
 	npac.SetAVP(radius.AVP{
 		Type:  radius.State,
-		Value: sessionIdRaw,
+		Value: []byte(sessionId),
 	})
 
 	challengeP := MSCHAPV2.ChallengePacket{
@@ -926,7 +922,7 @@ func sendMSCHAPv2Challenge(userName string, eap *radius.EapPacket, npac *radius.
 		Value: challengeEAPPacket.Encode(),
 	})
 
-	sessions.SetWithTTL(sessionId, session, 60*time.Second)
+	sessions.Set(sessionId, session)
 	return
 }
 
@@ -934,19 +930,17 @@ func sendTLSRequest(userName string, eap *radius.EapPacket, npac *radius.Packet,
 	npac.Code = radius.AccessChallenge
 
 	// Session not supposed to exist at this point
-	sessionIdRaw := make([]byte, 32)
-	_, err := rand.Read(sessionIdRaw)
+	sessionId, err := createSessionId()
 	if err != nil {
-		log.Printf("[EAP-TLS] 💥 unable to generate random data for session ID: %s", err)
+		log.Printf("[EAP-TLS] 💥 unable to generate session ID: %s", err)
 		npac.Code = radius.AccessReject
 		return
 	}
-	sessionId := string(sessionIdRaw)
 	session := &RadiusSession{}
 
 	npac.SetAVP(radius.AVP{
 		Type:  radius.State,
-		Value: sessionIdRaw,
+		Value: []byte(sessionId),
 	})
 
 	b := make([]byte, 1)
@@ -966,7 +960,7 @@ func sendTLSRequest(userName string, eap *radius.EapPacket, npac *radius.Packet,
 	session.EapTlsState = EapTlsState{
 		Step: TlsStart,
 	}
-	sessions.SetWithTTL(sessionId, session, 60*time.Second)
+	sessions.Set(sessionId, session)
 	return
 }
 
@@ -992,13 +986,12 @@ func (b bitString) AsByteSlice() []byte {
 }
 
 func createSessionId() (string, error) {
-	sessionId := [64]byte{}
+	sessionId := make([]byte, 32)
 	_, err := rand.Read(sessionId[:])
 	if err != nil {
 		return "", err
 	}
-	str := base64.RawURLEncoding.EncodeToString(sessionId[:])
-	return str, nil
+	return base64.StdEncoding.EncodeToString(sessionId), nil
 }
 
 func getSession(id string) (*RadiusSession, error) {
