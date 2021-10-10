@@ -73,6 +73,7 @@ func (config *Config) New() Config {
 		MFAOTP:                 true,
 		MFATouchID:             true,
 		MFAWebauthn:            true,
+		RadiusPort:             1812,
 		SSLMode:                "off",
 		SSLAutoCertsDir:        "/tmp",
 		SSLCustomCertPath:      "/ssl/cert.pem",
