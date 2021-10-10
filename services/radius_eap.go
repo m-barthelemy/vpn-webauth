@@ -23,12 +23,8 @@ import (
 	"github.com/m-barthelemy/vpn-webauth/models"
 )
 
-const minRadiusSecretLength = 16
-const radiusSecret = "mamiemamiemamiem"
-
 // [rfc3579] 4.3.3.  Dictionary Attacks: secret should be at least 16 characters
-// TODO: require at least 24 chars
-const userPassword = "mamie est conne"
+const minRadiusSecretLength = 16
 
 // This is the maximum time a client has to complete the full authentication
 const sessionTimeout = 64 * time.Second
@@ -78,7 +74,7 @@ type RadiusService struct {
 
 func NewRadiusServer(config *models.Config) *RadiusService {
 	// For security reasons we require the Radius secret to have a min length (which is still weak)
-	if len(radiusSecret) < minRadiusSecretLength {
+	if len(config.RadiusSecret) < minRadiusSecretLength {
 		log.Fatalf("[RADIUS] secret must be at least %d characters", minRadiusSecretLength)
 	}
 	sessions = *ttlcache.NewCache()
@@ -123,7 +119,7 @@ func (r *RadiusService) Start() {
 	}()
 
 	radiusAddr := fmt.Sprintf("0.0.0.0:%d", r.config.RadiusPort)
-	s := radius.NewServer(radiusAddr, radiusSecret, &RadiusService{handshakeSocketPath: socketPath})
+	s := radius.NewServer(radiusAddr, r.config.RadiusSecret, &RadiusService{handshakeSocketPath: socketPath})
 
 	go func() {
 		log.Printf("[RADIUS] Starting listener (%s)...", radiusAddr)
@@ -179,7 +175,7 @@ func handleTlsConnection(conn net.Conn, tlsConfig *tls.Config) {
 
 // Check https://github.com/keysonZZZ/kmg/blob/master/third/kmgRadius/Auth.go
 // for EAP and MSCHAP challenge response
-func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
+func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 	fmt.Println("---------------------------------------------------------")
 	// TODO: this crashes when receiving the final EAP response after sending change_cipher_spec
 	/*
@@ -339,7 +335,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					AuthenticatorChallenge: session.Challenge,
 					Response:               msChapV2Packet.(*MSCHAPV2.ResponsePacket),
 					Username:               []byte(request.GetUsername()),
-					Password:               []byte(userPassword),
+					Password:               []byte(r.config.EAPMSCHAPv2Password),
 					//Message:                "Success",
 				})
 
@@ -377,7 +373,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					Value: []byte{0x00, 0x00, 0x01, 0x37, 0x08, 0x06, 0, 0, 0, 6},
 				})
 
-				sendkey, recvKey := MSCHAPV2.MsCHAPV2GetSendAndRecvKey([]byte(userPassword), session.NTResponse)
+				sendkey, recvKey := MSCHAPV2.MsCHAPV2GetSendAndRecvKey([]byte(r.config.EAPMSCHAPv2Password), session.NTResponse)
 				sendKeyMsmpp, err := MSCHAPV2.NewMSMPPESendOrRecvKeyVSA(request, MSCHAPV2.VendorTypeMSMPPESendKey, sendkey).Encode()
 				if err != nil {
 					log.Printf("[MsCHAPv2] Unable to generate ???? for sendkey")
@@ -458,7 +454,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			}
 
 			if eapState.Step == TlsStart && !isAck {
-				conn, err := net.Dial("unix", p.handshakeSocketPath)
+				conn, err := net.Dial("unix", r.handshakeSocketPath)
 				if err != nil {
 					log.Printf("[EAP-TLS] 💥 unable to connect to TLS handshake server: %s", err)
 					npac.Code = radius.AccessReject

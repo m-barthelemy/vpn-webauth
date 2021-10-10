@@ -18,18 +18,20 @@ type Config struct {
 	AdminEmail             string        // ADMINEMAIL
 	ConnectionsRetention   int           // CONNECTIONSRETENTION
 	Debug                  bool          // DEBUG
+	EAPMSCHAPv2Password    string        // EAPMSCHAPV2PASSWORD
 	Port                   int           // PORT
 	Host                   string        // HOST
 	DbType                 string        // DBTYPE
 	DbDSN                  string        // DBDSN
+	EnableNotifications    bool          // ENABLENOTIFICATIONS
+	EnableRadiusEAP        bool          // ENABLERADIUSEAP
+	EnforceMFA             bool          // ENFORCEMFA
 	ExcludedIdentities     []string      // EXCLUDEDIDENTITIES
 	RedirectDomain         *url.URL      // REDIRECTDOMAIN
 	OAuth2ClientID         string        // OAUTH2LIENTID
 	OAuth2ClientSecret     string        // OAUTH2CLIENTSECRET
 	OAuth2Provider         string        // OAUTH2PROVIDER
 	OAuth2Tenant           string        // OAUTH2TENANT
-	EnableNotifications    bool          // ENABLENOTIFICATIONS
-	EnforceMFA             bool          // ENFORCEMFA
 	MaxBodySize            int64         // not documented
 	MFAOTP                 bool          // MFAOTP
 	Issuer                 string        // ISSUER
@@ -60,6 +62,7 @@ func (config *Config) New() Config {
 		DbType:                 "sqlite",
 		DbDSN:                  "/tmp/vpnwa.db",
 		Debug:                  false,
+		EnableRadiusEAP:        false,
 		ExcludedIdentities:     []string{},
 		Port:                   8080,
 		Host:                   "127.0.0.1",
@@ -131,6 +134,11 @@ func (config *Config) Verify() {
 				log.Printf("VAPIDPRIVATEKEY=\"%s\"", privateKey)
 			}
 			log.Fatal("Add them to the environment variables. VAPIDPRIVATEKEY is sensitive, keep it secret.")
+		}
+	}
+	if config.EnableRadiusEAP {
+		if config.RadiusSecret == "" {
+			log.Fatal("ENABLERADIUSEAP is true, so RADIUSSECRET must be set")
 		}
 	}
 	config.SSLMode = strings.ToLower(config.SSLMode)

@@ -68,8 +68,10 @@ func main() {
 		log.Printf("Could not delete old VPN connections log entries: %s", err.Error())
 	}
 
-	eapServer := services.NewRadiusServer(&config)
-	eapServer.Start()
+	if config.EnableRadiusEAP {
+		eapServer := services.NewRadiusServer(&config)
+		eapServer.Start()
+	}
 
 	startServer(&config, routes.New(&config, db))
 }
