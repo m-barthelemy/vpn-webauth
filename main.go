@@ -93,6 +93,10 @@ func main() {
 		rad.Start()
 	}()*/
 
+	// For security reasons we require the Radius secret to have a min length (which is still weak)
+	if len(radiusSecret) < minRadiusSecretLength {
+		log.Fatalf("[RADIUS] secret must be at least %d characters", minRadiusSecretLength)
+	}
 	// TLS "proxy" used for EAP-TLS handshake
 	tmpfile, err := ioutil.TempFile("", "eap-tls-handshake")
 	if err != nil {
@@ -156,6 +160,11 @@ func handleConnection(conn net.Conn, tlsConfig *tls.Config) {
 			conn.Close()
 			return
 		}
+		log.Printf(">>>>>>>>>> client cert alt names: dns=%s, email=%s, ips=%s, extranames=%s", clientCert.DNSNames, clientCert.EmailAddresses, clientCert.IPAddresses, clientCert.Subject.ExtraNames)
+		// TODO: here we need to get the client identity received by Radius and check if it's present in any of the cert subject fields
+		// While not required strictly speaking, this is what Strongswan does, as it ensures the user is who they pretent to be.
+		// This becomes necessary if the VPN has different connections per user (different allowed subnets...)
+
 		opts := x509.VerifyOptions{
 			Roots:     tlsConfig.ClientCAs,
 			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
@@ -169,8 +178,9 @@ func handleConnection(conn net.Conn, tlsConfig *tls.Config) {
 			conn.Close()
 			return
 		}
+
 		// Successful client authentication
-		dummyData := make([]byte, 1024)
+		dummyData := make([]byte, dummyTlsOkDataSize)
 		conn.Write(dummyData)
 	}
 }
@@ -180,6 +190,7 @@ type RadiusService struct {
 	handshakeSocketPath string
 }
 
+const minRadiusSecretLength = 16
 const radiusSecret = "mamiemamiemamiem"
 
 // [rfc3579] 4.3.3.  Dictionary Attacks: secret should be at least 16 characters
@@ -189,6 +200,10 @@ const userPassword = "mamie est conne"
 // Protect ourselves against suspicously big records
 const maxTlsRecordSize = 64 * 1024
 const eapHeaderSize = 5
+
+// If the TLS server successfully authenticates the client, it will write some random data.
+// A failed TLs auth will return a much smaller value. This is for now the fastest and simplest way of getting the TLS handshake status from the TLS server/proxy
+const dummyTlsOkDataSize = 1024
 
 type RadiusSession struct {
 	Challenge   [16]byte
@@ -201,7 +216,12 @@ type EapTlsState struct {
 	TlsServerConn net.Conn
 	TlsBuffer     []byte
 	BufferPos     int
-	//Authorized    bool
+}
+
+// communication between EAP and the TLS handshake proxy
+type TLSAuthInfo struct {
+	Authorized bool
+	Identity   string
 }
 
 type EapTlsStep uint
@@ -515,7 +535,6 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					npac.Code = radius.AccessReject
 					return npac
 				}
-				//defer conn.Close()
 
 				written, err := conn.Write(tlsPacket)
 				if err != nil {
@@ -693,7 +712,6 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			}
 
 			if eapState.Step == TlsClientKeyExchange {
-				//log.Printf(">>>> TLS buffer size=%d, pos=%d, tlsDataPos=%d, tlsDataLen=%d", len(eapState.TlsBuffer), eapState.BufferPos, tlsDataPos, len(eap.Data[tlsDataPos:]))
 				copied := copy(eapState.TlsBuffer[eapState.BufferPos:], eap.Data[tlsDataPos:])
 				eapState.BufferPos += copied
 				sessions[*sessionId].EapTlsState = eapState
@@ -739,7 +757,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					npac.Code = radius.AccessReject
 					return npac
 				}
-				reply := make([]byte, 16*1024)
+				reply := make([]byte, 4*1024)
 				read, err := eapState.TlsServerConn.Read(reply)
 				if err != nil {
 					log.Printf("[EAP-TLS] 💥 unable to read TLS server response to client_key_exchange : %s", err)
@@ -775,7 +793,6 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			} else if eapState.Step == TlsAuthentication {
 				tlsAuthResponse := make([]byte, 2048)
 				read, err := eapState.TlsServerConn.Read(tlsAuthResponse)
-				log.Printf(">>>>>>>>>>>>>>>>>>>>>>> TLS server auth, read %d bytes", read)
 				// When the TLS authentication is successful, it will reply with 1024 bytes of dummy data
 				// IF we receive less than that, then the TLS authentication failed.
 				acceptRejectPacket := radius.EapPacket{
@@ -783,7 +800,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					Type:       13,
 					Data:       []byte{0},
 				}
-				if err != nil || read < 1024 {
+				if err != nil || read < dummyTlsOkDataSize {
 					log.Printf("[EAP-TLS] 💥 TLS server rejected client")
 					npac.Code = radius.AccessReject
 					acceptRejectPacket.Code = radius.EapCodeFailure
@@ -797,6 +814,7 @@ func (p *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 					Type:  radius.AttributeType(radius.EAPMessage),
 					Value: acceptRejectPacket.Encode(),
 				})
+				eapState.TlsServerConn.Close()
 			}
 
 			return npac
@@ -961,7 +979,6 @@ func sendTLSRequest(userName string, eap *radius.EapPacket, npac *radius.Packet,
 		Type:  radius.AttributeType(radius.EAPMessage),
 		Value: eapTlsInitResponse.Encode(),
 	})
-	//npac.Identifier++
 	sessions[sessionId].EapTlsState = EapTlsState{
 		Step: TlsStart,
 	}
