@@ -75,7 +75,7 @@ func main() {
 	// Delete old VPN connections log entries
 	userManager := services.NewUserManager(db, &config)
 	if err := userManager.CleanupConnectionsLog(); err != nil {
-		log.Printf("Could not delete old VPN connections log entries: %s", err.Error())
+		log.Errorf("Could not delete old VPN connections log entries: %s", err.Error())
 	}
 
 	if config.EnableRadiusEAP {
