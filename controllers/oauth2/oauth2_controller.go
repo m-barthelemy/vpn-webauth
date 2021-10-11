@@ -4,13 +4,15 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/m-barthelemy/vpn-webauth/models"
 	services "github.com/m-barthelemy/vpn-webauth/services"
+
 	//oAuthManager "github.com/m-barthelemy/vpn-webauth/services"
 	"github.com/m-barthelemy/vpn-webauth/utils"
 	"gorm.io/gorm"
@@ -23,13 +25,12 @@ type OAuth2Controller struct {
 
 var oAuthProvider services.OAuth2Provider
 
-
 func New(db *gorm.DB, config *models.Config) *OAuth2Controller {
 	// Scopes: OAuth 2.0 scopes provide a way to limit the amount of access that is granted to an access token.
-	
+
 	if config.OAuth2Provider == "google" {
 		oAuthProvider = services.NewGoogleProvider(config.RedirectDomain.String(), "", config.OAuth2ClientID, config.OAuth2ClientSecret)
-		
+
 	} else if config.OAuth2Provider == "azure" {
 		oAuthProvider = services.NewMicrosoftProvider(config.RedirectDomain.String(), "", config.OAuth2ClientID, config.OAuth2ClientSecret)
 	}
@@ -57,33 +58,33 @@ func (g *OAuth2Controller) OAuth2BeginLogin(w http.ResponseWriter, r *http.Reque
 func (g *OAuth2Controller) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 	oauthState, err := r.Cookie("oauthstate")
 	if err != nil {
-		log.Printf("OAuth2Controller: Error fetching OAuth state cookie: %s", err)
+		log.Errorf("OAuth2Controller: Error fetching OAuth state cookie: %s", err)
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
 	// The state value in the URL when Google redirects back to us, and in the `oauthState` cookie, must match.
 	if r.FormValue("state") != oauthState.Value {
-		log.Println("OAuth2Controller: Invalid OAuth state")
+		log.Error("OAuth2Controller: Invalid OAuth state")
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
 	oauthUser, err := oAuthProvider.GetUserInfo(r.FormValue("code"))
 	if err != nil {
-		log.Printf("OAuth2Controller: Error fetching user info from %s: %s", err, g.config.OAuth2Provider)
+		log.Errorf("OAuth2Controller: Error fetching user info from %s: %s", err, g.config.OAuth2Provider)
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
 	if oauthUser.Email == "" {
-		log.Printf("OAuth2Controller: %s user `email` field is null or empty", g.config.OAuth2Provider)
+		log.Errorf("OAuth2Controller: %s user `email` field is null or empty", g.config.OAuth2Provider)
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
 
 	userIdentity := oauthUser.Email
-	log.Printf("User %s completed %s authentication step", userIdentity, g.config.OAuth2Provider)
+	log.Infof("User %s completed %s authentication step", userIdentity, g.config.OAuth2Provider)
 	g.afterFirstAuthStep(userIdentity, w, r)
 }
 
@@ -91,12 +92,12 @@ func (g *OAuth2Controller) afterFirstAuthStep(email string, w http.ResponseWrite
 	userManager := services.NewUserManager(g.db, g.config)
 	user, err := userManager.CheckOrCreate(email)
 	if err != nil {
-		log.Print(err.Error())
+		log.Error(err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	if userManager.CreateSession(user, false, w) != nil {
-		log.Printf("OAuth2Controller: Error creating user oauth2-only session for %s: %s", user.Email, err)
+		log.Errorf("OAuth2Controller: Error creating user oauth2-only session for %s: %s", user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -115,7 +116,7 @@ func (g *OAuth2Controller) afterFirstAuthStep(email string, w http.ResponseWrite
 		}
 		if requestedMFA == nil {
 			if requestedMFA, err = userManager.AddMFA(user, "oauth2", "", r.Header.Get("User-Agent")); err != nil {
-				log.Printf("OAuth2Controller: Error creating UserMFA for %s: %s", user.Email, err)
+				log.Errorf("OAuth2Controller: Error creating UserMFA for %s: %s", user.Email, err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
@@ -123,7 +124,7 @@ func (g *OAuth2Controller) afterFirstAuthStep(email string, w http.ResponseWrite
 
 		err := userManager.CreateVpnSession(user, sourceIP)
 		if err != nil {
-			log.Printf("OAuth2Controller: Error creating VPN session for %s : %s", user.Email, err.Error())
+			log.Errorf("OAuth2Controller: Error creating VPN session for %s : %s", user.Email, err.Error())
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 		http.Redirect(w, r, "/success", http.StatusTemporaryRedirect)
@@ -138,7 +139,7 @@ func (g *OAuth2Controller) afterFirstAuthStep(email string, w http.ResponseWrite
 			}
 		}
 		if len(options) > 1 {
-			log.Printf("OAuth2Controller: User %s already has MFA setup, requesting additional authentication.", user.Email)
+			log.Infof("OAuth2Controller: User %s already has MFA setup, requesting additional authentication.", user.Email)
 			http.Redirect(w, r, fmt.Sprintf("/enter2fa?options=%s", options), http.StatusTemporaryRedirect)
 			return
 		}
@@ -146,7 +147,7 @@ func (g *OAuth2Controller) afterFirstAuthStep(email string, w http.ResponseWrite
 
 	// If we get there, the User has no MFA configured or validated.
 	options := utils.New(g.config).GetAllowedMFAs()
-	log.Printf("OAuth2Controller: User %s hasn't setup MFA, redirecting to MFA selection.", email)
+	log.Infof("OAuth2Controller: User %s hasn't setup MFA, redirecting to MFA selection.", email)
 	http.Redirect(w, r, fmt.Sprintf("/choose2fa?options=%s", strings.Join(options, ",")), http.StatusTemporaryRedirect)
 }
 

@@ -3,8 +3,9 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/asaskevich/EventBus"
@@ -91,7 +92,7 @@ func (n *NotificationsManager) NotifyUser(user *models.User, sourceIP string) (b
 		notified = true
 	}
 	if deletedCount > 0 {
-		log.Printf("NotificationsManager: Deleted %d inactive push subscriptions for %s", deletedCount, user.Email)
+		log.Infof("NotificationsManager: Deleted %d inactive push subscriptions for %s", deletedCount, user.Email)
 	}
 
 	// Also send to clients using SSE fallback
@@ -120,7 +121,7 @@ func (n *NotificationsManager) WaitForBrowserProof(user *models.User, sourceIP s
 		if id == nonce {
 			channel <- true
 		} else {
-			log.Printf("NotificationsManager: invalid browser response for %s: nonce doesn't match expected value", user.Email)
+			log.Errorf("NotificationsManager: invalid browser response for %s: nonce doesn't match expected value", user.Email)
 			channel <- false
 		}
 	}
@@ -139,7 +140,7 @@ func (n *NotificationsManager) WaitForBrowserProof(user *models.User, sourceIP s
 		} // otherwise there can still be a browser having a valid session that has not yet replied.
 	// Wait for a short interval to not clog the VPN server that waiting for a reply in blocking mode
 	case <-time.After(n.config.WebSessionProofTimeout):
-		log.Printf("NotificationsManager: No active web session replied on time for user %s", user.Email)
+		log.Errorf("NotificationsManager: No active web session replied on time for user %s", user.Email)
 	}
 	close(channel)
 	eventBus.Unsubscribe(fmt.Sprintf("%s:%s", user.Email, sourceIP), checkWebSessions)

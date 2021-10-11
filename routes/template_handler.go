@@ -3,10 +3,11 @@ package routes
 import (
 	"html/template"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"github.com/markbates/pkger"
@@ -38,7 +39,7 @@ func (g *TemplateHandler) HandleEmbeddedTemplate(response http.ResponseWriter, r
 
 	err := templates.ExecuteTemplate(response, fileName, g.config)
 	if err != nil {
-		log.Printf("Error serving template %s: %s", fileName, err.Error())
+		log.Errorf("Error serving template %s: %s", fileName, err.Error())
 		http.Error(response, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }

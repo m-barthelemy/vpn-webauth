@@ -3,11 +3,12 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"golang.org/x/crypto/acme/autocert"
@@ -76,7 +77,7 @@ func startServer(config *models.Config, handler http.Handler) {
 		Handler:           &topHandler{config: config, handler: handler}, // Ensure requests time out except for SSE endpoint
 	}
 
-	log.Printf("Serving http/https for domains: %+v", domain)
+	log.Infof("Serving http/https for domains: %+v", domain)
 	if config.SSLMode == "auto" {
 		go func() {
 			// Serve HTTP, which will redirect automatically to HTTPS

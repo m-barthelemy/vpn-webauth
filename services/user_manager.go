@@ -2,9 +2,10 @@ package services
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/golang-jwt/jwt"
 	"github.com/m-barthelemy/vpn-webauth/models"
@@ -47,7 +48,7 @@ func (m *UserManager) CheckOrCreate(email string) (*models.User, error) {
 			if result.Error != nil {
 				return nil, result.Error
 			}
-			log.Printf("UserManager: Created new user %s", user.Email)
+			log.Infof("UserManager: Created new user %s", user.Email)
 		} else {
 			return nil, result.Error
 		}
@@ -97,7 +98,7 @@ func (m *UserManager) CreateVpnSession(user *models.User, ip string) error {
 	if result.Error != nil {
 		return result.Error
 	}
-	log.Printf("UserController: User %s created VPN session from %s", user.Email, ip)
+	log.Infof("UserController: User %s created VPN session from %s", user.Email, ip)
 	return nil
 }
 
@@ -137,7 +138,7 @@ func (m *UserManager) AddMFA(user *models.User, mfaType string, data string, use
 	if result.Error != nil {
 		return nil, result.Error
 	}
-	log.Printf("UserManager: Created %s UserMFA for %s", mfaType, user.Email)
+	log.Infof("UserManager: Created %s UserMFA for %s", mfaType, user.Email)
 
 	return &userMFA, nil
 }
@@ -186,7 +187,7 @@ func (m *UserManager) ValidateMFA(mfa *models.UserMFA, data string) (*models.Use
 		return nil, result.Error
 	}
 
-	log.Printf("UserManager: Validated %s UserMFA for User %s", userMFA.Type, userMFA.ID.String())
+	log.Infof("UserManager: Validated %s UserMFA for User %s", userMFA.Type, userMFA.ID.String())
 	return &userMFA, nil
 }
 
@@ -212,7 +213,7 @@ func (m *UserManager) AddUserSubscription(user *models.User, subscription *model
 	if result.Error != nil {
 		return nil, result.Error
 	}
-	log.Printf("UserManager: Created Web push subscription for %s", user.Email)
+	log.Infof("UserManager: Created Web push subscription for %s", user.Email)
 
 	return subscription, nil
 }

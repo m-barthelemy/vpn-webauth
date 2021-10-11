@@ -2,8 +2,9 @@ package routes
 
 import (
 	"context"
-	"log"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/golang-jwt/jwt"
 	"github.com/m-barthelemy/vpn-webauth/models"
@@ -81,7 +82,7 @@ func (s *SessionHandler) IdentificationMiddleware(jwtKey []byte, h http.HandlerF
 		}
 		session, err := r.Cookie(cookieName)
 		if err != nil {
-			log.Printf("Cannot find identification cookie: %s", err.Error())
+			log.Errorf("Cannot find identification cookie: %s", err.Error())
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}

@@ -4,10 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"log"
 	"net/url"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/SherClockHolmes/webpush-go"
 )
@@ -22,6 +23,7 @@ type Config struct {
 	EAPMSCHAPv2Password    string        // EAPMSCHAPV2PASSWORD
 	EAPTLSCertificatePath  string        // EAPTLSCERTIFICATEPATH
 	EAPTLSKeyPath          string        // EAPTLSKEYPATH
+	EAPTLSClientCAPath     string        // EAPTLSCLIENTCAPATH
 	Port                   int           // PORT
 	Host                   string        // HOST
 	DbType                 string        // DBTYPE
@@ -98,15 +100,15 @@ func (config *Config) New() Config {
 }
 
 func (config *Config) Verify() {
-	log.Printf("VPN Session validity set to %v", config.VPNSessionValidity)
-	log.Printf("Web Session validity set to %v", config.WebSessionValidity)
-	log.Printf("Google callback redirect set to %s", config.RedirectDomain)
+	log.Infof("VPN Session validity set to %v", config.VPNSessionValidity)
+	log.Infof("Web Session validity set to %v", config.WebSessionValidity)
+	log.Infof("Google callback redirect set to %s", config.RedirectDomain)
 	if config.OAuth2Provider == "" {
 		log.Fatal("OAUTH2PROVIDER is not set, must be either google or azure")
 	} else {
 		config.OAuth2Provider = strings.ToLower(config.OAuth2Provider)
 		if config.OAuth2Provider != "google" && config.OAuth2Provider != "azure" {
-			log.Fatal("OAUTH2PROVIDER is invalid, must be either google or azure")
+			log.Fatal("OAUTH2PROVIDER is invalid, must be either 'google' or 'azure'")
 		}
 	}
 	if config.OAuth2Provider == "azure" && config.OAuth2Tenant == "" {
@@ -127,14 +129,14 @@ func (config *Config) Verify() {
 	}
 	if config.EnableNotifications {
 		if config.AdminEmail == "" {
-			log.Fatal("FATAL: ENABLENOTIFICATIONS is true, so ADMINEMAIL must be set to a valid email address.")
+			log.Fatal("ENABLENOTIFICATIONS is true, so ADMINEMAIL must be set to a valid email address.")
 		}
 		if config.VapidPrivateKey == "" || config.VapidPublicKey == "" {
-			log.Printf("FATAL: ENABLENOTIFICATIONS is true, so VAPIDPRIVATEKEY and VAPIDPUBLICKEY must be defined and valid")
-			log.Printf("If you have never defined them, here are some fresh values generated just for you.")
+			log.Error("ENABLENOTIFICATIONS is true, so VAPIDPRIVATEKEY and VAPIDPUBLICKEY must be defined and valid")
+			log.Error("If you have never defined them, here are some fresh values generated just for you.")
 			if privateKey, publicKey, err := webpush.GenerateVAPIDKeys(); err == nil {
-				log.Printf("VAPIDPUBLICKEY=\"%s\"", publicKey)
-				log.Printf("VAPIDPRIVATEKEY=\"%s\"", privateKey)
+				log.Infof("VAPIDPUBLICKEY=\"%s\"", publicKey)
+				log.Infof("VAPIDPRIVATEKEY=\"%s\"", privateKey)
 			}
 			log.Fatal("Add them to the environment variables. VAPIDPRIVATEKEY is sensitive, keep it secret.")
 		}
@@ -149,8 +151,8 @@ func (config *Config) Verify() {
 		if config.EAPMode == "mschapv2" && config.EAPMSCHAPv2Password == "" {
 			log.Fatal("EAPMODE is set to 'mschapv2', so EAPMSCHAPV2PASSWORD must be set")
 		}
-		if config.EAPMode == "tls" && (config.EAPTLSCertificatePath == "" || config.EAPTLSKeyPath == "") {
-			log.Fatal("EAPMODE is set to 'tls', so EAPTLSCERTIFICATEPATH and EAPTLSKEYPATH must be set")
+		if config.EAPMode == "tls" && (config.EAPTLSCertificatePath == "" || config.EAPTLSKeyPath == "" || config.EAPTLSClientCAPath == "") {
+			log.Fatal("EAPMODE is set to 'tls', so EAPTLSCERTIFICATEPATH, EAPTLSKEYPATH and EAPTLSCLIENTCAPATH must be set")
 		}
 	}
 	config.SSLMode = strings.ToLower(config.SSLMode)

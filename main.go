@@ -2,8 +2,9 @@
 package main
 
 import (
-	"log"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	//"github.com/bronze1man/radius/MSCHAPV2"
 

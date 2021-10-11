@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
@@ -44,7 +45,7 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 	userManager := services.NewUserManager(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
+		log.Errorf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -57,7 +58,7 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 
 	webAuthnType, err := getWebauthType(r)
 	if err != nil {
-		log.Printf("WebAuthNController: Error getting WebAuthn type: %s", err)
+		log.Errorf("WebAuthNController: Error getting WebAuthn type: %s", err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -68,7 +69,7 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 		RPOrigin:      fmt.Sprintf("%s://%s", m.config.RedirectDomain.Scheme, m.config.RedirectDomain.Hostname()), // The origin URL for WebAuthn requests
 	})
 	if err != nil {
-		log.Printf("WebAuthNController: failed to create WebAuthn from config: %s", err)
+		log.Errorf("WebAuthNController: failed to create WebAuthn from config: %s", err)
 	}
 
 	_, err = userManager.AddMFA(user, webAuthnType, "", r.Header.Get("User-Agent"))
@@ -98,7 +99,7 @@ func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := m.createWebauthNCookie("webauthn_register", sessionData, w); err != nil {
-		log.Printf("WebAuthNController: Failed to create registration cookie: %s", err.Error())
+		log.Errorf("WebAuthNController: Failed to create registration cookie: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 
@@ -110,7 +111,7 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 
 	webAuthnType, err := getWebauthType(r)
 	if err != nil {
-		log.Printf("WebAuthNController: Error getting WebAuthn type: %s", err)
+		log.Errorf("WebAuthNController: Error getting WebAuthn type: %s", err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -118,14 +119,14 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 	userManager := services.NewUserManager(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
+		log.Errorf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	sessionData, err := m.getWebauthNCookie("webauthn_register", w, r)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching registration session for %s: %s", user.Email, err.Error())
+		log.Errorf("WebAuthNController: Error fetching registration session for %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -136,7 +137,7 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 		RPOrigin:      fmt.Sprintf("%s://%s", m.config.RedirectDomain.Scheme, m.config.RedirectDomain.Hostname()), // The origin URL for WebAuthn requests
 	})
 	if err != nil {
-		log.Printf("WebAuthNController: failed to create WebAuthn from config: %s", err)
+		log.Errorf("WebAuthNController: failed to create WebAuthn from config: %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -144,9 +145,9 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 	webAuthNUser := models.NewWebAuthNUser(user.ID, user.Email, user.Email)
 	credential, err := webAuthn.FinishRegistration(webAuthNUser, *sessionData, r)
 	if err != nil {
-		log.Printf("WebAuthNController: Error validating WebAuthn registration for %s: %s", user.Email, err)
+		log.Errorf("WebAuthNController: Error validating WebAuthn registration for %s: %s", user.Email, err)
 		if specificError, ok := err.(*protocol.Error); ok {
-			log.Printf("WebAuthNController: Registration validation error detail: %s", specificError.DevInfo)
+			log.Errorf("WebAuthNController: Registration validation error detail: %s", specificError.DevInfo)
 		}
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -161,14 +162,14 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 		}
 	}
 	if usedMFA == nil {
-		log.Printf("WebAuthNController: Couldn't find %s MFA pending validation for %s", webAuthnType, user.Email)
+		log.Errorf("WebAuthNController: Couldn't find %s MFA pending validation for %s", webAuthnType, user.Email)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	serializedCredential, _ := json.Marshal(credential)
 	if _, err := userManager.ValidateMFA(usedMFA, string(serializedCredential[:])); err != nil {
-		log.Printf("WebAuthNController: failed to save %s registration validation for %s: %s", webAuthnType, user.Email, err)
+		log.Errorf("WebAuthNController: failed to save %s registration validation for %s: %s", webAuthnType, user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -176,14 +177,14 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 
 	sourceIP := utils.New(m.config).GetClientIP(r)
 	if err := userManager.CreateVpnSession(user, sourceIP); err != nil {
-		log.Printf("WebAuthNController: Error creating VPN session for %s : %s", user.Email, err.Error())
+		log.Errorf("WebAuthNController: Error creating VPN session for %s : %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	log.Printf("WebAuthNController: User %s created VPN session from %s", user.Email, sourceIP)
 
 	if userManager.CreateSession(user, true, w) != nil {
-		log.Printf("WebAuthNController: Error creating user MFA session for %s: %s", user.Email, err)
+		log.Errorf("WebAuthNController: Error creating user MFA session for %s: %s", user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -194,7 +195,7 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 
 	webAuthnType, err := getWebauthType(r)
 	if err != nil {
-		log.Printf("WebAuthNController: Error getting WebAuthn type: %s", err)
+		log.Errorf("WebAuthNController: Error getting WebAuthn type: %s", err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -202,7 +203,7 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 	userManager := services.NewUserManager(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
+		log.Errorf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -210,7 +211,7 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 	webAuthNUser := models.NewWebAuthNUser(user.ID, user.Email, user.Email)
 	availableCredentials, err := m.getAvailableCredentials(*user, webAuthnType, true)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching available webauthn credentials for %s: %s", user.Email, err.Error())
+		log.Errorf("WebAuthNController: Error fetching available webauthn credentials for %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -227,7 +228,7 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 	// Generate PublicKeyCredentialRequestOptions and session data
 	options, sessionData, err := webAuthn.BeginLogin(webAuthNUser)
 	if err != nil {
-		log.Printf("WebAuthNController: Error starting Webauthn login for %s: %s", user.Email, err.Error())
+		log.Errorf("WebAuthNController: Error starting Webauthn login for %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -236,7 +237,7 @@ func (m *WebAuthNController) BeginLogin(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := m.createWebauthNCookie("webauthn_login", sessionData, w); err != nil {
-		log.Printf("WebAuthNController: Failed to create registration cookie: %s", err.Error())
+		log.Errorf("WebAuthNController: Failed to create registration cookie: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 
@@ -248,7 +249,7 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 
 	webAuthnType, err := getWebauthType(r)
 	if err != nil {
-		log.Printf("WebAuthNController: Error getting WebAuthn type: %s", err)
+		log.Errorf("WebAuthNController: Error getting WebAuthn type: %s", err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -257,14 +258,14 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 	userManager := services.NewUserManager(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
+		log.Errorf("WebAuthNController: Error fetching user %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	sessionData, err := m.getWebauthNCookie("webauthn_login", w, r)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching WebAuthn session cookie for %s: %s", user.Email, err.Error())
+		log.Errorf("WebAuthNController: Error fetching WebAuthn session cookie for %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -272,7 +273,7 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 	webAuthNUser := models.NewWebAuthNUser(user.ID, user.Email, user.Email)
 	availableCredentials, err := m.getAvailableCredentials(*user, webAuthnType, true)
 	if err != nil {
-		log.Printf("WebAuthNController: Error fetching available webauthn credentials for %s: %s", user.Email, err.Error())
+		log.Errorf("WebAuthNController: Error fetching available webauthn credentials for %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -289,7 +290,7 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 	// TODO: Check 'credential.Authenticator.CloneWarning' when not using touchid
 	successLoginCredential, err := webAuthn.FinishLogin(webAuthNUser, *sessionData, r)
 	if err != nil {
-		log.Printf("WebAuthNController: Error finishing WebAuthn login for %s: %s", user.Email, err.Error())
+		log.Errorf("WebAuthNController: Error finishing WebAuthn login for %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -302,21 +303,21 @@ func (m *WebAuthNController) FinishLogin(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	if usedMFAID == nil {
-		log.Printf("WebAuthNController: Error getting webauthn credential ID for %s: %s", user.Email, err.Error())
+		log.Errorf("WebAuthNController: Error getting webauthn credential ID for %s: %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	sourceIP := utils.New(m.config).GetClientIP(r)
 	if err := userManager.CreateVpnSession(user, sourceIP); err != nil {
-		log.Printf("WebAuthNController: Error creating VPN session for %s : %s", user.Email, err.Error())
+		log.Errorf("WebAuthNController: Error creating VPN session for %s : %s", user.Email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	log.Printf("WebAuthNController: User %s created VPN session from %s", user.Email, sourceIP)
+	log.Infof("WebAuthNController: User %s created VPN session from %s", user.Email, sourceIP)
 
 	if userManager.CreateSession(user, true, w) != nil {
-		log.Printf("GoogleController: Error creating user MFA session for %s: %s", user.Email, err)
+		log.Errorf("GoogleController: Error creating user MFA session for %s: %s", user.Email, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -378,7 +379,7 @@ func (m *WebAuthNController) createWebauthNCookie(name string, value interface{}
 func (m *WebAuthNController) getWebauthNCookie(name string, w http.ResponseWriter, r *http.Request) (*webauthn.SessionData, error) {
 	session, err := r.Cookie(name)
 	if err != nil {
-		log.Printf("Cannot find WebAuthN cookie: %s", err.Error())
+		log.Errorf("Cannot find WebAuthN cookie: %s", err.Error())
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return nil, err
 	}

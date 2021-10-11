@@ -6,8 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/gofrs/uuid"
@@ -48,7 +49,7 @@ func (u *UserController) GetPushSubscriptionKey(w http.ResponseWriter, r *http.R
 	userManager := services.NewUserManager(u.db, u.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("UserController: Error fetching user %s: %s", email, err.Error())
+		log.Errorf("UserController: Error fetching user %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -71,7 +72,7 @@ func (u *UserController) RegisterPushSubscription(w http.ResponseWriter, r *http
 	userManager := services.NewUserManager(u.db, u.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Printf("UserController: Error fetching user %s: %s", email, err.Error())
+		log.Errorf("UserController: Error fetching user %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -104,11 +105,11 @@ func (u *UserController) RegisterPushSubscription(w http.ResponseWriter, r *http
 		Data:   string(bodyBytes[:]),
 	}
 	if _, err := userManager.AddUserSubscription(user, &userSubscription); err != nil {
-		log.Printf("UserController: Error saving user subscription for %s: %s", email, err.Error())
+		log.Errorf("UserController: Error saving user subscription for %s: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	log.Printf("UserController: User %s subscribed to push notifications", user.Email)
+	log.Infof("UserController: User %s subscribed to push notifications", user.Email)
 }
 
 // RefreshAuth is called by the browser worker when it receives a push notification asking it to do so.
@@ -133,7 +134,7 @@ func (u *UserController) RefreshAuth(w http.ResponseWriter, r *http.Request) {
 
 	var nonce struct{ Nonce uuid.UUID }
 	if err := json.NewDecoder(r.Body).Decode(&nonce); err != nil {
-		log.Printf("UserController: Data could not be deserialized for %s nonce: %s", email, err.Error())
+		log.Errorf("UserController: Data could not be deserialized for %s nonce: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -145,15 +146,15 @@ func (u *UserController) Logout(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	userManager := services.NewUserManager(u.db, u.config)
 	if err := userManager.DeleteSession(w); err != nil {
-		log.Printf("UserController: Error deleting %s token: %s", email, err.Error())
+		log.Errorf("UserController: Error deleting %s token: %s", email, err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	sourceIP := utils.New(u.config).GetClientIP(r)
 	if err := userManager.DeleteVpnSession(email, sourceIP); err != nil {
-		log.Printf("UserController: Error deleting %s VPN session: %s", email, err.Error())
+		log.Errorf("UserController: Error deleting %s VPN session: %s", email, err.Error())
 	}
-	log.Printf("UserController: User %s logged out", email)
+	log.Infof("UserController: User %s logged out", email)
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
