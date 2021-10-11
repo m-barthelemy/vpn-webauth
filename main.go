@@ -20,12 +20,21 @@ import (
 )
 
 func main() {
+	log.SetFormatter(&log.TextFormatter{
+		DisableColors: false,
+		FullTimestamp: true,
+	})
+	//log.SetReportCaller(true)
+
 	var config models.Config
 	config = config.New()
 
 	err := envconfig.Process("", &config)
 	if err != nil {
 		log.Fatal(err.Error())
+	}
+	if config.Debug {
+		log.SetLevel(log.DebugLevel)
 	}
 	config.Verify()
 
