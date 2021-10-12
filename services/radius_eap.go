@@ -73,6 +73,7 @@ var sessions ttlcache.Cache
 
 type RadiusService struct {
 	handshakeSocketPath string
+	handshakeServer     net.Listener
 	config              *models.Config
 }
 
@@ -107,21 +108,7 @@ func (r *RadiusService) Start() {
 	if err != nil {
 		log.Fatalf("[TLS] failed to bind unix socket %q for TLS handshake server: %v", r.handshakeSocketPath, err)
 	}
-
-	// Start a background thread reading the conn
-	// NOTE: currently the client certificate validation only checks the following:
-	// - signed by an allowed CA
-	// - not expired
-	go func() {
-		for {
-			conn, err := handshakeServer.Accept()
-			if err != nil {
-				log.Errorf("[EAP-TLS] unable to accept handshake server client connection: %s", err)
-				return
-			}
-			go handleTlsConnection(conn, tlsConfig)
-		}
-	}()
+	r.handshakeServer = handshakeServer
 
 	radiusAddr := fmt.Sprintf("0.0.0.0:%d", r.config.RadiusPort)
 	s := radius.NewServer(radiusAddr, r.config.RadiusSecret, r)
@@ -135,7 +122,7 @@ func (r *RadiusService) Start() {
 	}()
 }
 
-func handleTlsConnection(conn net.Conn, tlsConfig *tls.Config) {
+func handleTlsConnection(conn net.Conn, tlsConfig *tls.Config, userName string) {
 	defer conn.Close()
 	conn.Write([]byte{}) // without a write, conn hangs and we're unable to get the state and client cert.
 	tlscon, ok := conn.(*tls.Conn)
@@ -162,9 +149,32 @@ func handleTlsConnection(conn net.Conn, tlsConfig *tls.Config) {
 			//Intermediates: x509.NewCertPool(),
 		}
 		_, err := clientCert.Verify(opts)
-		// TODO: https://datatracker.ietf.org/doc/html/rfc5216#section-5.2 (peer identity)
+
 		if err != nil {
 			log.Errorf("[TLS] unable to verify client certificate %s: %s", clientCert.Subject, err)
+			return
+		}
+
+		// [rfc5216] 5.2. Peer identity
+		// We closely follow Strongswan here: the claimed identity (EAP identity) must be present in the client certificate
+		// An exception is that we also allow the identity to only match the CN field of the subject
+		var certIdentities []string
+		certIdentities = append(certIdentities, clientCert.Subject.String())
+		certIdentities = append(certIdentities, clientCert.Subject.CommonName)
+		certIdentities = append(certIdentities, clientCert.DNSNames...)
+		certIdentities = append(certIdentities, clientCert.EmailAddresses...)
+		for _, ip := range clientCert.IPAddresses {
+			certIdentities = append(certIdentities, ip.String())
+		}
+		identityFound := false
+		for _, identity := range certIdentities {
+			if identity == userName {
+				identityFound = true
+				break
+			}
+		}
+		if !identityFound {
+			log.Errorf("[TLS] client EAP identity %s is not present in any of the client certificate fields (%s)", userName, certIdentities)
 			return
 		}
 
@@ -246,20 +256,19 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 				npac,
 			)
 		}
-
 		log.Debugf("[EAP] received message kind is EAP, type %s, code %s, identifier %d, data size %d", eap.Type.String(), eap.Code.String(), eap.Identifier, len(eap.Data))
 
 		// [rfc3579] 3.1. Message-Authenticator is Required for EAP.
 		// Access-Request packets including EAP-Message attribute(s) without a Message-Authenticator attribute SHOULD be silently discarded
 		messageAuthenticator := request.GetAVP(radius.MessageAuthenticator)
 		if messageAuthenticator.Value == nil {
-			return radiusError(fmt.Sprintf("[RADIUS] Received EAP packet without %s attribute, discarding", radius.MessageAuthenticator.String()), "", npac)
+			return radiusError(fmt.Sprintf("[RADIUS] received EAP packet without %s attribute, discarding", radius.MessageAuthenticator.String()), "", npac)
 		}
 		// Else, if we have a Message-Authenticator, it is automatically validated before service.RadiusHandle is called.
 
 		// [rfc3579] 2.6.2. Role Reversal
 		if eap.Code == radius.EapCodeRequest {
-			log.Errorf("[EAP] Received unsupported packet type '%s', rejecting", eap.Code.String())
+			log.Errorf("[EAP] received unsupported packet type '%s', rejecting", eap.Code.String())
 			rejectResponseEAPPacket := radius.EapPacket{
 				Identifier: eap.Identifier,
 				Code:       radius.EapCodeRequest,
@@ -283,17 +292,23 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 				sendTLSRequest(userName, eap, npac, request)
 				currentRequest = "TLS-Start"
 			}
-			log.Debugf("[EAP] Sending %s request as a response to EAP identity request", currentRequest)
+			log.Debugf("[EAP] sending %s request as a response to EAP identity request", currentRequest)
 			return npac
 
 		case radius.EapTypeMSCHAPV2:
+			if r.config.EAPMode != "mschapv2" {
+				return radiusError(fmt.Sprintf("[RADIUS] received EAP-MSCHAPv2 packet but configured EAPMODE is %s", r.config.EAPMode), "", npac)
+			}
 			return r.handleMSCHAPv2(eap, request)
 
 		case EapTypeTLS:
+			if r.config.EAPMode != "tls" {
+				return radiusError(fmt.Sprintf("[RADIUS] received EAP-TLS packet but configured EAPMODE is %s", r.config.EAPMode), "", npac)
+			}
 			return r.handleTLS(eap, request)
 
 		default:
-			return radiusError(fmt.Sprintf("[RADIUS] Received unsupported EAP packet type %s", eap.Type.String()), "", npac)
+			return radiusError(fmt.Sprintf("[RADIUS] received unsupported EAP packet type %s", eap.Type.String()), "", npac)
 		}
 
 	case radius.AccountingRequest:
@@ -315,9 +330,9 @@ func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Pa
 	npac.Code = radius.AccessReject
 	msChapV2Packet, err := MSCHAPV2.Decode(eap.Data)
 	if err != nil {
-		return radiusError(fmt.Sprintf("[MsCHAPv2] unable to decode received packet: %s", err), "", npac)
+		return radiusError(fmt.Sprintf("[EAP-MsCHAPv2] unable to decode received packet: %s", err), "", npac)
 	}
-	log.Debugf("[MsCHAPv2] Received request with OpCode %s", msChapV2Packet.OpCode().String())
+	log.Debugf("[EAP-MsCHAPv2] received request with OpCode %s", msChapV2Packet.OpCode().String())
 
 	sessionId, session, err := checkRadiusSession(request)
 	if err != nil {
@@ -353,7 +368,7 @@ func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Pa
 			Value: challengeResponseEAPPacket.Encode(),
 		})
 
-		log.Infof("[RADIUS] Sending Access-Challenge again in response to %s", MSCHAPV2.OpCodeResponse.String())
+		log.Infof("[RADIUS] sending Access-Challenge again in response to %s", MSCHAPV2.OpCodeResponse.String())
 		npac.Code = radius.AccessChallenge
 		return npac
 
@@ -378,11 +393,11 @@ func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Pa
 		sendkey, recvKey := MSCHAPV2.MsCHAPV2GetSendAndRecvKey([]byte(r.config.EAPMSCHAPv2Password), session.NTResponse)
 		sendKeyMsmpp, err := MSCHAPV2.NewMSMPPESendOrRecvKeyVSA(request, MSCHAPV2.VendorTypeMSMPPESendKey, sendkey).Encode()
 		if err != nil {
-			return radiusError("[MsCHAPv2] Unable to generate sendkey", sessionId, npac)
+			return radiusError(fmt.Sprintf("[EAP-MsCHAPv2] unable to generate sendkey: %s", err), sessionId, npac)
 		}
 		recvKeyMsmpp, err := MSCHAPV2.NewMSMPPESendOrRecvKeyVSA(request, MSCHAPV2.VendorTypeMSMPPERecvKey, recvKey).Encode()
 		if err != nil {
-			return radiusError("[MsCHAPv2] Unable to generate recvKey", sessionId, npac)
+			return radiusError(fmt.Sprintf("[EAP-MsCHAPv2] unable to generate recvKey: %s", err), sessionId, npac)
 		}
 		npac.AddAVP(radius.AVP{
 			Type:  radius.AttributeType(radius.VendorSpecific),
@@ -401,13 +416,13 @@ func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Pa
 			Type:  radius.AttributeType(radius.EAPMessage),
 			Value: successPacket.Encode(),
 		})
-		log.Infof("[RADIUS] Sending Access-Accept response to NAS '%s' for user '%s'", request.GetNASIdentifier(), request.GetUsername())
+		log.Infof("[RADIUS] sending Access-Accept response to NAS '%s' for client '%s'", request.GetNASIdentifier(), request.GetUsername())
 		npac.Code = radius.AccessAccept
 		sessions.Remove(sessionId)
 		return npac
 
 	default:
-		return radiusError(fmt.Sprintf("[MsCHAPv2] Invalid request OpCode %s", msChapV2Packet.OpCode().String()), sessionId, npac)
+		return radiusError(fmt.Sprintf("[EAP-MsCHAPv2] invalid request OpCode %s", msChapV2Packet.OpCode().String()), sessionId, npac)
 	}
 }
 
@@ -433,6 +448,14 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 	}
 
 	if eapState.Step == TlsStart && !isAck {
+		go func() {
+			listenerConn, err := r.handshakeServer.Accept()
+			if err != nil {
+				//return radiusError(fmt.Sprintf("[EAP-TLS] unable to accept handshake server client connection: %s", err), sessionId, npac)
+				log.Errorf("[EAP-TLS] unable to accept handshake server client connection: %s", err)
+			}
+			go handleTlsConnection(listenerConn, r.getTLSServerConfig(), request.GetUsername())
+		}()
 		conn, err := net.Dial("unix", r.handshakeSocketPath)
 		if err != nil {
 			return radiusError(fmt.Sprintf("[EAP-TLS] unable to connect to TLS handshake server: %s", err), sessionId, npac)
@@ -706,7 +729,7 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 		})
 		eapState.TlsServerConn.Close()
 		sessions.Remove(sessionId)
-		log.Infof("[RADIUS] Sending %s response to NAS '%s' for user '%s'", npac.Code.String(), request.GetNASIdentifier(), request.GetUsername())
+		log.Infof("[RADIUS] sending %s response to NAS '%s' for client '%s'", npac.Code.String(), request.GetNASIdentifier(), request.GetUsername())
 	}
 
 	return npac
@@ -766,7 +789,7 @@ func sendMSCHAPv2Challenge(userName string, eap *radius.EapPacket, npac *radius.
 
 	sessionId, err := createSessionId()
 	if err != nil {
-		log.Errorf("[EAP-TLS] unable to generate session ID: %s", err)
+		log.Errorf("[EAP-MSCHAPv2] unable to generate session ID: %s", err)
 		npac.Code = radius.AccessReject
 		return
 	}
