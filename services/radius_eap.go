@@ -12,7 +12,6 @@ import (
 	"math"
 	"net"
 	"os"
-	"strconv"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -54,12 +53,6 @@ type EapTlsState struct {
 	BufferPos       int
 }
 
-// Communication between EAP and the TLS handshake proxy
-type TLSAuthInfo struct {
-	Authorized bool
-	Identity   string
-}
-
 // EapTlsStep keeps track of the current step during the EAP-TLS exchanges between the Radius client and us
 type EapTlsStep uint
 
@@ -68,6 +61,17 @@ const (
 	TlsServerHello       EapTlsStep = 1
 	TlsClientKeyExchange EapTlsStep = 2
 	TlsAuthentication    EapTlsStep = 3
+)
+
+// EAP-TLS optional Fragment byte.
+// Fragments are used when sending ServerHello to client, and when receiving cert from client
+// Also when asking the client to initiale the TLS handshake (TLS Start bit)
+type EapTlsFragment byte
+
+const (
+	MoreToCome          EapTlsFragment = (1 << 6)
+	LengthAndMoreToCome EapTlsFragment = (1 << 7) | (1 << 6)
+	TlsStartFlag        EapTlsFragment = (1 << 5)
 )
 
 var sessions ttlcache.Cache
@@ -220,7 +224,7 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 		// `request.GetEAPMessage()` crashes
 		// - if there's no valid EAP message
 		// - if the EAP message is fragmented (length > current AVP length)
-		// so we need to guard against that
+		// so we need to guard against that.
 		checkEapAvp := request.GetAVP(radius.EAPMessage)
 		if len(checkEapAvp.Value) < 5 {
 			return radiusError("[RADIUS] request contains an invalid EAP message (length < 5)", "", npac)
@@ -537,9 +541,7 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 			if eapState.BufferPos == 0 && packetRead == 0 {
 				log.Debugf("[EAP-TLS] Setting TLS record size of %d on first Radius EAP AVP", len(eapState.TlsBuffer))
 				data = make([]byte, maxAttrSize+5)
-				flagStr := bitString("11000000")
-				flagByte := flagStr.AsByteSlice()
-				data[0] = flagByte[0]
+				data[0] = byte(LengthAndMoreToCome)
 				binary.BigEndian.PutUint32(data[1:5], uint32(len(eapState.TlsBuffer)))
 				copy(data[5:], eapState.TlsBuffer[pos:(pos+maxAttrSize)])
 
@@ -553,14 +555,11 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 				binary.BigEndian.PutUint16(eapResponseData[2:4], uint16(thisEapPacketSize+eapHeaderSize+5))
 			} else if packetRead == 0 {
 				data = make([]byte, maxAttrSize+1)
-				var flagStr bitString
 				if addFragmentBit {
-					flagStr = bitString("01000000")
+					data[0] = byte(MoreToCome)
 				} else {
-					flagStr = bitString("00000000")
+					data[0] = 0
 				}
-				flagByte := flagStr.AsByteSlice()
-				data[0] = flagByte[0]
 				binary.BigEndian.PutUint32(data[1:5], uint32(thisEapPacketSize))
 				copy(data[1:], eapState.TlsBuffer[pos:(pos+maxAttrSize)])
 
@@ -844,15 +843,11 @@ func sendTLSRequest(userName string, eap *radius.EapPacket, npac *radius.Packet,
 		Value: []byte(sessionId),
 	})
 
-	b := make([]byte, 1)
-	flagStr := bitString("00100000")
-	flagByte := flagStr.AsByteSlice()
-	b[0] = flagByte[0]
 	eapTlsInitResponse := radius.EapPacket{
 		Identifier: eap.Identifier + 1,
 		Code:       radius.EapCodeRequest,
 		Type:       EapTypeTLS,
-		Data:       b,
+		Data:       []byte{byte(TlsStartFlag)},
 	}
 	npac.AddAVP(radius.AVP{
 		Type:  radius.AttributeType(radius.EAPMessage),
@@ -863,27 +858,6 @@ func sendTLSRequest(userName string, eap *radius.EapPacket, npac *radius.Packet,
 	}
 	sessions.Set(sessionId, session)
 	return
-}
-
-type bitString string
-
-func (b bitString) AsByteSlice() []byte {
-	var out []byte
-	var str string
-
-	for i := len(b); i > 0; i -= 8 {
-		if i-8 < 0 {
-			str = string(b[0:i])
-		} else {
-			str = string(b[i-8 : i])
-		}
-		v, err := strconv.ParseUint(str, 2, 8)
-		if err != nil {
-			panic(err)
-		}
-		out = append([]byte{byte(v)}, out...)
-	}
-	return out
 }
 
 func createSessionId() (string, error) {
@@ -930,7 +904,6 @@ func radiusError(message string, sessionId string, npac *radius.Packet) *radius.
 			session.EapTlsState.TlsServerConn.Close()
 			sessions.Remove(sessionId)
 		}
-
 	}
 	return npac
 }
