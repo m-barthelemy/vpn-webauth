@@ -47,10 +47,11 @@ type RadiusSession struct {
 }
 
 type EapTlsState struct {
-	Step          EapTlsStep
-	TlsServerConn net.Conn
-	TlsBuffer     []byte
-	BufferPos     int
+	Step            EapTlsStep
+	TlsAuthResultCh chan bool
+	TlsServerConn   net.Conn
+	TlsBuffer       []byte
+	BufferPos       int
 }
 
 // Communication between EAP and the TLS handshake proxy
@@ -122,7 +123,7 @@ func (r *RadiusService) Start() {
 	}()
 }
 
-func handleTlsConnection(conn net.Conn, tlsConfig *tls.Config, userName string) {
+func tlsClientAuth(ch chan<- bool, conn net.Conn, tlsConfig *tls.Config, userName string) {
 	defer conn.Close()
 	conn.Write([]byte{}) // without a write, conn hangs and we're unable to get the state and client cert.
 	tlscon, ok := conn.(*tls.Conn)
@@ -130,12 +131,14 @@ func handleTlsConnection(conn net.Conn, tlsConfig *tls.Config, userName string) 
 		state := tlscon.ConnectionState()
 		if len(state.PeerCertificates) == 0 {
 			log.Error("[TLS] client did not send any certificate")
+			ch <- false
 			return
 		}
 		clientCert := state.PeerCertificates[0]
 		log.Infof("[TLS] received client certificate %s valid until %s", clientCert.Subject, clientCert.NotAfter.String())
 		if clientCert.NotAfter.Before(time.Now()) {
 			log.Errorf("[TLS] client certificate %s is expired", clientCert.Subject)
+			ch <- false
 			return
 		}
 		log.Debugf("[TLS] client cert alt names: dns=%s, email=%s, ips=%s, extranames=%s", clientCert.DNSNames, clientCert.EmailAddresses, clientCert.IPAddresses, clientCert.Subject.ExtraNames)
@@ -152,6 +155,7 @@ func handleTlsConnection(conn net.Conn, tlsConfig *tls.Config, userName string) 
 
 		if err != nil {
 			log.Errorf("[TLS] unable to verify client certificate %s: %s", clientCert.Subject, err)
+			ch <- false
 			return
 		}
 
@@ -175,12 +179,12 @@ func handleTlsConnection(conn net.Conn, tlsConfig *tls.Config, userName string) 
 		}
 		if !identityFound {
 			log.Errorf("[TLS] client EAP identity %s is not present in any of the client certificate fields (%s)", userName, certIdentities)
+			ch <- false
 			return
 		}
 
 		// Successful client authentication
-		dummyData := make([]byte, dummyTlsOkDataSize)
-		conn.Write(dummyData)
+		ch <- true
 	}
 }
 
@@ -448,15 +452,15 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 	}
 
 	if eapState.Step == TlsStart && !isAck {
+		eapState.TlsAuthResultCh = make(chan bool)
 		go func() {
 			listenerConn, err := r.handshakeServer.Accept()
 			if err != nil {
-				//return radiusError(fmt.Sprintf("[EAP-TLS] unable to accept handshake server client connection: %s", err), sessionId, npac)
 				log.Errorf("[EAP-TLS] unable to accept handshake server client connection: %s", err)
 			}
-			go handleTlsConnection(listenerConn, r.getTLSServerConfig(), request.GetUsername())
+			go tlsClientAuth(eapState.TlsAuthResultCh, listenerConn, r.getTLSServerConfig(), request.GetUsername())
 		}()
-		conn, err := net.Dial("unix", r.handshakeSocketPath)
+		conn, err := net.Dial("unix", r.handshakeServer.Addr().String())
 		if err != nil {
 			return radiusError(fmt.Sprintf("[EAP-TLS] unable to connect to TLS handshake server: %s", err), sessionId, npac)
 		}
@@ -705,17 +709,14 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 		session.EapTlsState = eapState
 		sessions.SetWithTTL(sessionId, session, sessionTimeout)
 	} else if eapState.Step == TlsAuthentication {
-		tlsAuthResponse := make([]byte, 2048)
-		read, err := eapState.TlsServerConn.Read(tlsAuthResponse)
-		// When the TLS authentication is successful, it will reply with 1024 bytes of dummy data
-		// IF we receive less than that, then the TLS authentication failed.
 		acceptRejectPacket := radius.EapPacket{
 			Identifier: eap.Identifier + 1,
 			Type:       EapTypeTLS,
 			Data:       []byte{0},
 		}
-		if err != nil || read < dummyTlsOkDataSize {
-			log.Error("[EAP-TLS] TLS server rejected client")
+		tlsAuthSuccess := <-eapState.TlsAuthResultCh
+		if !tlsAuthSuccess {
+			log.Errorf("[EAP-TLS] TLS server rejected client")
 			npac.Code = radius.AccessReject
 			acceptRejectPacket.Code = radius.EapCodeFailure
 		} else {
@@ -924,7 +925,12 @@ func radiusError(message string, sessionId string, npac *radius.Packet) *radius.
 			Type:  radius.State,
 			Value: []byte(sessionId),
 		})
-		sessions.Remove(sessionId)
+		session, _ := getSession(sessionId)
+		if session != nil {
+			session.EapTlsState.TlsServerConn.Close()
+			sessions.Remove(sessionId)
+		}
+
 	}
 	return npac
 }
