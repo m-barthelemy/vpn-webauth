@@ -22,7 +22,7 @@ type VpnController struct {
 }
 
 // New creates an instance of the controller and sets its DB handle
-func New(db *gorm.DB, config *models.Config, notificationsManager *services.NotificationsManager) *VpnController {
+func New(db *gorm.DB, config *models.Config, notificationsManager *services.NotificationsManager, webSessManager *services.WebSessionManager) *VpnController {
 	return &VpnController{
 		db:                   db,
 		config:               config,

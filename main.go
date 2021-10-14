@@ -6,12 +6,13 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	//"github.com/bronze1man/radius/MSCHAPV2"
+	"github.com/asaskevich/EventBus"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"github.com/m-barthelemy/vpn-webauth/routes"
 	services "github.com/m-barthelemy/vpn-webauth/services"
+	"github.com/m-barthelemy/vpn-webauth/utils"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -78,10 +79,14 @@ func main() {
 		log.Errorf("Could not delete old VPN connections log entries: %s", err.Error())
 	}
 
+	bus := EventBus.New()
+	notificationsManager := services.NewNotificationsManager(db, &config, &bus)
+	webSessionsManager := services.NewWebSessionManager(db, &config, notificationsManager, utils.New(&config))
+
 	if config.EnableRadiusEAP {
-		eapServer := services.NewRadiusServer(&config)
+		eapServer := services.NewRadiusServer(&config, userManager, webSessionsManager)
 		eapServer.Start()
 	}
 
-	startServer(&config, routes.New(&config, db))
+	startServer(&config, routes.New(&config, db, &bus, notificationsManager, webSessionsManager))
 }

@@ -37,7 +37,7 @@ func startServer(config *models.Config, handler http.Handler) {
 		var err error
 		customCert, err = tls.LoadX509KeyPair(config.SSLCustomCertPath, config.SSLCustomKeyPath)
 		if err != nil {
-			log.Fatalf(" ould not load custom key or certificate: %s", err.Error())
+			log.Fatalf("could not load custom key or certificate: %s", err.Error())
 		}
 	}
 	if config.SSLMode == "auto" || config.SSLMode == "custom" {

@@ -23,13 +23,14 @@ import (
 	"github.com/m-barthelemy/vpn-webauth/models"
 )
 
+// Identifies an EAP-TLS message
 const EapTypeTLS = 13
 
 // [rfc3579] 4.3.3.  Dictionary Attacks: secret should be at least 16 characters
 const minRadiusSecretLength = 16
 
 // This is the maximum time a client has to complete the full authentication
-const sessionTimeout = 64 * time.Second
+const sessionTimeout = 60 * time.Second
 
 // Protect ourselves against suspicously big records
 const maxTlsRecordSize = 64 * 1024
@@ -80,16 +81,27 @@ type RadiusService struct {
 	handshakeSocketPath string
 	handshakeServer     net.Listener
 	config              *models.Config
+	userManager         *UserManager
+	webSessManager      *WebSessionManager
 }
 
-func NewRadiusServer(config *models.Config) *RadiusService {
+func NewRadiusServer(config *models.Config, userManager *UserManager, webSessManager *WebSessionManager) *RadiusService {
 	// For security reasons we require the Radius secret to have a min length (which is still weak)
 	if len(config.RadiusSecret) < minRadiusSecretLength {
 		log.Fatalf("[RADIUS] secret must be at least %d characters", minRadiusSecretLength)
 	}
 	sessions = *ttlcache.NewCache()
+	sessions.SetCacheSizeLimit(2000)
 	sessions.SetTTL(sessionTimeout)
 	sessions.SkipTTLExtensionOnHit(true)
+	// Ensure we close the connection to the TLs handshake server when the session expires.
+	sessions.SetExpirationCallback(func(key string, value interface{}) {
+		session, _ := getSession(key)
+		if session != nil {
+			log.Debugf("[EAP-TLS] deleting expired session %s", key)
+			session.EapTlsState.TlsServerConn.Close()
+		}
+	})
 
 	// TLS "proxy" used for EAP-TLS handshake
 	tmpfile, err := ioutil.TempFile("", "eap-tls-handshake")
@@ -102,6 +114,8 @@ func NewRadiusServer(config *models.Config) *RadiusService {
 	return &RadiusService{
 		config:              config,
 		handshakeSocketPath: handshakeSocketPath,
+		userManager:         userManager,
+		webSessManager:      webSessManager,
 	}
 }
 
@@ -208,6 +222,12 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 		return radiusError("[RADIUS] Username is required but got empty/null value", "", npac)
 	}
 
+	clientIP := net.ParseIP(request.GetCallingStationId())
+	if clientIP == nil {
+		msg := "[RADIUS] attribute %s value '%s' is not valid IP address."
+		msg += "If using Strongswan, make sure you set `station_id_with_port = no` under the `eap-radius` config section."
+		return radiusError(fmt.Sprintf(msg, radius.CallingStationId.String(), request.GetCallingStationId()), "", npac)
+	}
 	log := log.WithFields(log.Fields{
 		"user_id": userName,
 		"user_ip": request.GetCallingStationId(),
@@ -722,6 +742,7 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 			npac.Code = radius.AccessAccept
 			acceptRejectPacket.Code = radius.EapCodeSuccess
 			log.Info("[EAP-TLS] client accepted")
+			r.checkWebSession(request.GetUsername(), request.GetCallingStationId())
 		}
 		npac.AddAVP(radius.AVP{
 			Type:  radius.AttributeType(radius.EAPMessage),
@@ -733,6 +754,16 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 	}
 
 	return npac
+}
+
+func (r *RadiusService) checkWebSession(identity string, sourceIP string) bool {
+	err := r.webSessManager.CheckSession(identity, sourceIP)
+	if err != nil {
+		log.Errorf("unable to authenticate client %s via web: %s", err)
+		return false
+	}
+	log.Infof("client %s successfully authenticated", identity)
+	return true
 }
 
 func (r *RadiusService) getTLSServerConfig() *tls.Config {

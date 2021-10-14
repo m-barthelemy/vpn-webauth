@@ -1,19 +1,23 @@
 # What is it?
 
-This is quick (and dirty) web application allowing to add a second round of authentication to a Strongswan VPN using OAuth2.
-It doesn't replace, and in fact requires, the normal Strongswan authentication process using passwords or certificates.
+This is a web application allowing to add web authentication round to a Strongswan VPN using OAuth2 (**Google/Gsuite** or **Microsoft Azure**) and optional 2FA.
 
-This project uses the `ext-auth` Strongswan plugin to hook itself into the authentication flow and provide an additional layer of authentication using OAuth2 (**Google/Gsuite** or **Microsoft Azure**) and optional 2FA.
-This can help to protect your organization aganist VPN credentials or certificates being leaked or stolen.
+It doesn't replace the normal Strongswan authentication process using passwords or certificates.
 
+VPN-webauth can integrate with Strongswan in 2 ways:
+- by using the `ext-auth` Strongswan plugin to hook itself into the authentication flow.
+
+- by acting as a small Radius server, and taking over Strongswan for the initial client authentication (using passwords or client certificates)
+
+VPN-webauth can help to protect your organization aganist VPN credentials or certificates being leaked or stolen.
 It can also help achieve compliance with some security standards requiring MFA to be implemented for VPNs giving access to sensitive environments.
 
-This tool compatible with all VPN clients and operating systems.
+This tool is compatible with all VPN clients and operating systems.
 
 
 # How does it work?
 
- - The user registers to the webapp (_before_ connecting to the VPN)
+ - The user first needs to register to the webapp, _before_ connecting to the VPN
  - They authenticate using OAuth2 (for now, Google and Azure Directory are supported)
  - Optionally, they are required to complete additional authentication, using an OTP token (independent from the OAuth2 provider 2FA), TouchID/FaceID or a physical security key.
  - A "session" is created with the user email, their source IP address and the time when they completed the web authentication
@@ -57,11 +61,11 @@ Unsuccessful VPN connection notification, when OAuth2 re-authentication via brow
 <img width="283" alt="Screen Shot 2021-09-18 at 11 41 39 AM" src="https://user-images.githubusercontent.com/2519084/133871478-194d7af6-ee3c-40f5-a332-508d16e20ef7.png">
 
 # Limitations
-- The user identity reported by Strongswan **must** match the email reported by the web authentication. However, if the Strongswan identity is the first part of the email address (without @domain.tld), you can modify the `webauth-check.sh` script to add the domain.
+- The user identity reported by Strongswan **must** match the email address used to complete the OAuth2 authentication. However, if the Strongswan identity is the first part of the email address (without @domain.tld), you can modify the `webauth-check.sh` script to add the domain.
 This means that you must have indivisual, per-user Strongswan authentication (certificates or credentials).
-- If a user successfully authenticates using this app, someone else on the same local network would be able to reuse the web session, provided they have the user's Strongswan credentials. This by design, since the app matches a web auth with a Strongswan connection only using the Strongswan identity and the source IP address.
+- If a user successfully authenticates using this app, someone else on the same local network would be able to reuse the web session, provided they have managed to steal the user Strongswan credentials. This by design, since the app matches a web auth with a Strongswan connection only using the Strongswan identity and the source IP address.
 - Since the web authentication has to happen before connecting to the VPN, this app probably needs to be hosted in a less protected part of your environment.
-- There is currently no way to reset a user account if they have lost or changed their 2FA device. However, all you need to do is manually delete the User record in the database (`DELETE FROM users WHERE email='user@domain.tld'`).
+- There is currently no way to reset a user account if they have lost or changed their 2FA device. However, all you need to do is manually delete the User record in the database (`DELETE FROM users WHERE email='user@domain.tld'`). This restriction will be lifted as VPN-webauth evolves.
 - Strongswan blocks during the call to the `ext-auth` plugin. Since checking the user web authentication against this app is fast, this shouldn't be an issue, unless you have a high number of users connecting almost simultaneously.
 - There is currently no limit on how many attempts a user can make at entering a 2FA OTP code or using a Webauthn device.
 
@@ -137,6 +141,7 @@ All the configuration parameters have to passed as environment variables.
 ## Application
 - `CONNECTIONSRETENTION`: how long to keep VPN connections audit logs, in days. Default: `90`.
   > NOTE: The connections audit log cleanup task is only run during the application startup. Also, there is currently no way to view this audit log from the app.
+- `DEBUG`: enable verbose output. Default: `false`.
 - `DBTYPE`: the database engine where the sessions will be stored. Default: `sqlite`. Can be `sqlite`, `postgres`, `mysql`.
 - `DBDSN`: the database connection string. Default: `tmp/vpnwa.db`. Check https://gorm.io/docs/connecting_to_the_database.html for examples.
   > By default a Sqlite database is created. You probably want to at least change its path. Sqlite is only suitable for testing purposes or for a small number of concurrent users, and will only work with with a single instance of the app. It is recommended to use MySQL or Postgres instead.
@@ -144,24 +149,24 @@ All the configuration parameters have to passed as environment variables.
 Postgres example: `DBDSN="host=127.0.0.1 user=vpnwa password='' database=vpnwa port=5432"`
 
   > NOTE: the app will automatically create the tables and thus needs to have the privileges to do so.
-- `ENCRYPTIONKEY`: Key used to encrypt sensitive information in the database. Must be 32 characters. **Mandatory** if `ENFORCEMFA` is set to `true`.
+- `ENCRYPTIONKEY`: key used to encrypt sensitive information in the database. Must be 32 characters. **Mandatory** if `ENFORCEMFA` is set to `true`.
 - `EXCLUDEDIDENTITIES`: list of VPN accounts (identities) that do not require any additional authentication by this app, separated by comma. Optional.
   > The VPN server will still query the application when these accounts try to connect, but will always get a positive response.
   > NOTE: Your VPN's own authentication process still fully applies.
 - `HOST`: the IP address to listen on. Default: `127.0.0.1`
-- `ISSUER`: Name that appears on the users OTP authenticator app and browser notifications title. Default: `VPN`.
+- `ISSUER`: name that appears on the users OTP authenticator app and browser notifications title. Default: `VPN`.
   > It is recommended that you set it to the name of your VPN connection as it appears on your users devices.
-- `LOGOURL`: Add your organization logo on top of the webapp pages. Optional. If the app is served over HTTPS (and it should), `LOGOURL` must also be a HTTPS URL.
+- `LOGOURL`: add your organization logo on top of the webapp pages. Optional. If the app is served over HTTPS (and it should), `LOGOURL` must also be a HTTPS URL.
 - `ORIGINALIPHEADER`: the header to use to fetch the real user/client source IP. Optional. If running this app behind Nginx for example, you will need to configure Nginx to pass the real client IP to the app using a specific header, and set its name here. Traditionally, `X-Forwarded-For` is used for this purpose. Default: empty.
 - `ORIGINALPROTOHEADER`: the header to use to fetch the real protocol (http, https) used between the clients and the proxy. Default: `X-Forwarded-Proto`.
 - `PORT`: the port to listen to. Default: `8080`
-- `SIGNINGKEY`: Key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
+- `SIGNINGKEY`: key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
   > Regenerating a new key every time the application starts means that all your users web sessions will be invalid and they will have to sign in again if they need a new VPN "session".
   > It is recommended that you create and pass your own key.
-- `WEBSESSIONVALIDITY`: How long a web authentication is valid. During this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `12h`. Specify custom value as a number and a time unit, for example `48h30m`. 
+- `WEBSESSIONVALIDITY`: how long a web authentication is valid. During this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `12h`. Specify custom value as a number and a time unit, for example `48h30m`. 
 
 ## OAuth2
-- `OAUTH2PROVIDER`: The Oauth2 provider. Can be `google` or `azure`. **Mandatory**.
+- `OAUTH2PROVIDER`: the Oauth2 provider. Can be `google` or `azure`. **Mandatory**.
 - `OAUTH2CLIENTID`: Google or Microsoft Client ID. **Mandatory**.
 - `OAUTH2CLIENTSECRET`: Google or Microsoft Client Secret. **Mandatory**.
 - `OAUTH2TENANT`: Azure Directory tenant ID. Mandatory if `OAUTH2PROVIDER` is set to `azure`.
@@ -171,23 +176,37 @@ Postgres example: `DBDSN="host=127.0.0.1 user=vpnwa password='' database=vpnwa p
   > NOTE: You need to add this app redirect/callback endpoint (`REDIRECTDOMAIN/auth/google/callback` or `REDIRECTDOMAIN/auth/azure/callback`) to the list of allowed callbacks in your Google or Azure credentials configuration console.
 
 ## Multi-Factor Authentication
-  - `ENFORCEMFA`: Whether to enforce additional 2FA after OAuth2 login. Default: `true`. If enabled, users will have to choose one of the available MFA options (see below).
-  - `MFAOTP`: Whether to enable OTP token authentication after OAuth2 login. Default: `true`. 
-  - `MFATOUCHID`: Whether to enable Apple TouchID/FaceID and Windows Hello biometrics authentication after OAuth2 login, if a compatible device is detected. Default: `true`.
+  - `ENFORCEMFA`: whether to enforce additional 2FA after OAuth2 login. Default: `true`. If enabled, users will have to choose one of the available MFA options (see below).
+  - `MFAOTP`: whether to enable OTP token authentication after OAuth2 login. Default: `true`. 
+  - `MFATOUCHID`: ehether to enable Apple TouchID/FaceID and Windows Hello biometrics authentication after OAuth2 login, if a compatible device is detected. Default: `true`.
     > With compatible devices and operating systems, this is certainly the fastest, most convenient and most secure additional authentication. 
     > This feature complies with the definiton of "Something you are" of the common three authentication factors.
     > NOTE: TouchID/FaceID feature is available in MacOS >= 11.x and iOS >= 14.x. The option will only be shown to the user if a compatible OS is detected.
-  - `MFAWEBAUTHN`: Whether to enable strong authentication using security devices such as Fido keys after OAuth2 login. Default: `true`.
+  - `MFAWEBAUTHN`: whether to enable strong authentication using security devices such as Fido keys after OAuth2 login. Default: `true`.
 
 Webauthn additional authentications, including TouchID, are tied to a specific device and browser.
 In case a user wants to be able to sign in from multiple browsers or devices, they have the option of generating a one-time 6 digits code to register a new device. This code is valid for 5 minutes and will be disabled after 3 failed attempts. 
 
 It is also possible to sign in from different browsers and devices by using the OTP (authenticator app) feature.
 
+## RADIUS and EAP
+> NOTE: These features are still experimental.
+
+- `ENABLERADIUSEAP`: whether to enable the mini Radius and EAP-TLS server. In that case you will also have to configure Strongswan to delegate clients authentication to it, see relevant section of this doc.
+- `RADIUSPORT`: the port to listen to for Radius messages coming from Strongswan. Defaults to `1812`.
+- `RADIUSSECRET`: the radius password/secret, that will also need to be set in Strongswan. Minimum 16 characters, >=32 recommended.
+- `EAPMODE`: the authentication mode for the VPN clients, when auth is deledated to this app (`ENABLERADIUSEAP=true`). Can be `mschapv2` (single shared passowrd) or `tls` (client certificate).
+- `EAPMSCHAPV2PASSWORD`: when `EAPMODE` is set to `mschapv2`, shared password to be used by all clients. 
+  > While there is currently this restriction of using the same password for all clients, each of them still needs to provide an individual, real username that matches exactly the email address to be used for the OAuth2 web authentication.
+  > NOTE: it is recommended to use client certificates authentication instead (`EAPMODE=tls`)
+- `EAPTLSCERTIFICATEPATH`: full path to the VPN server certificate, that you would normally add under `/etc/ipsec.d/certs/` for Strongswan.
+- `EAPTLSKEYPATH`: full path to the VPN server private key, that you would normally add under `/etc/ipsec.d/private/` for Strongswan.
+- `EAPTLSCLIENTCAPATH`: full path to the CA certificate that is used to sign your VPN clients certificates.
+
 ## VPN
-  - `VPNCHECKPASSWORD`: Shared password between the app and the Strongswan `ext-auth` script to protect the endpoint checking for valid user "sessions". Optional.
+  - `VPNCHECKPASSWORD`: shared password between the app and the Strongswan `ext-auth` script to protect the endpoint checking for valid user "sessions". Optional.
     > If the `/vpn/check` endpoint is publicly available, it is a good idea to set a password to ensure that only your VPN server is allowed to query the app for user sessions. Make sure you also set it in your `ext-auth` configuration.
-  - `VPNSESSIONVALIDITY`: How long to allow (re)connections to the VPN after completing the web authentication. During this interval the web authentication status is not reverified. Default: `30m`. Specify custom value as a number and a time unit, for example `1h30m`.
+  - `VPNSESSIONVALIDITY`: how long to allow (re)connections to the VPN after completing the web authentication. During this interval the web authentication status is not reverified. Default: `30m`. Specify custom value as a number and a time unit, for example `1h30m`.
     > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
 

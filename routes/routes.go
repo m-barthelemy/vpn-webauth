@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func New(config *models.Config, db *gorm.DB) http.Handler {
+func New(config *models.Config, db *gorm.DB, bus *EventBus.Bus, notifsMgr *services.NotificationsManager, webSessManager *services.WebSessionManager) http.Handler {
 	tokenSigningKey := []byte(config.SigningKey)
 
 	// Prepare embedded templates
@@ -124,9 +124,8 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	// way, using browser push notifications, to check that the user
 	// is still "online" and still has a strong web authentication
 	// without requiring the user to open the web app and sign in again.
-	bus := EventBus.New()
-	notificationsManager := services.NewNotificationsManager(db, config, &bus)
-	vpnC := vpnController.New(db, config, notificationsManager)
+
+	vpnC := vpnController.New(db, config, notifsMgr, webSessManager)
 	mux.Handle("/vpn/check",
 		handlers.LoggingHandler(
 			os.Stdout,
@@ -141,7 +140,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 		),
 	)
 
-	userC := userController.New(db, config, notificationsManager)
+	userC := userController.New(db, config, notifsMgr)
 	// Creates a browser push subscription for the user
 	mux.Handle("/user/push_subscriptions/begin",
 		handlers.LoggingHandler(
@@ -178,7 +177,7 @@ func New(config *models.Config, db *gorm.DB) http.Handler {
 	)
 
 	// Server-Side Events fallback if browser doesn't support push notifications
-	sseC := sseController.New(db, config, &bus)
+	sseC := sseController.New(db, config, bus)
 	sseC.Start()
 	mux.Handle("/events",
 		handlers.LoggingHandler(
