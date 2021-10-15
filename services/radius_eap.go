@@ -94,12 +94,14 @@ func NewRadiusServer(config *models.Config, userManager *UserManager, webSessMan
 	sessions.SetCacheSizeLimit(2000)
 	sessions.SetTTL(sessionTimeout)
 	sessions.SkipTTLExtensionOnHit(true)
-	// Ensure we close the connection to the TLs handshake server when the session expires.
+	// Ensure we close the connection to the TLS handshake server when the session expires.
 	sessions.SetExpirationCallback(func(key string, value interface{}) {
 		session, _ := getSession(key)
 		if session != nil {
-			log.Debugf("[EAP-TLS] deleting expired session %s", key)
-			session.EapTlsState.TlsServerConn.Close()
+			log.Debugf("[EAP] deleting expired session %s", key)
+			if session.EapTlsState.TlsServerConn != nil {
+				session.EapTlsState.TlsServerConn.Close()
+			}
 		}
 	})
 
@@ -252,6 +254,7 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			// We may have a big EAP packet split into multiple AVPs
 			totalEapMsgSize := binary.BigEndian.Uint16(checkEapAvp.Value[2:4])
 			log.Debugf("[EAP] received EAP message (%d total length) split into multiple Radius AVPs", totalEapMsgSize)
+			// We need to set the EAP packet size to the current AVP's max size instead of the total fragmented packet size other we cannot parse it
 			binary.BigEndian.PutUint16(checkEapAvp.Value[2:4], uint16(253))
 			var err error
 			// The first AVP contains the EAP packet header
@@ -401,6 +404,7 @@ func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Pa
 		return npac
 
 	case MSCHAPV2.OpCodeSuccess:
+
 		npac.AddAVP(radius.AVP{
 			Type:  radius.AttributeType(radius.UserName),
 			Value: []byte(request.GetUsername()),
@@ -436,16 +440,25 @@ func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Pa
 			Value: recvKeyMsmpp,
 		})
 
-		successPacket := radius.EapPacket{
-			Identifier: eap.Identifier,
-			Code:       radius.EapCodeSuccess,
+		statusPacket := radius.EapPacket{
+			Identifier: eap.Identifier + 1,
+			Type:       radius.EapTypeMSCHAPV2,
+			Code:       radius.EapCodeFailure,
+			Data:       []byte{0},
 		}
+		if !r.checkWebSession(request.GetUsername(), request.GetCallingStationId()) {
+			npac.Code = radius.AccessChallenge
+			log.Infof("[RADIUS] sending Access-Reject response to NAS '%s' for client '%s'", request.GetNASIdentifier(), request.GetUsername())
+		} else {
+			log.Infof("[RADIUS] sending Access-Accept response to NAS '%s' for client '%s'", request.GetNASIdentifier(), request.GetUsername())
+			statusPacket.Code = radius.EapCodeSuccess
+			npac.Code = radius.AccessAccept
+		}
+
 		npac.AddAVP(radius.AVP{
 			Type:  radius.AttributeType(radius.EAPMessage),
-			Value: successPacket.Encode(),
+			Value: statusPacket.Encode(),
 		})
-		log.Infof("[RADIUS] sending Access-Accept response to NAS '%s' for client '%s'", request.GetNASIdentifier(), request.GetUsername())
-		npac.Code = radius.AccessAccept
 		sessions.Remove(sessionId)
 		return npac
 
@@ -731,18 +744,18 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 		acceptRejectPacket := radius.EapPacket{
 			Identifier: eap.Identifier + 1,
 			Type:       EapTypeTLS,
+			Code:       radius.EapCodeFailure,
 			Data:       []byte{0},
 		}
 		tlsAuthSuccess := <-eapState.TlsAuthResultCh
 		if !tlsAuthSuccess {
-			log.Errorf("[EAP-TLS] TLS server rejected client")
-			npac.Code = radius.AccessReject
-			acceptRejectPacket.Code = radius.EapCodeFailure
+			log.Errorf("[EAP-TLS] client rejected")
 		} else {
-			npac.Code = radius.AccessAccept
-			acceptRejectPacket.Code = radius.EapCodeSuccess
 			log.Info("[EAP-TLS] client accepted")
-			r.checkWebSession(request.GetUsername(), request.GetCallingStationId())
+			if r.checkWebSession(request.GetUsername(), request.GetCallingStationId()) {
+				npac.Code = radius.AccessAccept
+				acceptRejectPacket.Code = radius.EapCodeSuccess
+			}
 		}
 		npac.AddAVP(radius.AVP{
 			Type:  radius.AttributeType(radius.EAPMessage),
@@ -932,7 +945,9 @@ func radiusError(message string, sessionId string, npac *radius.Packet) *radius.
 		})
 		session, _ := getSession(sessionId)
 		if session != nil {
-			session.EapTlsState.TlsServerConn.Close()
+			if session.EapTlsState.TlsServerConn != nil {
+				session.EapTlsState.TlsServerConn.Close()
+			}
 			sessions.Remove(sessionId)
 		}
 	}
