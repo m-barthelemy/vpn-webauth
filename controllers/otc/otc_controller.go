@@ -36,7 +36,7 @@ type OneTimeCode struct {
 //  to be allowed to register webauthn on another device or browser.
 func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
-	sourceIP := utils.New(m.config).GetClientIP(r)
+	sourceIP := utils.New(c.config).GetClientIP(r)
 	log := utils.ConfigureLogger(email, sourceIP)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
@@ -99,7 +99,7 @@ func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *
 
 func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
-	sourceIP := utils.New(m.config).GetClientIP(r)
+	sourceIP := utils.New(c.config).GetClientIP(r)
 	log := utils.ConfigureLogger(email, sourceIP)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 

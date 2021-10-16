@@ -36,7 +36,7 @@ type OneTimePassword struct {
 // If successful, returns the QRCode image
 func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
-	sourceIP := utils.New(m.config).GetClientIP(r)
+	sourceIP := utils.New(u.config).GetClientIP(r)
 	log := utils.ConfigureLogger(email, sourceIP)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
 
@@ -130,7 +130,7 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 
 func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
-	sourceIP := utils.New(m.config).GetClientIP(r)
+	sourceIP := utils.New(u.config).GetClientIP(r)
 	log := utils.ConfigureLogger(email, sourceIP)
 
 	userManager := services.NewUserManager(u.db, u.config)
