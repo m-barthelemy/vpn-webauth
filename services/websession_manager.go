@@ -1,7 +1,7 @@
 package services
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
@@ -28,8 +28,18 @@ func NewWebSessionManager(db *gorm.DB, config *models.Config, notificationsManag
 
 func (s *WebSessionManager) CheckSession(identity string, sourceIP string) error {
 	if identity == "" || sourceIP == "" {
-		return fmt.Errorf("both identity and sourceIP must be set")
+		return errors.New("both identity and sourceIP must be set")
 	}
+	log := log.WithFields(log.Fields{
+		"user_id": identity,
+		"user_ip": sourceIP,
+	})
+	// Early exit if identity is excluded from any additional auth.
+	if utils.Contains(s.config.ExcludedIdentities, identity) {
+		log.Infof("WebSessionController: client is excluded from web authentication, skipping")
+		return nil
+	}
+
 	start := time.Now() // report time taken to verify user for debugging purposes
 	userManager := NewUserManager(s.db, s.config)
 	user, session, allowed, err := userManager.CheckVpnSession(identity, sourceIP)
@@ -38,7 +48,7 @@ func (s *WebSessionManager) CheckSession(identity string, sourceIP string) error
 		return err
 	}
 	if user == nil {
-		err := fmt.Errorf("received request for unknown identity '%s' from %s", identity, sourceIP)
+		err := errors.New("received request for unknown client identity")
 		log.Errorf("WebSessionController: %s", err)
 		return err
 	}
@@ -58,7 +68,7 @@ func (s *WebSessionManager) CheckSession(identity string, sourceIP string) error
 
 	if allowed {
 		if tx := s.db.Save(&vpnConnection); tx.Error != nil {
-			log.Errorf("WebSessionManager: error saving Vpnconnection audit entry for %s: %s", user.Email, tx.Error.Error())
+			log.Errorf("WebSessionManager: error saving Vpnconnection audit entry: %s", tx.Error.Error())
 			return tx.Error
 		}
 
@@ -68,18 +78,18 @@ func (s *WebSessionManager) CheckSession(identity string, sourceIP string) error
 	hasValidBrowserSession := s.notificationsManager.WaitForBrowserProof(user, sourceIP, *notifUniqueID)
 	vpnConnection.Allowed = hasValidBrowserSession
 	if tx := s.db.Save(&vpnConnection); tx.Error != nil {
-		log.Errorf("WebSessionManager: error saving Vpnconnection audit entry for %s: %s", user.Email, tx.Error.Error())
+		log.Errorf("WebSessionManager: error saving Vpnconnection audit entry: %s", tx.Error.Error())
 	}
 	log.Debugf("checking web session took %s", time.Since(start))
 
 	if !hasValidBrowserSession {
-		return fmt.Errorf("WebSessionManager: no valid session found for user %s from %s", identity, sourceIP)
+		return errors.New("WebSessionManager: no valid session found")
 	}
 
 	// Create a new VPNSession
 	if err := userManager.CreateVpnSession(user, sourceIP); err != nil {
 		return err
 	}
-	log.Infof("WebSessionManager: user %s VPN session extended from valid Web session.", user.Email)
+	log.Info("WebSessionManager: VPN session extended from valid Web session.")
 	return nil
 }

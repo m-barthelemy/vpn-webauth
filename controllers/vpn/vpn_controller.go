@@ -18,6 +18,7 @@ type VpnController struct {
 	db                   *gorm.DB
 	config               *models.Config
 	notificationsManager *services.NotificationsManager
+	webSessManager       *services.WebSessionManager
 	utils                *utils.Utils
 }
 
@@ -27,6 +28,7 @@ func New(db *gorm.DB, config *models.Config, notificationsManager *services.Noti
 		db:                   db,
 		config:               config,
 		utils:                utils.New(config),
+		webSessManager:       webSessManager,
 		notificationsManager: notificationsManager,
 	}
 }
@@ -53,73 +55,17 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Early exit if identity is excluded from any additional auth.
-	if contains(v.config.ExcludedIdentities, connRequest.Identity) {
-		http.Error(w, "Excluded", http.StatusOK)
-		return
-	}
-
-	userManager := services.NewUserManager(v.db, v.config)
-	user, session, allowed, err := userManager.CheckVpnSession(connRequest.Identity, connRequest.SourceIP)
+	log := log.WithFields(log.Fields{
+		"user_id": connRequest.Identity,
+		"user_ip": connRequest.SourceIP,
+	})
+	log.Debugf("VpnController: verifying user web session")
+	err = v.webSessManager.CheckSession(connRequest.Identity, connRequest.SourceIP)
 	if err != nil {
-		log.Errorf("VpnController: Error checking user session: %s", err.Error())
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-	if user == nil {
-		log.Errorf("VpnController: Received request for unknown identity '%s' from %s", connRequest.Identity, connRequest.SourceIP)
+		log.Errorf("VpnController: unable to authenticate client via web: %s", err)
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
-
-	vpnConnection := models.VPNConnection{
-		Allowed:     allowed,
-		Identity:    connRequest.Identity,
-		SourceIP:    connRequest.SourceIP,
-		VPNSourceIP: v.utils.GetClientIP(r),
-	}
-
-	vpnConnection.UserID = &user.ID
-	if allowed {
-		vpnConnection.VPNSessionID = &session.ID
-	}
-
-	if allowed {
-		if tx := v.db.Save(&vpnConnection); tx.Error != nil {
-			log.Errorf("VpnController: error saving Vpnconnection audit entry for %s: %s", user.Email, tx.Error.Error())
-		}
-		http.Error(w, fmt.Sprintf("Ok %s", time.Since(start)), http.StatusOK)
-		return
-	}
-
-	_, notifUniqueID, err := v.notificationsManager.NotifyUser(user, connRequest.SourceIP)
-	hasValidBrowserSession := v.notificationsManager.WaitForBrowserProof(user, connRequest.SourceIP, *notifUniqueID)
-	vpnConnection.Allowed = hasValidBrowserSession
-	if tx := v.db.Save(&vpnConnection); tx.Error != nil {
-		log.Errorf("VpnController: error saving Vpnconnection audit entry for %s: %s", user.Email, tx.Error.Error())
-	}
-
-	if !hasValidBrowserSession {
-		log.Errorf("VpnController: No valid session found for user %s", connRequest.Identity)
-		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-		return
-	}
-
-	// Create a new VPNSession
-	if err := userManager.CreateVpnSession(user, connRequest.SourceIP); err != nil {
-		log.Errorf("VpnController: error creating VPN session: %s", err.Error())
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-	log.Infof("VpnController: user %s VPN session extended from valid Web session.", user.Email)
+	log.Info("VpnController: VPN session extended from valid Web session.")
 	http.Error(w, fmt.Sprintf("Ok %s", time.Since(start)), http.StatusOK)
-}
-
-func contains(arr []string, str string) bool {
-	for _, a := range arr {
-		if a == str {
-			return true
-		}
-	}
-	return false
 }

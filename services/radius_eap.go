@@ -226,7 +226,7 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 
 	clientIP := net.ParseIP(request.GetCallingStationId())
 	if clientIP == nil {
-		msg := "[RADIUS] attribute %s value '%s' is not valid IP address."
+		msg := "[RADIUS] attribute %s value '%s' is not a valid IP address."
 		msg += "If using Strongswan, make sure you set `station_id_with_port = no` under the `eap-radius` config section."
 		return radiusError(fmt.Sprintf(msg, radius.CallingStationId.String(), request.GetCallingStationId()), "", npac)
 	}
@@ -359,6 +359,10 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Packet) *radius.Packet {
 	npac := request.Reply()
 	npac.Code = radius.AccessReject
+	log := log.WithFields(log.Fields{
+		"user_id": request.GetUsername(),
+		"user_ip": request.GetCallingStationId(),
+	})
 	msChapV2Packet, err := MSCHAPV2.Decode(eap.Data)
 	if err != nil {
 		return radiusError(fmt.Sprintf("[EAP-MsCHAPv2] unable to decode received packet: %s", err), "", npac)
@@ -446,11 +450,7 @@ func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Pa
 			Code:       radius.EapCodeFailure,
 			Data:       []byte{0},
 		}
-		if !r.checkWebSession(request.GetUsername(), request.GetCallingStationId()) {
-			npac.Code = radius.AccessChallenge
-			log.Infof("[RADIUS] sending Access-Reject response to NAS '%s' for client '%s'", request.GetNASIdentifier(), request.GetUsername())
-		} else {
-			log.Infof("[RADIUS] sending Access-Accept response to NAS '%s' for client '%s'", request.GetNASIdentifier(), request.GetUsername())
+		if r.checkWebSession(request.GetUsername(), request.GetCallingStationId()) {
 			statusPacket.Code = radius.EapCodeSuccess
 			npac.Code = radius.AccessAccept
 		}
@@ -460,6 +460,7 @@ func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Pa
 			Value: statusPacket.Encode(),
 		})
 		sessions.Remove(sessionId)
+		log.Infof("[RADIUS] sending %s response to NAS '%s'", npac.Code.String(), request.GetNASIdentifier())
 		return npac
 
 	default:
@@ -470,6 +471,10 @@ func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Pa
 func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet) *radius.Packet {
 	npac := request.Reply()
 	npac.Code = radius.AccessReject
+	log := log.WithFields(log.Fields{
+		"user_id": request.GetUsername(),
+		"user_ip": request.GetCallingStationId(),
+	})
 
 	sessionId, session, err := checkRadiusSession(request)
 	if err != nil {
@@ -763,7 +768,7 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 		})
 		eapState.TlsServerConn.Close()
 		sessions.Remove(sessionId)
-		log.Infof("[RADIUS] sending %s response to NAS '%s' for client '%s'", npac.Code.String(), request.GetNASIdentifier(), request.GetUsername())
+		log.Infof("[RADIUS] sending %s response to NAS '%s'", npac.Code.String(), request.GetNASIdentifier())
 	}
 
 	return npac
@@ -772,7 +777,7 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 func (r *RadiusService) checkWebSession(identity string, sourceIP string) bool {
 	err := r.webSessManager.CheckSession(identity, sourceIP)
 	if err != nil {
-		log.Errorf("unable to authenticate client %s via web: %s", err)
+		log.Errorf("unable to authenticate client via web: %s", err)
 		return false
 	}
 	log.Infof("client %s successfully authenticated", identity)
