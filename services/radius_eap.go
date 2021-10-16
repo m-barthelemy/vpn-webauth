@@ -21,6 +21,7 @@ import (
 	"github.com/dreadl0ck/tlsx"
 	"github.com/m-barthelemy/vpn-webauth/MSCHAPV2"
 	"github.com/m-barthelemy/vpn-webauth/models"
+	"github.com/m-barthelemy/vpn-webauth/utils"
 )
 
 // Identifies an EAP-TLS message
@@ -230,10 +231,7 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 		msg += "If using Strongswan, make sure you set `station_id_with_port = no` under the `eap-radius` config section."
 		return radiusError(fmt.Sprintf(msg, radius.CallingStationId.String(), request.GetCallingStationId()), "", npac)
 	}
-	log := log.WithFields(log.Fields{
-		"user_id": userName,
-		"user_ip": request.GetCallingStationId(),
-	})
+	log := utils.ConfigureLogger(userName, request.GetCallingStationId())
 
 	switch request.Code {
 	case radius.AccessRequest:
@@ -357,12 +355,10 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 }
 
 func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Packet) *radius.Packet {
+	log := utils.ConfigureLogger(request.GetUsername(), request.GetCallingStationId())
 	npac := request.Reply()
 	npac.Code = radius.AccessReject
-	log := log.WithFields(log.Fields{
-		"user_id": request.GetUsername(),
-		"user_ip": request.GetCallingStationId(),
-	})
+
 	msChapV2Packet, err := MSCHAPV2.Decode(eap.Data)
 	if err != nil {
 		return radiusError(fmt.Sprintf("[EAP-MsCHAPv2] unable to decode received packet: %s", err), "", npac)
@@ -469,12 +465,9 @@ func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Pa
 }
 
 func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet) *radius.Packet {
+	log := utils.ConfigureLogger(request.GetUsername(), request.GetCallingStationId())
 	npac := request.Reply()
 	npac.Code = radius.AccessReject
-	log := log.WithFields(log.Fields{
-		"user_id": request.GetUsername(),
-		"user_ip": request.GetCallingStationId(),
-	})
 
 	sessionId, session, err := checkRadiusSession(request)
 	if err != nil {

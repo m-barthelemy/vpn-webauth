@@ -43,7 +43,7 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	start := time.Now() // report time taken to verify user for debugging purposes
 	_, password, _ := r.BasicAuth()
 	if password != v.config.VPNCheckPassword {
-		log.Error("VpnController: password does not match VPNCHECKPASSWORD")
+		log.Error("VpnController: received password does not match VPNCHECKPASSWORD")
 		http.Error(w, "Invalid VPNCHECKPASSWORD", http.StatusForbidden)
 		return
 	}
@@ -54,11 +54,8 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	log := utils.ConfigureLogger(connRequest.Identity, connRequest.SourceIP)
 
-	log := log.WithFields(log.Fields{
-		"user_id": connRequest.Identity,
-		"user_ip": connRequest.SourceIP,
-	})
 	log.Debugf("VpnController: verifying user web session")
 	err = v.webSessManager.CheckSession(connRequest.Identity, connRequest.SourceIP)
 	if err != nil {

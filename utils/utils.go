@@ -3,12 +3,12 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"strings"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
+	log "github.com/sirupsen/logrus"
 )
 
 type Utils struct {
@@ -69,4 +69,11 @@ func Contains(arr []string, str string) bool {
 		}
 	}
 	return false
+}
+
+func ConfigureLogger(identity string, sourceIP string) *log.Entry {
+	return log.WithFields(log.Fields{
+		"user_id": identity,
+		"user_ip": sourceIP,
+	})
 }

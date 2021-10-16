@@ -6,7 +6,6 @@ import (
 
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"github.com/m-barthelemy/vpn-webauth/utils"
-	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
@@ -30,10 +29,8 @@ func (s *WebSessionManager) CheckSession(identity string, sourceIP string) error
 	if identity == "" || sourceIP == "" {
 		return errors.New("both identity and sourceIP must be set")
 	}
-	log := log.WithFields(log.Fields{
-		"user_id": identity,
-		"user_ip": sourceIP,
-	})
+	log := utils.ConfigureLogger(identity, sourceIP)
+
 	// Early exit if identity is excluded from any additional auth.
 	if utils.Contains(s.config.ExcludedIdentities, identity) {
 		log.Infof("WebSessionController: client is excluded from web authentication, skipping")
