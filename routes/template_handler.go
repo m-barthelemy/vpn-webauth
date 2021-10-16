@@ -39,7 +39,7 @@ func (g *TemplateHandler) HandleEmbeddedTemplate(response http.ResponseWriter, r
 
 	err := templates.ExecuteTemplate(response, fileName, g.config)
 	if err != nil {
-		log.Errorf("Error serving template %s: %s", fileName, err.Error())
+		log.Errorf("error serving template %s: %s", fileName, err.Error())
 		http.Error(response, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }

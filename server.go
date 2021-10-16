@@ -26,7 +26,7 @@ func startServer(config *models.Config, handler http.Handler) {
 
 	if config.SSLMode == "auto" {
 		if err := cacheDir(config.SSLAutoCertsDir); err != nil {
-			log.Fatalf("Could not create Letsencrypt certs directory %s : %s", config.SSLAutoCertsDir, err.Error())
+			log.Fatalf("could not create Letsencrypt certs directory %s : %s", config.SSLAutoCertsDir, err.Error())
 		}
 		certManager.Cache = autocert.DirCache(config.SSLAutoCertsDir)
 	}
@@ -77,7 +77,7 @@ func startServer(config *models.Config, handler http.Handler) {
 		Handler:           &topHandler{config: config, handler: handler}, // Ensure requests time out except for SSE endpoint
 	}
 
-	log.Infof("Serving http/https for domains: %+v", domain)
+	log.Infof("serving http/https for domains: %+v", domain)
 	if config.SSLMode == "auto" {
 		go func() {
 			// Serve HTTP, which will redirect automatically to HTTPS
@@ -113,6 +113,7 @@ func (h *topHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/events" {
 		h.handler.ServeHTTP(w, r)
 	} else {
+		// TODO: this will override WEBSESSIONPROOFTIMEOUT
 		o := http.TimeoutHandler(h.handler, 5*time.Second, "Request took too long")
 		o.ServeHTTP(w, r)
 	}

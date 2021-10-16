@@ -50,33 +50,33 @@ func main() {
 	case "mysql":
 		db, dbErr = gorm.Open(mysql.Open(config.DbDSN), &gorm.Config{})
 	default:
-		log.Fatalf("Unknown DbType '%s'", config.DbType)
+		log.Fatalf("unknown DbType '%s'", config.DbType)
 	}
 	if dbErr != nil {
-		log.Fatalf("Failed to connect to database: %s", dbErr)
+		log.Fatalf("failed to connect to database: %s", dbErr)
 	}
 
 	// Migrate the schema
 	if err := db.AutoMigrate(&models.User{}); err != nil {
-		log.Fatalf("Failed to run database migrations for User model: %s", err)
+		log.Fatalf("failed to run database migrations for User model: %s", err)
 	}
 	if err := db.AutoMigrate(&models.VpnSession{}); err != nil {
-		log.Fatalf("Failed to run database migrations for VpnSession model: %s", err)
+		log.Fatalf("failed to run database migrations for VpnSession model: %s", err)
 	}
 	if err := db.AutoMigrate(&models.UserMFA{}); err != nil {
-		log.Fatalf("Failed to run database migrations for UserMFA model: %s", err)
+		log.Fatalf("failed to run database migrations for UserMFA model: %s", err)
 	}
 	if err := db.AutoMigrate(&models.VPNConnection{}); err != nil {
-		log.Fatalf("Failed to run database migrations for VPNConnection model: %s", err)
+		log.Fatalf("failed to run database migrations for VPNConnection model: %s", err)
 	}
 	if err := db.AutoMigrate(&models.UserSubscription{}); err != nil {
-		log.Fatalf("Failed to run database migrations for UserSubscription model: %s", err)
+		log.Fatalf("failed to run database migrations for UserSubscription model: %s", err)
 	}
 
 	// Delete old VPN connections log entries
 	userManager := services.NewUserManager(db, &config)
 	if err := userManager.CleanupConnectionsLog(); err != nil {
-		log.Errorf("Could not delete old VPN connections log entries: %s", err.Error())
+		log.Errorf("could not delete old VPN connections log entries: %s", err.Error())
 	}
 
 	bus := EventBus.New()

@@ -48,7 +48,7 @@ func (m *UserManager) CheckOrCreate(email string) (*models.User, error) {
 			if result.Error != nil {
 				return nil, result.Error
 			}
-			log.Infof("UserManager: Created new user %s", user.Email)
+			log.Infof("UserManager: created new user %s", user.Email)
 		} else {
 			return nil, result.Error
 		}
@@ -98,7 +98,7 @@ func (m *UserManager) CreateVpnSession(user *models.User, ip string) error {
 	if result.Error != nil {
 		return result.Error
 	}
-	log.Infof("UserController: User %s created VPN session from %s", user.Email, ip)
+	log.Infof("UserController: user %s created VPN session from %s", user.Email, ip)
 	return nil
 }
 
@@ -138,7 +138,7 @@ func (m *UserManager) AddMFA(user *models.User, mfaType string, data string, use
 	if result.Error != nil {
 		return nil, result.Error
 	}
-	log.Infof("UserManager: Created %s UserMFA for %s", mfaType, user.Email)
+	log.Infof("UserManager: created %s UserMFA for %s", mfaType, user.Email)
 
 	return &userMFA, nil
 }
@@ -187,7 +187,7 @@ func (m *UserManager) ValidateMFA(mfa *models.UserMFA, data string) (*models.Use
 		return nil, result.Error
 	}
 
-	log.Infof("UserManager: Validated %s UserMFA for User %s", userMFA.Type, userMFA.ID.String())
+	log.Infof("UserManager: validated %s UserMFA for User %s", userMFA.Type, userMFA.ID.String())
 	return &userMFA, nil
 }
 
@@ -213,7 +213,7 @@ func (m *UserManager) AddUserSubscription(user *models.User, subscription *model
 	if result.Error != nil {
 		return nil, result.Error
 	}
-	log.Infof("UserManager: Created Web push subscription for %s", user.Email)
+	log.Infof("UserManager: created Web push subscription for %s", user.Email)
 
 	return subscription, nil
 }

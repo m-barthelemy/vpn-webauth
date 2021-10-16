@@ -52,7 +52,7 @@ func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *
 	userManager := services.NewUserManager(c.db, c.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Errorf("SingleUseCodeController: Error fetching user: %s", err.Error())
+		log.Errorf("SingleUseCodeController: error fetching user: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -60,7 +60,7 @@ func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *
 	// Deny if there's already a valid single-use code
 	for _, mfa := range user.MFAs {
 		if mfa.Type == "code" && mfa.ExpiresAt.After(time.Now()) {
-			log.Error("SingleUseCodeController: Cannot generate single use code for user: found other pending unique code")
+			log.Error("SingleUseCodeController: cannot generate single use code for user: found other pending unique code")
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -68,7 +68,7 @@ func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *
 
 	randomCode, err := rand.Int(rand.Reader, big.NewInt(999999))
 	if err != nil {
-		log.Errorf("SingleUseCodeController: Error generating random numeric code for user: %s", err.Error())
+		log.Errorf("SingleUseCodeController: error generating random numeric code for user: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -80,7 +80,7 @@ func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *
 
 	otcMFA, err := userManager.AddMFA(user, "code", "", r.Header.Get("User-Agent"))
 	if err != nil {
-		log.Errorf("SingleUseCodeController: Error saving OTC for user: %s", err.Error())
+		log.Errorf("SingleUseCodeController: error saving OTC for user: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -88,7 +88,7 @@ func (c *OneTimeCodeController) GenerateSingleUseCode(w http.ResponseWriter, r *
 	otcMFA.Data = string(serialized[:])
 	otcMFA.Validated = true
 	if _, err := userManager.UpdateMFA(*otcMFA); err != nil {
-		log.Errorf("SingleUseCodeController: Error updating OTC for user: %s", err.Error())
+		log.Errorf("SingleUseCodeController: error updating OTC for user: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -107,7 +107,7 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 	userManager := services.NewUserManager(c.db, c.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Errorf("SingleUseCodeController: Error fetching user: %s", err.Error())
+		log.Errorf("SingleUseCodeController: error fetching user: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -129,7 +129,7 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 		}
 	}
 	if codeMFA == nil {
-		log.Error("SingleUseCodeController: User single-use code doesn't exist")
+		log.Error("SingleUseCodeController: user single-use code doesn't exist")
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -137,13 +137,13 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 	dp := services.NewDataProtector(c.config)
 	decryptedData, err := dp.Decrypt(codeMFA.Data)
 	if err != nil {
-		log.Errorf("SingleUseCodeController: Unable to decrypt single-use code: %s", err.Error())
+		log.Errorf("SingleUseCodeController: unable to decrypt single-use code: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	var singleUseCode OneTimeCode
 	if err := json.Unmarshal([]byte(decryptedData), &singleUseCode); err != nil {
-		log.Errorf("SingleUseCodeController: Data could not be deserialized to SingleUseCode for single-use code: %s", err.Error())
+		log.Errorf("SingleUseCodeController: data could not be deserialized to SingleUseCode for single-use code: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -151,13 +151,13 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 	var codeToValidate OneTimeCode
 	err = json.NewDecoder(r.Body).Decode(&codeToValidate)
 	if err != nil {
-		log.Errorf("SingleUseCodeController: Unable to unmarshal single-use code: %s", err.Error())
+		log.Errorf("SingleUseCodeController: unable to unmarshal single-use code: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	if singleUseCode.RemainingTries == 0 {
-		log.Error("SingleUseCodeController: Maximum number of attempts reached for single-use code")
+		log.Error("SingleUseCodeController: maximum number of attempts reached for single-use code")
 		http.Error(w, "Too many failed attempts", http.StatusInternalServerError)
 		return
 	}
@@ -167,7 +167,7 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 		newData, _ := json.Marshal(singleUseCode)
 		codeMFA.Data = string(newData[:])
 		if _, err = userManager.UpdateMFA(*codeMFA); err != nil {
-			log.Errorf("SingleUseCodeController: Unable to update single-use code MFA: %s", err.Error())
+			log.Errorf("SingleUseCodeController: unable to update single-use code MFA: %s", err.Error())
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -180,14 +180,14 @@ func (c *OneTimeCodeController) ValidateSingleUseCode(w http.ResponseWriter, r *
 	codeMFA.Validated = false
 	codeMFA.ExpiresAt = time.Time{}
 	if _, err := userManager.UpdateMFA(*codeMFA); err != nil {
-		log.Errorf("SingleUseCodeController: Unable to deactivate single-use code MFA: %s", err.Error())
+		log.Errorf("SingleUseCodeController: unable to deactivate single-use code MFA: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	// Create fully MFA-authenticated session
 	if userManager.CreateSession(user, true, w) != nil {
-		log.Errorf("GoogleController: Error creating user MFA session: %s", err)
+		log.Errorf("GoogleController: error creating user MFA session: %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}

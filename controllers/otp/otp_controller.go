@@ -43,7 +43,7 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 	userManager := services.NewUserManager(u.db, u.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Errorf("OTPController: Error fetching user: %s", err.Error())
+		log.Errorf("OTPController: error fetching user: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -75,13 +75,13 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 			AccountName: email,
 		})
 		if err != nil {
-			log.Errorf("OTPController: Error generating user TOTP secret: %s", err)
+			log.Errorf("OTPController: error generating user TOTP secret: %s", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 
 		otpMFA, err = userManager.AddMFA(user, "otp", otp.Secret(), r.Header.Get("User-Agent"))
 		if err != nil {
-			log.Errorf("OTPController: Error creating user TOTP MFA provider: %s", err)
+			log.Errorf("OTPController: error creating user TOTP MFA provider: %s", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}
@@ -89,7 +89,7 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 	dp := services.NewDataProtector(u.config)
 	otpSecret, err := dp.Decrypt(otpMFA.Data)
 	if err != nil {
-		log.Errorf("OTPController: Error decrypting user TOTP secret: %s", err)
+		log.Errorf("OTPController: error decrypting user TOTP secret: %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 
@@ -100,20 +100,20 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 		Secret:      otpSecretBytes,
 	})
 	if err != nil {
-		log.Errorf("OTPController: Error initializing TOTP secret: %s", err)
+		log.Errorf("OTPController: error initializing TOTP secret: %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	var qrBuf bytes.Buffer
 	img, err := key.Image(512, 512)
 	if err != nil {
-		log.Errorf("OTPController: Error generating QR code image: %s", err.Error())
+		log.Errorf("OTPController: error generating QR code image: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	pngErr := png.Encode(&qrBuf, img)
 	if pngErr != nil {
-		log.Errorf("OTPController: Error generating QR code image PNG: %s", err.Error())
+		log.Errorf("OTPController: error generating QR code image PNG: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -123,7 +123,7 @@ func (u *OTPController) GenerateQrCode(w http.ResponseWriter, r *http.Request) {
 	// For security reasons it's best to disable any storage aching of the QR code
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := w.Write(qrBuf.Bytes()); err != nil {
-		log.Errorf("OTPController: Unable to generate QRcode: %s", err.Error())
+		log.Errorf("OTPController: unable to generate QRcode: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
@@ -136,7 +136,7 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	userManager := services.NewUserManager(u.db, u.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Errorf("OTPController: Error fetching user: %s", err.Error())
+		log.Errorf("OTPController: error fetching user: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -150,7 +150,7 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if otpMFA == nil {
-		log.Error("OTPController: User has no TOTP MFA provider")
+		log.Error("OTPController: user has no TOTP MFA provider")
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -158,7 +158,7 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	dp := services.NewDataProtector(u.config)
 	otpSecret, err := dp.Decrypt(otpMFA.Data)
 	if err != nil {
-		log.Errorf("OTPController: Error fetching user TOTP secret: %s", err)
+		log.Errorf("OTPController: error fetching user TOTP secret: %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -193,7 +193,7 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		log.Info("OTPController: Successfully validated OTP provider")
+		log.Info("OTPController: successfully validated OTP provider")
 	}
 
 	if err := userManager.CreateVpnSession(user, sourceIP); err != nil {

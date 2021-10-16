@@ -92,7 +92,7 @@ func (n *NotificationsManager) NotifyUser(user *models.User, sourceIP string) (b
 		notified = true
 	}
 	if deletedCount > 0 {
-		log.Infof("NotificationsManager: Deleted %d inactive push subscriptions for %s", deletedCount, user.Email)
+		log.Infof("NotificationsManager: deleted %d inactive push subscriptions for %s", deletedCount, user.Email)
 	}
 
 	// Also send to clients using SSE fallback
@@ -140,7 +140,7 @@ func (n *NotificationsManager) WaitForBrowserProof(user *models.User, sourceIP s
 		} // otherwise there can still be a browser having a valid session that has not yet replied.
 	// Wait for a short interval to not clog the VPN server that waiting for a reply in blocking mode
 	case <-time.After(n.config.WebSessionProofTimeout):
-		log.Errorf("NotificationsManager: No active web session replied on time for user %s", user.Email)
+		log.Errorf("NotificationsManager: no active web session replied on time for user %s", user.Email)
 	}
 	close(channel)
 	eventBus.Unsubscribe(fmt.Sprintf("%s:%s", user.Email, sourceIP), checkWebSessions)
