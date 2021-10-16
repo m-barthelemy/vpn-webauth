@@ -169,7 +169,7 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 		Secret:      otpSecretBytes,
 	})
 	if err != nil {
-		log.Errorf("OTPController: Error initializing TOTP secret: %s", err)
+		log.Errorf("OTPController: error initializing TOTP secret: %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -177,19 +177,19 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	var codeToValidate OneTimePassword
 	err = json.NewDecoder(r.Body).Decode(&codeToValidate)
 	if err != nil {
-		log.Errorf("OTPController: Unable to unmarshal OTP code: %s", err.Error())
+		log.Errorf("OTPController: unable to unmarshal OTP code: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 	if !totp.Validate(codeToValidate.Code, key.Secret()) {
-		log.Error("OTPController: Error validating OTP code validation")
+		log.Error("OTPController: invalid OTP code")
 		http.Error(w, "Invalid code", http.StatusBadRequest)
 		return
 	}
 
 	if !otpMFA.Validated {
 		if _, err := userManager.ValidateMFA(otpMFA, ""); err != nil {
-			log.Errorf("OTPController: Error updating OTP provider: %s", err.Error())
+			log.Errorf("OTPController: error updating OTP provider: %s", err.Error())
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -197,14 +197,14 @@ func (u *OTPController) ValidateOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := userManager.CreateVpnSession(user, sourceIP); err != nil {
-		log.Errorf("OTPController: Error creating VPN session: %s", err.Error())
+		log.Errorf("OTPController: error creating VPN session: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	log.Info("OTPController: User created VPN session")
+	log.Info("OTPController: user created VPN session")
 
 	if userManager.CreateSession(user, true, w) != nil {
-		log.Errorf("WebAuthNController: Error creating user MFA session: %s", err)
+		log.Errorf("WebAuthNController: error creating user MFA session: %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
