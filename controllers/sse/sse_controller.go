@@ -3,7 +3,6 @@ package sse
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -130,20 +129,21 @@ func (s *SSEController) Start() {
 
 func (s *SSEController) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	var identity = r.Context().Value("identity").(string)
+	sourceIP := utils.New(s.config).GetClientIP(r)
+	log := utils.ConfigureLogger(identity, sourceIP)
 
 	// Make sure that the writer supports flushing.
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		log.Println("SSEController: HTTP streaming unsupported")
+		log.Error("SSEController: HTTP streaming unsupported")
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	sourceIP := utils.New(s.config).GetClientIP(r)
 	clientStatus := ClientAuthorizationStatus{userID: identity, sourceIP: sourceIP, hasSession: true, expires: time.Now()}
 	channel := s.broker.subscribe(clientStatus)
 	defer s.broker.unsubscribe(channel)
-	log.Printf("Added new SSE client %s connecting from from %s", identity, sourceIP)
+	log.Info("Added new SSE client")
 
 	// Set the headers related to event streaming.
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -157,7 +157,7 @@ func (s *SSEController) HandleEvents(w http.ResponseWriter, r *http.Request) {
 			_, _ = fmt.Fprintf(w, "data: %s\n\n", msg)
 			flusher.Flush()
 		case <-r.Context().Done():
-			log.Printf("Removed SSE client %s connecting from from %s", identity, sourceIP)
+			log.Info("Removed SSE client")
 			return
 		}
 	}

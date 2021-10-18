@@ -129,7 +129,9 @@ func (n *NotificationsManager) WaitForBrowserProof(user *models.User, sourceIP s
 	hasValidBrowserSession := false
 	// Background task that we can kill it after some time to avoid Strongswan hanging for too long
 	go func() {
-		eventBus.Subscribe(fmt.Sprintf("%s:%s", user.Email, sourceIP), checkWebSessions)
+		if err := eventBus.Subscribe(fmt.Sprintf("%s:%s", user.Email, sourceIP), checkWebSessions); err != nil {
+			log.Errorf("unable to subscribe to browser event bus: %s", err)
+		}
 		eventBus.WaitAsync()
 	}()
 	select {
@@ -143,7 +145,9 @@ func (n *NotificationsManager) WaitForBrowserProof(user *models.User, sourceIP s
 		log.Errorf("NotificationsManager: no active web session replied on time for user %s", user.Email)
 	}
 	close(channel)
-	eventBus.Unsubscribe(fmt.Sprintf("%s:%s", user.Email, sourceIP), checkWebSessions)
+	if err := eventBus.Unsubscribe(fmt.Sprintf("%s:%s", user.Email, sourceIP), checkWebSessions); err != nil {
+		log.Errorf("unable to unsubscribe from browser event bus: %s", err)
+	}
 
 	return hasValidBrowserSession
 }

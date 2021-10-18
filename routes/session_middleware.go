@@ -34,7 +34,7 @@ func (s *SessionHandler) SessionMiddleware(jwtKey []byte, h http.HandlerFunc, al
 		session, err := r.Cookie(cookieName)
 		if err != nil {
 			if !allowNoSession {
-				log.Printf("Cannot find session cookie: %s", err.Error())
+				log.Printf("cannot find session cookie: %s", err.Error())
 				if r.Header.Get("Accept") == "application/json" {
 					http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 					return
@@ -82,7 +82,7 @@ func (s *SessionHandler) IdentificationMiddleware(jwtKey []byte, h http.HandlerF
 		}
 		session, err := r.Cookie(cookieName)
 		if err != nil {
-			log.Errorf("Cannot find identification cookie: %s", err.Error())
+			log.Errorf("cannot find identification cookie: %s", err.Error())
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}

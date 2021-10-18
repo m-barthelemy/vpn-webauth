@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -106,7 +107,7 @@ func NewRadiusServer(config *models.Config, userManager *UserManager, webSessMan
 		}
 	})
 
-	// TLS "proxy" used for EAP-TLS handshake
+	// TLS server used for EAP-TLS handshake
 	tmpfile, err := ioutil.TempFile("", "eap-tls-handshake")
 	if err != nil {
 		log.Fatalf("[EAP-TLS] failed to create temporary file for handshake server: %v", err)
@@ -144,71 +145,6 @@ func (r *RadiusService) Start() {
 	}()
 }
 
-func tlsClientAuth(ch chan<- bool, conn net.Conn, tlsConfig *tls.Config, userName string) {
-	defer conn.Close()
-	conn.Write([]byte{}) // without a write, conn hangs and we're unable to get the state and client cert.
-	tlscon, ok := conn.(*tls.Conn)
-	if ok {
-		state := tlscon.ConnectionState()
-		if len(state.PeerCertificates) == 0 {
-			log.Error("[TLS] client did not send any certificate")
-			ch <- false
-			return
-		}
-		clientCert := state.PeerCertificates[0]
-		log.Infof("[TLS] received client certificate %s valid until %s", clientCert.Subject, clientCert.NotAfter.String())
-		if clientCert.NotAfter.Before(time.Now()) {
-			log.Errorf("[TLS] client certificate %s is expired", clientCert.Subject)
-			ch <- false
-			return
-		}
-		log.Debugf("[TLS] client cert alt names: dns=%s, email=%s, ips=%s, extranames=%s", clientCert.DNSNames, clientCert.EmailAddresses, clientCert.IPAddresses, clientCert.Subject.ExtraNames)
-		// TODO: here we need to get the client identity received by Radius and check if it's present in any of the cert subject fields
-		// While not required strictly speaking, this is what Strongswan does, as it ensures the user is who they pretent to be.
-		// This becomes necessary if the VPN has different connections per user (different allowed subnets...)
-
-		opts := x509.VerifyOptions{
-			Roots:     tlsConfig.ClientCAs,
-			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
-			//Intermediates: x509.NewCertPool(),
-		}
-		_, err := clientCert.Verify(opts)
-
-		if err != nil {
-			log.Errorf("[TLS] unable to verify client certificate %s: %s", clientCert.Subject, err)
-			ch <- false
-			return
-		}
-
-		// [rfc5216] 5.2. Peer identity
-		// We closely follow Strongswan here: the claimed identity (EAP identity) must be present in the client certificate
-		// An exception is that we also allow the identity to only match the CN field of the subject
-		var certIdentities []string
-		certIdentities = append(certIdentities, clientCert.Subject.String())
-		certIdentities = append(certIdentities, clientCert.Subject.CommonName)
-		certIdentities = append(certIdentities, clientCert.DNSNames...)
-		certIdentities = append(certIdentities, clientCert.EmailAddresses...)
-		for _, ip := range clientCert.IPAddresses {
-			certIdentities = append(certIdentities, ip.String())
-		}
-		identityFound := false
-		for _, identity := range certIdentities {
-			if identity == userName {
-				identityFound = true
-				break
-			}
-		}
-		if !identityFound {
-			log.Errorf("[TLS] client EAP identity %s is not present in any of the client certificate fields (%s)", userName, certIdentities)
-			ch <- false
-			return
-		}
-
-		// Successful client authentication
-		ch <- true
-	}
-}
-
 // Check https://github.com/keysonZZZ/kmg/blob/master/third/kmgRadius/Auth.go
 // for EAP and MSCHAP challenge response
 func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
@@ -240,41 +176,9 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 			return radiusError("[RADIUS] request doesn't contain any EAP message", "", npac)
 		}
 
-		var eap *radius.EapPacket
-		// `request.GetEAPMessage()` crashes
-		// - if there's no valid EAP message
-		// - if the EAP message is fragmented (length > current AVP length)
-		// so we need to guard against that.
-		checkEapAvp := request.GetAVP(radius.EAPMessage)
-		if len(checkEapAvp.Value) < 5 {
-			return radiusError("[RADIUS] request contains an invalid EAP message (length < 5)", "", npac)
-		} else if len(checkEapAvp.Value) == 253 {
-			// We may have a big EAP packet split into multiple AVPs
-			totalEapMsgSize := binary.BigEndian.Uint16(checkEapAvp.Value[2:4])
-			log.Debugf("[EAP] received EAP message (%d total length) split into multiple Radius AVPs", totalEapMsgSize)
-			// We need to set the EAP packet size to the current AVP's max size instead of the total fragmented packet size other we cannot parse it
-			binary.BigEndian.PutUint16(checkEapAvp.Value[2:4], uint16(253))
-			var err error
-			// The first AVP contains the EAP packet header
-			eap, err = radius.EapDecode(checkEapAvp.Value)
-			if err != nil {
-				return radiusError(fmt.Sprintf("[EAP] unable to parse first EAP fragment: %s", err), "", npac)
-			}
-			eapAVPStarted := false
-			for _, avp := range request.AVPs {
-				if avp.Type == radius.EAPMessage {
-					if !eapAVPStarted {
-						eapAVPStarted = true
-					} else {
-						// Subsequent EAP AVPs contain raw data to be concatenated to the first AVP
-						eap.Data = append(eap.Data, avp.Value...)
-					}
-				}
-			}
-			log.Debugf("[EAP-TLS] packet flags = %08b, reported size %d bytes, found %d bytes of data", eap.Data[0], totalEapMsgSize, len(eap.Data))
-
-		} else {
-			eap = request.GetEAPMessage()
+		eap, err := r.getEAPPacket(request)
+		if err != nil {
+			return radiusError(err.Error(), "", npac)
 		}
 
 		if eap == nil {
@@ -352,6 +256,46 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 		return radiusError(fmt.Sprintf("[RADIUS] received unsupported message type '%s'", request.Code.String()), "", npac)
 	}
 	return npac
+}
+
+// Returns the full EAP packet contained in the Radius packet, reassembled if split across multiple Radius AVPs
+func (r *RadiusService) getEAPPacket(request *radius.Packet) (*radius.EapPacket, error) {
+	// `request.GetEAPMessage()` crashes
+	// - if there's no valid EAP message
+	// - if the EAP message is fragmented (length > current AVP length)
+	// so we need to guard against that.
+	checkEapAvp := request.GetAVP(radius.EAPMessage)
+	var eap *radius.EapPacket
+	if len(checkEapAvp.Value) < 5 {
+		return nil, errors.New("[RADIUS] request contains an invalid EAP message (length < 5)")
+	} else if len(checkEapAvp.Value) == 253 {
+		// We may have a big EAP packet split into multiple AVPs
+		totalEapMsgSize := binary.BigEndian.Uint16(checkEapAvp.Value[2:4])
+		log.Debugf("[EAP] received EAP message (%d total length) split into multiple Radius AVPs", totalEapMsgSize)
+		// We need to set the EAP packet size to the current AVP's max size instead of the total fragmented packet size other we cannot parse it
+		binary.BigEndian.PutUint16(checkEapAvp.Value[2:4], uint16(253))
+		var err error
+		// The first AVP contains the EAP packet header
+		eap, err = radius.EapDecode(checkEapAvp.Value)
+		if err != nil {
+			return nil, fmt.Errorf("[EAP] unable to parse first EAP fragment: %s", err)
+		}
+		eapAVPStarted := false
+		for _, avp := range request.AVPs {
+			if avp.Type == radius.EAPMessage {
+				if !eapAVPStarted {
+					eapAVPStarted = true
+				} else {
+					// Subsequent EAP AVPs contain raw data to be concatenated to the first AVP
+					eap.Data = append(eap.Data, avp.Value...)
+				}
+			}
+		}
+		log.Debugf("[EAP-TLS] packet flags = %08b, reported size %d bytes, found %d bytes of data", eap.Data[0], totalEapMsgSize, len(eap.Data))
+	} else {
+		eap = request.GetEAPMessage()
+	}
+	return eap, nil
 }
 
 func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Packet) *radius.Packet {
@@ -516,7 +460,7 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 		}
 		if read == len(reply) {
 			return radiusError(
-				fmt.Sprintf("[EAP-TLS] TLS ServerHello was %d bytes or greater. This is not supported. This probably indicates that your certificate chain is too long", read),
+				fmt.Sprintf("[EAP-TLS] TLS ServerHello was %d bytes or greater. This is not supported. Your certificate chain might be too long", read),
 				sessionId,
 				npac,
 			)
@@ -738,6 +682,7 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 		eapState.Step = TlsAuthentication
 		session.EapTlsState = eapState
 		sessions.SetWithTTL(sessionId, session, sessionTimeout)
+
 	} else if eapState.Step == TlsAuthentication {
 		acceptRejectPacket := radius.EapPacket{
 			Identifier: eap.Identifier + 1,
@@ -782,7 +727,18 @@ func (r *RadiusService) getTLSServerConfig() *tls.Config {
 	if err != nil {
 		log.Fatalf("[EAP-TLS] error getting VPN server certificate or key: %s", err)
 	}
-
+	for _, certBytes := range serverCert.Certificate {
+		serverCert, err := x509.ParseCertificate(certBytes)
+		if err != nil {
+			log.Fatalf("[EAP-TLS] failed to parse clients CA certificate: " + err.Error())
+		}
+		validityDays := int(math.Round(serverCert.NotAfter.Sub(time.Now()).Hours() / 24))
+		if validityDays < 0 {
+			log.Fatalf("[EAP-TLS] server certificate %s has expired", serverCert.Subject.String())
+		} else if validityDays < 7 {
+			log.Warnf("[EAP-TLS] server certificate %s expires in %d days", serverCert.Subject.String(), validityDays)
+		}
+	}
 	var clientCertCAs *x509.CertPool
 	clientCertCAs = x509.NewCertPool()
 	clientsCaBytes, err := ioutil.ReadFile(r.config.EAPTLSClientCAPath)
@@ -807,9 +763,9 @@ func (r *RadiusService) getTLSServerConfig() *tls.Config {
 	if validityDays < 30 {
 		log.Warnf("[EAP-TLS] clients CA certificate expires in %f days", math.Round(validityDays))
 	}
+
 	return &tls.Config{
 		MinVersion:                  tls.VersionTLS12,
-		MaxVersion:                  tls.VersionTLS12,
 		PreferServerCipherSuites:    true,
 		CurvePreferences:            []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
 		Certificates:                []tls.Certificate{serverCert},
@@ -835,10 +791,7 @@ func sendMSCHAPv2Challenge(userName string, eap *radius.EapPacket, npac *radius.
 		npac.Code = radius.AccessReject
 		return
 	}
-
-	session := &RadiusSession{
-		Challenge: mschapV2Challenge,
-	}
+	session := &RadiusSession{Challenge: mschapV2Challenge}
 
 	npac.Code = radius.AccessChallenge
 	npac.SetAVP(radius.AVP{
@@ -865,13 +818,12 @@ func sendMSCHAPv2Challenge(userName string, eap *radius.EapPacket, npac *radius.
 	})
 
 	sessions.Set(sessionId, session)
-	return
 }
 
 func sendTLSRequest(userName string, eap *radius.EapPacket, npac *radius.Packet, request *radius.Packet) {
 	npac.Code = radius.AccessChallenge
 
-	// Session not supposed to exist at this point
+	// Session is not supposed to exist at this point
 	sessionId, err := createSessionId()
 	if err != nil {
 		log.Errorf("[EAP-TLS] unable to generate session ID: %s", err)
@@ -900,6 +852,68 @@ func sendTLSRequest(userName string, eap *radius.EapPacket, npac *radius.Packet,
 	}
 	sessions.Set(sessionId, session)
 	return
+}
+
+func tlsClientAuth(ch chan<- bool, conn net.Conn, tlsConfig *tls.Config, userName string) {
+	defer conn.Close()
+	conn.Write([]byte{}) // Without a write, conn hangs and we're unable to get the state and client cert.
+	tlscon, ok := conn.(*tls.Conn)
+	if ok {
+		state := tlscon.ConnectionState()
+		if len(state.PeerCertificates) == 0 {
+			log.Error("[TLS] client did not send any certificate")
+			ch <- false
+			return
+		}
+		clientCert := state.PeerCertificates[0]
+		log.Infof("[TLS] received client certificate %s valid until %s", clientCert.Subject, clientCert.NotAfter.String())
+		if clientCert.NotAfter.Before(time.Now()) {
+			log.Errorf("[TLS] client certificate %s is expired", clientCert.Subject)
+			ch <- false
+			return
+		}
+		log.Debugf("[TLS] client cert alt names: dns=%v, email=%v, ips=%v, extranames=%v", clientCert.DNSNames, clientCert.EmailAddresses, clientCert.IPAddresses, clientCert.Subject.ExtraNames)
+
+		opts := x509.VerifyOptions{
+			Roots:     tlsConfig.ClientCAs,
+			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+			//Intermediates: x509.NewCertPool(),
+		}
+		_, err := clientCert.Verify(opts)
+
+		if err != nil {
+			log.Errorf("[TLS] unable to verify client certificate %s: %s", clientCert.Subject, err)
+			ch <- false
+			return
+		}
+
+		// [rfc5216] 5.2. Peer identity
+		// We closely follow Strongswan here: the claimed identity (EAP identity) must be present in the client certificate
+		// An exception is that we also allow the identity to only match the CN field of the subject
+		var certIdentities []string
+		certIdentities = append(certIdentities, clientCert.Subject.String())
+		certIdentities = append(certIdentities, clientCert.Subject.CommonName)
+		certIdentities = append(certIdentities, clientCert.DNSNames...)
+		certIdentities = append(certIdentities, clientCert.EmailAddresses...)
+		for _, ip := range clientCert.IPAddresses {
+			certIdentities = append(certIdentities, ip.String())
+		}
+		identityFound := false
+		for _, identity := range certIdentities {
+			if identity == userName {
+				identityFound = true
+				break
+			}
+		}
+		if !identityFound {
+			log.Errorf("[TLS] client EAP identity %s is not present in any of the client certificate fields (%s)", userName, certIdentities)
+			ch <- false
+			return
+		}
+
+		// Successful client authentication
+		ch <- true
+	}
 }
 
 func createSessionId() (string, error) {

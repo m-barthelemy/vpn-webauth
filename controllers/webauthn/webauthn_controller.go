@@ -40,12 +40,14 @@ func New(db *gorm.DB, config *models.Config) *WebAuthNController {
 func (m *WebAuthNController) BeginRegister(w http.ResponseWriter, r *http.Request) {
 	var email = r.Context().Value("identity").(string)
 	var sessionHasMFA = r.Context().Value("hasMfa").(bool)
+	sourceIP := utils.New(m.config).GetClientIP(r)
+	log := utils.ConfigureLogger(email, sourceIP)
 
 	var user *models.User
 	userManager := services.NewUserManager(m.db, m.config)
 	user, err := userManager.Get(email)
 	if err != nil {
-		log.Errorf("WebAuthNController: error fetching user %s: %s", email, err.Error())
+		log.Errorf("WebAuthNController: error fetching user: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -178,7 +180,7 @@ func (m *WebAuthNController) FinishRegister(w http.ResponseWriter, r *http.Reque
 	_ = m.deleteWebauthNCookie("webauthn_register", w)
 
 	if err := userManager.CreateVpnSession(user, sourceIP); err != nil {
-		log.Errorf("WebAuthNController: error creating VPN session for: %s", err.Error())
+		log.Errorf("WebAuthNController: error creating VPN session: %s", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
