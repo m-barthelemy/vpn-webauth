@@ -713,6 +713,7 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 }
 
 func (r *RadiusService) checkWebSession(identity string, sourceIP string) bool {
+	log := utils.ConfigureLogger(identity, sourceIP)
 	err := r.webSessManager.CheckSession(identity, sourceIP)
 	if err != nil {
 		log.Errorf("unable to authenticate client via web: %s", err)
@@ -739,6 +740,7 @@ func (r *RadiusService) getTLSServerConfig() *tls.Config {
 			log.Warnf("[EAP-TLS] server certificate %s expires in %d days", serverCert.Subject.String(), validityDays)
 		}
 	}
+
 	var clientCertCAs *x509.CertPool
 	clientCertCAs = x509.NewCertPool()
 	clientsCaBytes, err := ioutil.ReadFile(r.config.EAPTLSClientCAPath)
