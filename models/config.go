@@ -65,9 +65,9 @@ type Config struct {
 
 func (config *Config) New() Config {
 	var defaultConfig = Config{
-		AllowedVPNGwIPs:        []IPDecoder{
+		AllowedVPNGwIPs: []IPDecoder{
 			// 0.0.0.0/0
-			IPDecoder(net.IPNet{IP: net.IPv4(0x00, 0x00, 0x00, 0x00), Mask: net.CIDRMask(0, 32)})
+			IPDecoder(net.IPNet{IP: net.IPv4(0x00, 0x00, 0x00, 0x00), Mask: net.CIDRMask(0, 32)}),
 		},
 		ConnectionsRetention:   90,
 		DbType:                 "sqlite",
