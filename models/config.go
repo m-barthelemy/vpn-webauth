@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 // Not really a classical model since not saved into DB.
 type Config struct {
 	AdminEmail             string        // ADMINEMAIL
+	AllowedVPNGwIPs        []IPDecoder   // ALLOWEDVPNGWIPS. CIDRs of VPN servers allowed to connect
 	ConnectionsRetention   int           // CONNECTIONSRETENTION
 	Debug                  bool          // DEBUG
 	EAPMode                string        // EAPMODE
@@ -63,6 +65,10 @@ type Config struct {
 
 func (config *Config) New() Config {
 	var defaultConfig = Config{
+		AllowedVPNGwIPs:        []IPDecoder{
+			// 0.0.0.0/0
+			IPDecoder(net.IPNet{IP: net.IPv4(0x00, 0x00, 0x00, 0x00), Mask: net.CIDRMask(0, 32)})
+		},
 		ConnectionsRetention:   90,
 		DbType:                 "sqlite",
 		DbDSN:                  "/tmp/vpnwa.db",
@@ -95,7 +101,6 @@ func (config *Config) New() Config {
 	rand.Read(b)
 	key := base64.URLEncoding.EncodeToString(b)
 	defaultConfig.SigningKey = key
-
 	return defaultConfig
 }
 
@@ -159,5 +164,18 @@ func (config *Config) Verify() {
 	if config.SSLMode != "off" && config.SSLMode != "auto" && config.SSLMode != "custom" && config.SSLMode != "proxy" {
 		log.Fatal("SSLMODE must be one of: off, auto, custom, proxy")
 	}
+}
 
+type IPDecoder net.IPNet
+
+func (ipd *IPDecoder) Decode(value string) error {
+	if strings.Index(value, "/") < 0 {
+		value += "/32"
+	}
+	_, subnet, err := net.ParseCIDR(value)
+	if err != nil {
+		return err
+	}
+	*ipd = IPDecoder(*subnet)
+	return nil
 }

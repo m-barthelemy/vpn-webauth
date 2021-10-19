@@ -204,6 +204,7 @@ It is also possible to sign in from different browsers and devices by using the 
 - `EAPTLSCLIENTCAPATH`: full path to the CA certificate that is used to sign your VPN clients certificates.
 
 ## VPN
+  - `ALLOWEDVPNGWIPS`: only allow connections from the specified IPs or CIDRs to the Radius and the `ext-auth` check endpoints. Optional. Example: `10.0.0.0/24,10.0.1.0/24,10.99.1.2`
   - `VPNCHECKPASSWORD`: shared password between the app and the Strongswan `ext-auth` script to protect the endpoint checking for valid user "sessions". Optional.
     > If the `/vpn/check` endpoint is publicly available, it is a good idea to set a password to ensure that only your VPN server is allowed to query the app for user sessions. Make sure you also set it in your `ext-auth` configuration.
   - `VPNSESSIONVALIDITY`: how long to allow (re)connections to the VPN after completing the web authentication. During this interval the web authentication status is not reverified. Default: `30m`. Specify custom value as a number and a time unit, for example `1h30m`.

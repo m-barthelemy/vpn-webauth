@@ -13,6 +13,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -148,12 +149,17 @@ func (r *RadiusService) Start() {
 // Check https://github.com/keysonZZZ/kmg/blob/master/third/kmgRadius/Auth.go
 // for EAP and MSCHAP challenge response
 func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
+	npac := request.Reply()
+	npac.Code = radius.AccessReject
+
+	if allowed := r.isNasAllowed(request); !allowed {
+		log.Errorf("[RADIUS] NAS %s IP %s is not in ALLOWEDVPNGWIPS list", request.GetNASIdentifier(), request.ClientAddr)
+		return npac
+	}
+
 	if request.HasAVP(radius.FramedMTU) {
 		log.Warn("[RADIUS] received packet has Framed MTU attribute, this is not supported")
 	}
-
-	npac := request.Reply()
-	npac.Code = radius.AccessReject
 
 	userName := request.GetUsername()
 	if userName == "" {
@@ -256,6 +262,18 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 		return radiusError(fmt.Sprintf("[RADIUS] received unsupported message type '%s'", request.Code.String()), "", npac)
 	}
 	return npac
+}
+
+func (r *RadiusService) isNasAllowed(request *radius.Packet) bool {
+	nasIPRaw := strings.Split(request.ClientAddr, ":")[0]
+	nasIP := net.ParseIP(nasIPRaw)
+	for _, allowedNet := range r.config.AllowedVPNGwIPs {
+		ipNet := net.IPNet(allowedNet)
+		if ipNet.Contains(nasIP) {
+			return true
+		}
+	}
+	return false
 }
 
 // Returns the full EAP packet contained in the Radius packet, reassembled if split across multiple Radius AVPs

@@ -3,6 +3,7 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -40,6 +41,11 @@ type VpnConnectionRequest struct {
 }
 
 func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
+	if allowed := v.isNasAllowed(r); !allowed {
+		log.Error("VpnController source IP is not in ALLOWEDVPNGWIPS list")
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
 	start := time.Now() // report time taken to verify user for debugging purposes
 	_, password, _ := r.BasicAuth()
 	if password != v.config.VPNCheckPassword {
@@ -65,4 +71,16 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Info("VpnController: VPN session extended from valid Web session.")
 	http.Error(w, fmt.Sprintf("Ok %s", time.Since(start)), http.StatusOK)
+}
+
+func (v *VpnController) isNasAllowed(request *http.Request) bool {
+	clientIP := v.utils.GetClientIP(request)
+	nasIP := net.ParseIP(clientIP)
+	for _, allowedNet := range v.config.AllowedVPNGwIPs {
+		ipNet := net.IPNet(allowedNet)
+		if ipNet.Contains(nasIP) {
+			return true
+		}
+	}
+	return false
 }

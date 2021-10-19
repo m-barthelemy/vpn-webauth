@@ -80,7 +80,7 @@ func (n *NotificationsManager) NotifyUser(user *models.User, sourceIP string) (b
 		})
 		defer resp.Body.Close()
 
-		// The push provider signals that the subscription is no longer active, so delete it.
+		// The push provider signals that the browser subscription is no longer active, so delete it.
 		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 			if err := userManager.DeleteUserSubscription(&subscriptions[i]); err != nil {
 				return false, &notifId, err
