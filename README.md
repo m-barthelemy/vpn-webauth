@@ -149,7 +149,7 @@ All the configuration parameters have to passed as environment variables.
 Postgres example: `DBDSN="host=127.0.0.1 user=vpnwa password='' database=vpnwa port=5432"`
 
   > NOTE: the app will automatically create the tables and thus needs to have the privileges to do so.
-- `ENCRYPTIONKEY`: key used to encrypt sensitive information in the database. Must be 32 characters. **Mandatory** if `ENFORCEMFA` is set to `true`.
+- `ENCRYPTIONKEY`: key used to encrypt sensitive information in the database. Must be 32 characters. Mandatory if `ENFORCEMFA` is set to `true`.
 - `EXCLUDEDIDENTITIES`: list of VPN accounts (identities) that do not require any additional authentication by this app, separated by comma. Optional.
   > The VPN server will still query the application when these accounts try to connect, but will always get a positive response.
   > NOTE: Your VPN's own authentication process still fully applies.
@@ -163,7 +163,11 @@ Postgres example: `DBDSN="host=127.0.0.1 user=vpnwa password='' database=vpnwa p
 - `SIGNINGKEY`: key used to sign the user session tokens during the web authentication. By default, a new signing key will be generated each time this application starts.
   > Regenerating a new key every time the application starts means that all your users web sessions will be invalid and they will have to sign in again if they need a new VPN "session".
   > It is recommended that you create and pass your own key.
+- `ALLOWEDVPNGWIPS`: only allow connections from the specified IPs or CIDRs to the Radius and the `ext-auth` check endpoints. Optional. Example: `10.0.0.0/24,10.0.1.0/24,10.99.1.2`.
 - `WEBSESSIONVALIDITY`: how long a web authentication is valid. During this time, users don't need to go through the full OAuth2 + MFA process to get a new VPN session since the browser and existing session are considered as trusted. Default: `12h`. Specify custom value as a number and a time unit, for example `48h30m`. 
+- `WEBSESSIONPROOFTIMEOUT`: maximum time to wait for the browser/web authentication to complete. Example: `1s`.
+  > When using the Radius EAP mode, this can be set to a value that allows the user to perform a new OAuth2 authentication plus additional 2FA, for example `90s`.
+  > When using the Strongswan `ext-auth` module, Strongswan blocks until this step is completed, preventing other users from authenticating in parallel. In that case the value should be very low (`1s` for example), in order to allow transparent VPN reconnections for users still having a valid web session, while not blocking Strongswan for too long when a user has to go through a full OAuth2+2FA round. Users having to go through a full web authentication will then get a VPN connection failure error first; when they complete their web authentication, they will be notified that they can now connect to the VPN.
 
 ## OAuth2
 - `OAUTH2PROVIDER`: the Oauth2 provider. Can be `google` or `azure`. **Mandatory**.
@@ -195,18 +199,19 @@ It is also possible to sign in from different browsers and devices by using the 
 - `ENABLERADIUSEAP`: whether to enable the mini Radius and EAP-TLS server. In that case you will also have to configure Strongswan to delegate clients authentication to it, see relevant section of this doc.
 - `RADIUSPORT`: the port to listen to for Radius messages coming from Strongswan. Defaults to `1812`.
 - `RADIUSSECRET`: the radius password/secret, that will also need to be set in Strongswan. Minimum 16 characters, >=32 recommended.
-- `EAPMODE`: the authentication mode for the VPN clients, when auth is deledated to this app (`ENABLERADIUSEAP=true`). Can be `mschapv2` (single shared passowrd) or `tls` (client certificate).
+- `EAPMODE`: the authentication mode for the VPN clients, when auth is delegated to this app (`ENABLERADIUSEAP=true`). Can be `mschapv2` (single shared passowrd) or `tls` (client certificate).
 - `EAPMSCHAPV2PASSWORD`: when `EAPMODE` is set to `mschapv2`, shared password to be used by all clients. 
   > While there is currently this restriction of using the same password for all clients, each of them still needs to provide an individual, real username that matches exactly the email address to be used for the OAuth2 web authentication.
-  > NOTE: it is recommended to use client certificates authentication instead (`EAPMODE=tls`)
+  > NOTE: it is recommended to use client certificates authentication instead (`EAPMODE=tls`).
 - `EAPTLSCERTIFICATEPATH`: full path to the VPN server certificate, that you would normally add under `/etc/ipsec.d/certs/` for Strongswan.
 - `EAPTLSKEYPATH`: full path to the VPN server private key, that you would normally add under `/etc/ipsec.d/private/` for Strongswan.
 - `EAPTLSCLIENTCAPATH`: full path to the CA certificate that is used to sign your VPN clients certificates.
 
-## VPN
-  - `ALLOWEDVPNGWIPS`: only allow connections from the specified IPs or CIDRs to the Radius and the `ext-auth` check endpoints. Optional. Example: `10.0.0.0/24,10.0.1.0/24,10.99.1.2`
-  - `VPNCHECKPASSWORD`: shared password between the app and the Strongswan `ext-auth` script to protect the endpoint checking for valid user "sessions". Optional.
+## Strongswan `ext-auth` module
+- `VPNCHECKPASSWORD`: shared password between the app and the Strongswan `ext-auth` script to protect the endpoint checking for valid user "sessions". Optional.
     > If the `/vpn/check` endpoint is publicly available, it is a good idea to set a password to ensure that only your VPN server is allowed to query the app for user sessions. Make sure you also set it in your `ext-auth` configuration.
+
+## VPN
   - `VPNSESSIONVALIDITY`: how long to allow (re)connections to the VPN after completing the web authentication. During this interval the web authentication status is not reverified. Default: `30m`. Specify custom value as a number and a time unit, for example `1h30m`.
     > This option aims at reducing the burden put on the users and avoids them having to go through the web auth again if they get disconnected within the configured delay, due for example to poor network connectivity or inactivity. 
     > NOTE: subsequent VPN connections must come from the same IP address used during the web authentication.
@@ -257,3 +262,29 @@ By default, the app stops waiting for a browser "proof of session" after 600ms.
    ```
 Currently Google Chrome, Firefox and Edge support notifications and automated VPN session renewal without meeding to keep this app opened.
 Safari requires the user to keep a tab open.
+
+
+# Configuration examples
+## Using Radius + EAP-TLS (client certificates) + Postgres
+VPN-webauth:
+```
+
+```
+Strongswan:
+```
+
+```
+
+## Using Strongswan's `ext-auth` module
+VPN-webauth
+```
+
+```
+
+Strongswan:
+```
+
+```
+
+
+.

@@ -32,8 +32,8 @@ const EapTypeTLS = 13
 // [rfc3579] 4.3.3.  Dictionary Attacks: secret should be at least 16 characters
 const minRadiusSecretLength = 16
 
-// This is the maximum time a client has to complete the full authentication
-const sessionTimeout = 60 * time.Second
+// This is the maximum time a client has to complete the EAP authentication phase.
+const eapSessionTimeout = 5 * time.Second
 
 // Protect ourselves against suspicously big records
 const maxTlsRecordSize = 64 * 1024
@@ -74,6 +74,7 @@ type EapTlsFragment byte
 
 const (
 	MoreToCome          EapTlsFragment = (1 << 6)
+	LengthIncluded      EapTlsFragment = (1 << 7)
 	LengthAndMoreToCome EapTlsFragment = (1 << 7) | (1 << 6)
 	TlsStartFlag        EapTlsFragment = (1 << 5)
 )
@@ -95,7 +96,7 @@ func NewRadiusServer(config *models.Config, userManager *UserManager, webSessMan
 	}
 	sessions = *ttlcache.NewCache()
 	sessions.SetCacheSizeLimit(2000)
-	sessions.SetTTL(sessionTimeout)
+	sessions.SetTTL(eapSessionTimeout)
 	sessions.SkipTTLExtensionOnHit(true)
 	// Ensure we close the connection to the TLS handshake server when the session expires.
 	sessions.SetExpirationCallback(func(key string, value interface{}) {
@@ -592,8 +593,8 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 	// After sending the TLS ServerHello.
 	// We should now have received either an error, or the client response including the client cert.
 	if eapState.Step == TlsServerHello || eapState.Step == TlsClientKeyExchange {
-		lengthIncluded := (eap.Data[0] & (1 << 7)) != 0
-		hasMoreFragments := (eap.Data[0] & (1 << 6)) != 0
+		lengthIncluded := (eap.Data[0] & byte(LengthIncluded)) != 0
+		hasMoreFragments := (eap.Data[0] & byte(MoreToCome)) != 0
 
 		if lengthIncluded && eapState.Step == TlsClientKeyExchange {
 			return radiusError("[EAP-TLS] client wants to send a new TLS record while we are already waiting for one", sessionId, npac)
@@ -628,7 +629,7 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 		eapState.BufferPos += copied
 		session.EapTlsState = eapState
 
-		hasMoreFragments := (eap.Data[0] & (1 << 6)) != 0
+		hasMoreFragments := (eap.Data[0] & byte(MoreToCome)) != 0
 		if hasMoreFragments {
 			if eapState.BufferPos >= len(eapState.TlsBuffer) {
 				return radiusError("[EAP-TLS] client wants to send more TLS data than announced, rejecting", sessionId, npac)
@@ -699,7 +700,7 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 		log.Debugf("[EAP-TLS] sending TLS finished, %d bytes", read)
 		eapState.Step = TlsAuthentication
 		session.EapTlsState = eapState
-		sessions.SetWithTTL(sessionId, session, sessionTimeout)
+		sessions.SetWithTTL(sessionId, session, eapSessionTimeout)
 
 	} else if eapState.Step == TlsAuthentication {
 		acceptRejectPacket := radius.EapPacket{
