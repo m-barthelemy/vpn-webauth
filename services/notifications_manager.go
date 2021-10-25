@@ -92,7 +92,7 @@ func (n *NotificationsManager) NotifyUser(user *models.User, sourceIP string) (b
 		notified = true
 	}
 	if deletedCount > 0 {
-		log.Infof("NotificationsManager: deleted %d inactive push subscriptions for %s", deletedCount, user.Email)
+		log.Infof("NotificationsManager: deleted %d inactive web push subscriptions for %s", deletedCount, user.Email)
 	}
 
 	// Also send to clients using SSE fallback
@@ -130,23 +130,24 @@ func (n *NotificationsManager) WaitForBrowserProof(user *models.User, sourceIP s
 	// Background task that we can kill it after some time to avoid Strongswan hanging for too long
 	go func() {
 		if err := eventBus.Subscribe(fmt.Sprintf("%s:%s", user.Email, sourceIP), checkWebSessions); err != nil {
-			log.Errorf("unable to subscribe to browser event bus: %s", err)
+			log.Errorf("NotificationsManager: unable to subscribe to browser event bus: %s", err)
 		}
 		eventBus.WaitAsync()
 	}()
+
 	select {
 	case res := <-channel:
 		hasValidBrowserSession = res
 		if hasValidBrowserSession {
 			break
 		} // otherwise there can still be a browser having a valid session that has not yet replied.
-	// Wait for a short interval to not clog the VPN server that waiting for a reply in blocking mode
+	// Wait for a short interval to not clog the VPN server that might be waiting for a reply in blocking mode
 	case <-time.After(n.config.WebSessionProofTimeout):
 		log.Errorf("NotificationsManager: no active web session replied on time for user %s", user.Email)
 	}
 	close(channel)
 	if err := eventBus.Unsubscribe(fmt.Sprintf("%s:%s", user.Email, sourceIP), checkWebSessions); err != nil {
-		log.Errorf("unable to unsubscribe from browser event bus: %s", err)
+		log.Errorf("NotificationsManager: unable to unsubscribe from browser event bus: %s", err)
 	}
 
 	return hasValidBrowserSession

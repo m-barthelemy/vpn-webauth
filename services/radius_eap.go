@@ -168,12 +168,12 @@ func (r *RadiusService) RadiusHandle(request *radius.Packet) *radius.Packet {
 		return radiusError("[RADIUS] Username is required but got empty/null value", "", npac)
 	}
 
-	clientIP := net.ParseIP(request.GetCallingStationId())
+	/*clientIP := net.ParseIP(request.Ge())
 	if clientIP == nil {
 		msg := "[RADIUS] attribute %s value '%s' is not a valid IP address."
 		msg += "If using Strongswan, make sure you set `station_id_with_port = no` under the `eap-radius` config section."
 		return radiusError(fmt.Sprintf(msg, radius.CallingStationId.String(), request.GetCallingStationId()), "", npac)
-	}
+	}*/
 	log := utils.ConfigureLogger(userName, request.GetCallingStationId())
 
 	switch request.Code {
@@ -409,7 +409,7 @@ func (r *RadiusService) handleMSCHAPv2(eap *radius.EapPacket, request *radius.Pa
 			Code:       radius.EapCodeFailure,
 			Data:       []byte{0},
 		}
-		if r.checkWebSession(request.GetUsername(), request.GetCallingStationId()) {
+		if r.checkWebSession(request.GetUsername(), request.GetCallingStationId(), string(request.GetNasIpAddress())) {
 			statusPacket.Code = radius.EapCodeSuccess
 			npac.Code = radius.AccessAccept
 		}
@@ -714,7 +714,7 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 			log.Errorf("[EAP-TLS] client rejected")
 		} else {
 			log.Info("[EAP-TLS] client accepted")
-			if r.checkWebSession(request.GetUsername(), request.GetCallingStationId()) {
+			if r.checkWebSession(request.GetUsername(), request.GetCallingStationId(), string(request.GetNasIpAddress())) {
 				npac.Code = radius.AccessAccept
 				acceptRejectPacket.Code = radius.EapCodeSuccess
 			}
@@ -731,9 +731,9 @@ func (r *RadiusService) handleTLS(eap *radius.EapPacket, request *radius.Packet)
 	return npac
 }
 
-func (r *RadiusService) checkWebSession(identity string, sourceIP string) bool {
+func (r *RadiusService) checkWebSession(identity string, sourceIP string, nasIP string) bool {
 	log := utils.ConfigureLogger(identity, sourceIP)
-	err := r.webSessManager.CheckSession(identity, sourceIP)
+	err := r.webSessManager.CheckSession(identity, sourceIP, nasIP)
 	if err != nil {
 		log.Errorf("unable to authenticate client via web: %s", err)
 		return false

@@ -138,7 +138,7 @@ func (u *UserController) RefreshAuth(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	log.Printf("UserController: user %s browser sent proof of valid web session, notifying VPNController", email)
+	log.Debugf("UserController: user %s browser sent proof of valid web session, notifying VPNController", email)
 	u.notificationsManager.PublishBrowserProof(email, sourceIP, nonce.Nonce)
 }
 

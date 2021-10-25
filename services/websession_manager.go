@@ -25,7 +25,7 @@ func NewWebSessionManager(db *gorm.DB, config *models.Config, notificationsManag
 	}
 }
 
-func (s *WebSessionManager) CheckSession(identity string, sourceIP string) error {
+func (s *WebSessionManager) CheckSession(identity string, sourceIP string, nasIP string) error {
 	if identity == "" || sourceIP == "" {
 		return errors.New("both identity and sourceIP must be set")
 	}
@@ -51,11 +51,10 @@ func (s *WebSessionManager) CheckSession(identity string, sourceIP string) error
 	}
 
 	vpnConnection := models.VPNConnection{
-		Allowed:  allowed,
-		Identity: identity,
-		SourceIP: sourceIP,
-		// TODO: restablish
-		//VPNSourceIP: s.utils.GetClientIP(r),
+		Allowed:     allowed,
+		Identity:    identity,
+		SourceIP:    sourceIP,
+		VPNSourceIP: nasIP,
 	}
 
 	vpnConnection.UserID = &user.ID

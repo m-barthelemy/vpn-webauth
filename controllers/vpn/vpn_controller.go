@@ -42,7 +42,7 @@ type VpnConnectionRequest struct {
 
 func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	if allowed := v.isNasAllowed(r); !allowed {
-		log.Error("VpnController source IP is not in ALLOWEDVPNGWIPS list")
+		log.Error("VpnController: source IP is not in ALLOWEDVPNGWIPS list")
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
@@ -63,7 +63,7 @@ func (v *VpnController) CheckSession(w http.ResponseWriter, r *http.Request) {
 	log := utils.ConfigureLogger(connRequest.Identity, connRequest.SourceIP)
 
 	log.Debugf("VpnController: verifying user web session")
-	err = v.webSessManager.CheckSession(connRequest.Identity, connRequest.SourceIP)
+	err = v.webSessManager.CheckSession(connRequest.Identity, connRequest.SourceIP, r.RemoteAddr)
 	if err != nil {
 		log.Errorf("VpnController: unable to authenticate client via web: %s", err)
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
