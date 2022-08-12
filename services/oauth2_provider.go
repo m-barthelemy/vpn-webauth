@@ -134,7 +134,7 @@ type GenericProvider struct {
 	userInfoUrl  string
 }
 
-func NewGenericProvider(redirectDomain string, authorizeUrl string, tokenUrl url, userInfoUrl string, clientID string, clientSecret string) *MicrosoftProvider {
+func NewGenericProvider(redirectDomain string, tokenUrl string, authorizeUrl string, userInfoUrl string, clientID string, clientSecret string) *GenericProvider {
 	p := GenericProvider{}
 	p.oAuthConfig = &oauth2.Config{
 		RedirectURL:  fmt.Sprintf("%s/auth/generic/callback", redirectDomain),
@@ -148,10 +148,10 @@ func NewGenericProvider(redirectDomain string, authorizeUrl string, tokenUrl url
 }
 
 func (p *GenericProvider) GetURL(state string) string {
-	return fmt.Sprintf("%s?response_type=code&client_id=%s&redirect_uri=%s&scope=openid+email&state=%s", authorizeUrl, p.oAuthConfig.ClientID, url.QueryEscape(p.oAuthConfig.RedirectURL), state),
+	return fmt.Sprintf("%s?response_type=code&client_id=%s&redirect_uri=%s&scope=openid+email&state=%s", p.authorizeUrl, p.oAuthConfig.ClientID, url.QueryEscape(p.oAuthConfig.RedirectURL), state)
 }
 
-func (p *MicrosoftProvider) GetUserInfo(code string) (OAuth2User, error) {
+func (p *GenericProvider) GetUserInfo(code string) (OAuth2User, error) {
 	var token OAuth2Token
 	var user OAuth2User
 
@@ -164,7 +164,7 @@ func (p *MicrosoftProvider) GetUserInfo(code string) (OAuth2User, error) {
 	
 	client := http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest(http.MethodPost, p.tokenUrl, strings.NewReader(data.Encode())) // URL-encoded payload
-	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	response, err := client.Do(req)
 	if err != nil {
 		return user, fmt.Errorf("OAuth2Controller: failed to get token: %s", err.Error())
