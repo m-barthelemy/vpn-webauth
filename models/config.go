@@ -28,6 +28,9 @@ type Config struct {
 	OAuth2ClientSecret     string        // OAUTH2CLIENTSECRET
 	OAuth2Provider         string        // OAUTH2PROVIDER
 	OAuth2Tenant           string        // OAUTH2TENANT
+	OAuth2TokenURL         string        // OAUTH2TOKENURL
+	OAuth2AuthorizeURL     string        // OAUTH2AUTHORIZEURL
+	OAuth2InfoURL          string        // OAUTH2INFOURL
 	EnableNotifications    bool          // ENABLENOTIFICATIONS
 	EnforceMFA             bool          // ENFORCEMFA
 	MaxBodySize            int64         // not documented
@@ -91,17 +94,26 @@ func (config *Config) New() Config {
 func (config *Config) Verify() {
 	log.Printf("VPN Session validity set to %v", config.VPNSessionValidity)
 	log.Printf("Web Session validity set to %v", config.WebSessionValidity)
-	log.Printf("Google callback redirect set to %s", config.RedirectDomain)
+	log.Printf("Callback redirect set to %s", config.RedirectDomain)
 	if config.OAuth2Provider == "" {
-		log.Fatal("OAUTH2PROVIDER is not set, must be either google or azure")
+		log.Fatal("OAUTH2PROVIDER is not set, must be either google, azure, or generic")
 	} else {
 		config.OAuth2Provider = strings.ToLower(config.OAuth2Provider)
-		if config.OAuth2Provider != "google" && config.OAuth2Provider != "azure" {
-			log.Fatal("OAUTH2PROVIDER is invalid, must be either google or azure")
+		if config.OAuth2Provider != "google" && config.OAuth2Provider != "azure" && config.OAuth2Provider != "generic" {
+			log.Fatal("OAUTH2PROVIDER is invalid, must be either google, azure, or generic")
 		}
 	}
 	if config.OAuth2Provider == "azure" && config.OAuth2Tenant == "" {
 		log.Fatal("Microsoft/Azure OAuth2 provider requires OAUTH2TENANT to be set")
+	}
+	if config.OAuth2Provider == "generic" && config.OAuth2TokenURL == "" {
+		log.Fatal("Generic OAuth2 provider requires OAUTH2TOKENURL to be set")
+	}
+	if config.OAuth2Provider == "generic" && config.OAuth2AuthorizeURL == "" {
+		log.Fatal("Generic OAuth2 provider requires OAUTH2AUTHORIZEURL to be set")
+	}
+	if config.OAuth2Provider == "generic" && config.OAuth2InfoURL == "" {
+		log.Fatal("Generic OAuth2 provider requires OAUTH2INFOURL to be set")
 	}
 	if config.OAuth2ClientID == "" {
 		log.Fatal("OAUTH2CLIENTID is not set")
