@@ -17,7 +17,7 @@ import(
 type OAuth2User struct {
 	Id            string `json:"sub"`
 	Email         string `json:"email"`
-	EmailVerified string `json:"email_verified"`
+	EmailVerified bool   `json:"email_verified"`
 }
 
 type OAuth2Token struct {
@@ -157,7 +157,7 @@ func (p *GenericProvider) GetUserInfo(code string) (OAuth2User, error) {
 
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
-	data.Set("redirect_uri", url.QueryEscape(p.oAuthConfig.RedirectURL))
+	data.Set("redirect_uri", p.oAuthConfig.RedirectURL)
 	data.Set("code", code)
 	data.Set("client_id", p.oAuthConfig.ClientID)
 	data.Set("client_secret", p.oAuthConfig.ClientSecret)
@@ -174,7 +174,6 @@ func (p *GenericProvider) GetUserInfo(code string) (OAuth2User, error) {
 	if err != nil {
 		return user, fmt.Errorf("OAuth2Controller: failed to read token response: %s", err.Error())
 	}
-	
 	err = json.Unmarshal(contents, &token)
 	
 	client = http.Client{Timeout: 10 * time.Second}
@@ -189,7 +188,7 @@ func (p *GenericProvider) GetUserInfo(code string) (OAuth2User, error) {
 	if err != nil {
 		return user, fmt.Errorf("OAuth2Controller: failed to read userinfo response: %s", err.Error())
 	}
-
 	err = json.Unmarshal(contents, &user)
+	
 	return user, err
 }
