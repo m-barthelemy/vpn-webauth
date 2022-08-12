@@ -1,0 +1,40 @@
+version: '3.7'
+
+services:
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_PASSWORD: password
+    restart: unless-stopped
+    volumes:
+      - datavolume:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  app:
+    build: .
+    ports:
+      - 8080:8080
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      HOST: "0.0.0.0"
+      ENFORCEMFA: "true"
+      ENCRYPTIONKEY: "changeme"
+      DBTYPE: "postgres"
+      DBDSN: "host=db user=postgres password=password database=postgres port=5432"
+      ENFORCEMFA: "true"
+      VPNCHECKPASSWORD: "changeme"
+      OAUTH2PROVIDER: "changeme"
+      OAUTH2CLIENTID: "changeme"
+      OAUTH2CLIENTSECRET: "changeme"
+      REDIRECTDOMAIN: "https://vpn.mycompany.com"
+      ADMINEMAIL: "no-reply@mycompany.com"
+      VAPIDPUBLICKEY: "changeme"
+      VAPIDPRIVATEKEY: "changeme"
+    restart: unless-stopped
+volumes:
+  datavolume:
