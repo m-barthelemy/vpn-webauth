@@ -558,5 +558,27 @@ $(document).ready(async function(){
             $(this).val("");
         }
     }).change();
+    
+    $('#otp-button').click(async function() {
+      const dataLength = $('#otp').val().length;
+      if(dataLength > 0) {
+          $("#error").hide();
+      }
+      if (dataLength == 6) {
+          await validateOneTimePass(false, $('#otp').val());
+          $('#otp').val("");
+      }
+    });
+    
+    $('#otc-button').click(async function() {
+      const dataLength = $('#otc').val().length;
+      if(dataLength > 0) {
+          $("#error").hide();
+      }
+      if (dataLength == 6) {
+          await validateOneTimePass(true, $('#otc').val());
+          $('#otc').val("");
+      }
+    });
 
 });
