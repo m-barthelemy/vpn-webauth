@@ -559,7 +559,7 @@ $(document).ready(async function(){
         }
     }).change();
     
-    $('#otp-button').click(async function() {
+    $('#otp-button').on('touchstart click', async function() {
       const dataLength = $('#otp').val().length;
       if(dataLength > 0) {
           $("#error").hide();
@@ -570,7 +570,7 @@ $(document).ready(async function(){
       }
     });
     
-    $('#otc-button').click(async function() {
+    $('#otc-button').on('touchstart click', async function() {
       const dataLength = $('#otc').val().length;
       if(dataLength > 0) {
           $("#error").hide();
