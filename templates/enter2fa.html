@@ -75,7 +75,7 @@
     </center>
 
 </main>
-<script type="text/javascript">
+<script nonce="{{.NonceCode}}">
   const otpHandler = async function() {
     const dataLength = $('#otp').val().length;
     if(dataLength > 0) {
@@ -89,7 +89,7 @@
     }
   }
   
-  $('#otp-button').on('click', otpHandler);
+  document.getElementById('otp-button').addEventListener('click', otpHandler);
   
   document.getElementById('otp-button').addEventListener('touchstart', otpHandler);
 </script>

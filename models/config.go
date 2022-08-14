@@ -53,6 +53,7 @@ type Config struct {
 	VPNSessionValidity     time.Duration // VPNSESSIONVALIDITY
 	WebSessionValidity     time.Duration // WEBSESSIONVALIDITY
 	WebSessionProofTimeout time.Duration // WEBSESSIONPROOFTIMEOUT
+	NonceCode              string
 }
 
 func (config *Config) New() Config {
