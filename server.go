@@ -107,7 +107,18 @@ type topHandler struct {
 
 func (h *topHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	header := w.Header()
-	csp := []string{"style-src: 'self' 'unsafe-inline'", "script-src: 'self' 'unsafe-inline'"}
+	csp := []string{
+		"default-src 'self'",
+		"object-src 'none'",
+		"media-src 'none'",
+		"connect-src 'self'",
+		"font-src https://fonts.gstatic.com 'self'",
+		"child-src 'self'",
+		"style-src 'self' 'sha384-Tn+eHgvLDlHfZ/Bd0HmrFRKnaocbJJECUsEAjjg2gey5liDBv1trMEyh2l7XC2C+' 'sha384-1ji7hb9jc+M2e4aPgCIK93lON9Hxx38Vo/3oNk9vrJsU8JbrdFdLs+VmVE1YNiuM' 'sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN' 'sha384-YzFrpTZultPbM+R+lmHjVtHhJR5p6ke81qSWnPtxFRQCyeOeHAEfJ3ahK1W716+L'",
+		"img-src 'self' " + h.config.LogoURL.String(),
+		"script-src 'self' 'sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2' 'sha384-jnt1QI5LA9Z8CEqFV7YvpkT/kvVzzSDZbit0VjFaNiz/XtzoN8OA7z/RI/cbzs95' 'sha384-6Lv63lIkYGuslSt2g+9eZjV3aRZ6a2gV4JF/AX2MB7JJo/jwTr/x7u3rbn/vMQGY'",
+		"form-action 'self'",
+	}
 	header.Set("Content-Security-Policy", strings.Join(csp, "; "))
 	
 	// Refuse request with big body
