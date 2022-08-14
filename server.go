@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"strings"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"golang.org/x/crypto/acme/autocert"
@@ -105,6 +106,10 @@ type topHandler struct {
 }
 
 func (h *topHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	header := w.Header()
+	csp := []string{"style-src: 'self' 'unsafe-inline'", "script-src: 'self' 'unsafe-inline'"}
+	header.Set("Content-Security-Policy", strings.Join(csp, "; "))
+	
 	// Refuse request with big body
 	r.Body = http.MaxBytesReader(w, r.Body, h.config.MaxBodySize)
 
