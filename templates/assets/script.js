@@ -558,4 +558,39 @@ $(document).ready(async function(){
             $(this).val("");
         }
     }).change();
+    
+    const otpHandler = async function() {
+      const dataLength = $('#otp').val().length;
+      if(dataLength > 0) {
+          $("#error").hide();
+      }
+      if (dataLength == 6) {
+          await validateOneTimePass(false, $('#otp').val());
+          $('#otp').val("");
+      } else {
+        $("#error").show();
+      }
+    }
+    
+    const otcHander = async function() {
+      const dataLength = $('#otc').val().length;
+      if(dataLength > 0) {
+        $("#error").hide();
+      }
+      if (dataLength == 6) {
+          await validateOneTimePass(true, $('#otc').val());
+          $('#otc').val("");
+      } else {
+        $("#error").show();
+      }
+    }
+    
+    if(document.getElementById('otp-button')) {
+      $('#otp-button').on('click', otpHandler);
+      document.getElementById('otp-button').addEventListener('touchstart', otpHandler);
+    }
+    if(document.getElementById('otc-button')) {
+      $('#otc-button').on('click', otcHander);
+      document.getElementById('otc-button').addEventListener('touchstart', otcHander);
+    }
 });
