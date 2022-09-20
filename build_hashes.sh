@@ -8,6 +8,7 @@ MATERIALIZE_JS="sha384-$(cat templates/assets/materialize.min-0.97.5.js | openss
 MATERIALIZE_CSS="sha384-$(cat templates/assets/materialize-0.97.5.min.css | openssl dgst -sha384 -binary | openssl base64 -A)"
 SCRIPT="sha384-$(cat templates/assets/script.js | openssl dgst -sha384 -binary | openssl base64 -A)"
 
+sed -i "s@.*<meta.*@<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self'; object-src 'none'; media-src 'none'; connect-src 'self'; font-src https://fonts.gstatic.com 'self'; child-src 'self'; style-src 'self' '$CSS' '$FONT_AWESOME' '$MATERIALIZE_CSS' '$MATERIAL'; img-src 'self' {{.LogoURL}}; script-src 'self' '$JQUERY' '$MATERIALIZE_JS' '$SCRIPT'; form-action 'self'\">@g" templates/header.html
 sed -i "s@.*material-icons.css.*@<link href=\"/assets/material-icons.css\" rel=\"stylesheet\" integrity=\"$MATERIAL\">@g" templates/header.html
 sed -i "s@.*materialize-0.97.5.min.css.*@<link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/materialize-0.97.5.min.css\" integrity=\"$MATERIALIZE_CSS\">@g" templates/header.html
 sed -i "s@.*font-awesome.min-4.7.0.css.*@<link rel=\"stylesheet\" type=\"text/css\" href=\"/assets/font-awesome.min-4.7.0.css\" integrity=\"$FONT_AWESOME\">@g" templates/header.html
