@@ -32,6 +32,9 @@ func New(db *gorm.DB, config *models.Config) *OAuth2Controller {
 		
 	} else if config.OAuth2Provider == "azure" {
 		oAuthProvider = services.NewMicrosoftProvider(config.RedirectDomain.String(), "", config.OAuth2ClientID, config.OAuth2ClientSecret)
+		
+	} else if config.OAuth2Provider == "generic" {
+		oAuthProvider = services.NewGenericProvider(config.RedirectDomain.String(), config.OAuth2TokenURL, config.OAuth2AuthorizeURL, config.OAuth2InfoURL, config.OAuth2ClientID, config.OAuth2ClientSecret)
 	}
 
 	return &OAuth2Controller{db: db, config: config}

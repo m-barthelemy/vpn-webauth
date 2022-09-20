@@ -1,39 +1,42 @@
 {{ define "index" }}
 <html>
-{{ template "header" . }}
-<body>
-<div class="section"></div>
-<main>
-    <center>
+  {{ template "header" . }}
+  <body>
+    <div class="section"></div>
+    <main>
+      <center>
         <div class="section"></div>
         <div class="container">
-            <div class="z-depth-1 grey lighten-4 row main-container ">
-                <img src="{{.LogoURL}}" class="logo"/>
-                <br/><br/>
-                <h2>Log in to <span name="data-connection-name"></span></h2>
-                <br/>
-                <div class="row">
-                    <div>
-                        <a class="btn col s12 waves-effect blue-grey anchor-btn" href="/auth/{{.OAuth2Provider}}/login">
-                            <div class="icon">
-                                {{ if eq .OAuth2Provider "google" }}
-                                <i class="fa fa-google fa-2x"></i>
-                                {{ else if eq .OAuth2Provider "azure" }}
-                                <i class="fa fa-windows fa-2x"></i>
-                                {{ end }}
-                                &nbsp;Login with {{.OAuth2Provider}}
-                            </div>
-                        </a>
-                    </div>
-                </div>
-                <br/>
-                <p></p>
+          <div class="z-depth-1 grey lighten-4 row main-container">
+            <img src="{{.LogoURL}}" class="logo" />
+            <br /><br />
+            <h2>Log in to <span name="data-connection-name"></span></h2>
+            <br />
+            <div class="row">
+              <div>
+                <a
+                  class="btn col s12 waves-effect blue-grey anchor-btn"
+                  href="/auth/{{.OAuth2Provider}}/login"
+                >
+                  <div class="icon">
+                    {{ if eq .OAuth2Provider "google" }}
+                    <i class="fa fa-google fa-2x"></i>
+                    {{ else if eq .OAuth2Provider "azure" }}
+                    <i class="fa fa-windows fa-2x"></i>
+                    {{ else if eq .OAuth2Provider "generic" }}
+                    <i class="fa fa-lock fa-2x"></i>
+                    {{ end }} &nbsp;Login with {{.OAuth2Provider}}
+                  </div>
+                </a>
+              </div>
             </div>
+            <br />
+            <p></p>
+          </div>
         </div>
-    </center>
-    <div class="section"></div>
-</main>
-</body>
-
+      </center>
+      <div class="section"></div>
+    </main>
+  </body>
 </html>
 {{ end }}

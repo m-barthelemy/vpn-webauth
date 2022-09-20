@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"math/rand"
+	"fmt"
 
 	"github.com/m-barthelemy/vpn-webauth/models"
 	"github.com/markbates/pkger"
@@ -19,6 +21,16 @@ type TemplateHandler struct {
 var config models.Config
 var templates *template.Template
 var assets map[string]string
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func RandStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
 
 func NewTemplateHandler(config *models.Config) *TemplateHandler {
 	assets = make(map[string]string)
@@ -36,6 +48,8 @@ func (g *TemplateHandler) HandleEmbeddedTemplate(response http.ResponseWriter, r
 		fileName = "index"
 	}
 
+	g.config.NonceCode = RandStringBytes(32)
+	fmt.Println(g.config.NonceCode)
 	err := templates.ExecuteTemplate(response, fileName, g.config)
 	if err != nil {
 		log.Printf("Error serving template %s: %s", fileName, err.Error())
