@@ -6,7 +6,6 @@ require (
 	github.com/SherClockHolmes/webpush-go v1.1.2
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/bombsimon/wsl v1.2.8 // indirect
-	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/cloudflare/cfssl v1.4.1 // indirect
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.17+incompatible // indirect
@@ -27,15 +26,13 @@ require (
 	github.com/gostaticanalysis/analysisutil v0.0.3 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.1.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.12.1 // indirect
-	github.com/json-iterator/go v1.1.8 // indirect
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/markbates/pkger v0.17.1
 	github.com/mattn/go-runewidth v0.0.6 // indirect
 	github.com/olekukonko/tablewriter v0.0.2 // indirect
 	github.com/pelletier/go-toml v1.6.0 // indirect
 	github.com/pquerna/otp v1.2.0
-	github.com/prometheus/client_golang v1.2.1 // indirect
-	github.com/prometheus/procfs v0.0.7 // indirect
+	github.com/prometheus/client_golang v1.11.1 // indirect
 	github.com/securego/gosec v0.0.0-20200401082031-e946c8c39989 // indirect
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -48,12 +45,10 @@ require (
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
 	golang.org/x/tools v0.0.0-20201120032337-6d151481565c // indirect
 	google.golang.org/grpc/examples v0.0.0-20201117005946-20636e76a99a // indirect
-	gopkg.in/yaml.v2 v2.3.0 // indirect
 	gorm.io/driver/mysql v1.0.3
 	gorm.io/driver/postgres v1.0.5
 	gorm.io/driver/sqlite v1.1.3
 	gorm.io/gorm v1.20.6
-	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab // indirect
 	mvdan.cc/unparam v0.0.0-20191111180625-960b1ec0f2c2 // indirect
 	sigs.k8s.io/yaml v1.1.0 // indirect
 	sourcegraph.com/sqs/pbtypes v1.0.0 // indirect
