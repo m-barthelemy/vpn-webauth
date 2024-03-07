@@ -1,4 +1,4 @@
-FROM golang:alpine AS builder
+FROM golang:1.19-alpine AS builder
 WORKDIR /src
 
 ENV USER=vpn-webauth
